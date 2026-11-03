@@ -90,9 +90,12 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
              Iro AI app on his phone and starts his first lesson.
           4. THE BET: the doubter raises the stakes; the hero answers with a time-bound
              challenge (for example "give me 30 days").
-          5. GRIND + COUNTER: 3-4 shots with a floating on-screen counter that climbs: streak
-             days and AI rank (Bronze -> Silver -> Gold -> Diamond). Show at least one failure
-             before the progress. Put the current counter value in each image_prompt.
+          5. GRIND + COUNTER: 3-4 shots with a floating on-screen counter that climbs. The
+             counter is streak days and AI rank (Bronze -> Silver -> Gold -> Diamond), or money
+             (monthly revenue, clients signed), or both. Show at least one failure before the
+             progress. Put the current counter value in each image_prompt. As the hero levels
+             up, the work setting upgrades shot by shot: dark apartment -> modern office ->
+             rooftop at sunset -> luxury villa.
           6. OVERSHOOT WIN: the result smashes the goal (for example a promotion plus a salary
              number far above what anyone expected).
           7. FLEX: luxury car, a nice city or beach setting, warm golden light.
@@ -107,6 +110,10 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
         - Win scenes (beats 6-9): sunsets, beaches, parties, warm golden light.
         - Name a real AI tool (Claude or ChatGPT) at least once, usually in the rival's or the
           boss's line (for example the rival bragging that he "just lets ChatGPT do it").
+        - Whenever the hero uses AI, show it cinematically: glowing holographic screens and
+          dashboards floating around him, multiple monitors, phone notifications stacking up
+          ("payment received", "new client"). After the mentor beat, never show a plain laptop
+          on a desk.
 
         SHOT FIELDS
         - "image_prompt" must begin with this exact style line, then a comma, then the scene:
