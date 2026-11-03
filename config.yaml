@@ -1,0 +1,20 @@
+# VidGen configuration
+
+# Prepended word-for-word to every image_prompt in the script.
+style: "3D animated feature film style, soft cinematic lighting, warm saturated colors, vertical 9:16"
+
+# ElevenLabs voice id used for narration by default.
+voice_id: "21m00Tcm4TlvDq8ikWAM"
+
+# Background music mixed under the final cut.
+music_path: "assets/music.mp3"
+
+# Short clip appended after the last shot.
+outro_path: "assets/outro.mp4"
+
+# Upper bound on shots marked animate: true. Everything else stays a still.
+max_animated_shots: 8
+
+script:
+  model: "claude-sonnet-5-5"
+  max_tokens: 16000

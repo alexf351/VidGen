@@ -1,0 +1,5 @@
+anthropic>=2.4,<3
+python-dotenv>=1.0
+PyYAML>=6.0
+# Later steps (images/video/voice/assemble) will add their own deps here,
+# e.g. fal-client, elevenlabs, and an ffmpeg wrapper.
