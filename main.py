@@ -4,7 +4,7 @@
 Commands:
   python main.py new "<premise>"            create a run and execute every step in order
   python main.py step <run_id> <step_name>  re-run a single step on an existing run
-      ... images --only 3,7                 regenerate only those shots (images or video)
+      ... images --only 3,7                 regenerate only those shots (images, video, voice)
   python main.py reroll <run_id> <shot_n>   regenerate one shot's image + video
   python main.py recast <run_id>            sync script.json with config's locked characters
 """
@@ -24,7 +24,7 @@ def _step_module(name: str):
     return importlib.import_module(f"steps.{name}")
 
 
-STEPS_WITH_ONLY = {"images", "video"}
+STEPS_WITH_ONLY = {"images", "video", "voice"}
 
 
 def run_step(name: str, run_dir, config, only: str | None = None) -> None:
@@ -79,7 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_step.add_argument("run_id")
     p_step.add_argument("step_name", choices=STEP_ORDER)
     p_step.add_argument("--only", metavar="N,N", default=None,
-                        help="comma-separated shot numbers to (re)generate; images and video only")
+                        help="comma-separated shot numbers to (re)generate; images, video and voice only")
     p_step.set_defaults(func=cmd_step)
 
     p_reroll = sub.add_parser("reroll", help="regenerate one shot's image and video")

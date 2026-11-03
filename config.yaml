@@ -3,14 +3,43 @@
 # Prepended word-for-word to every image_prompt in the script.
 style: "3D animated feature film style, soft cinematic lighting, warm saturated colors, vertical 9:16"
 
-# ElevenLabs voice id used for narration by default.
+# ElevenLabs voice id used when a speaker has no entry in `voices` below.
 voice_id: "21m00Tcm4TlvDq8ikWAM"
 
-# Background music mixed under the final cut.
-music_path: "assets/music.mp3"
+# speaker -> ElevenLabs voice id. Empty = fall back to voice_id above.
+voices:
+  narrator: ""
+  marcus: ""
+  jess: ""
+  tyler: ""
+  iro: ""
+  boss: ""
+  sofia: ""
 
-# Short clip appended after the last shot.
-outro_path: "assets/outro.mp4"
+elevenlabs:
+  model_id: "eleven_multilingual_v2"
+  output_format: "mp3_44100_128"
+  cost_per_1k_chars: 0.22        # USD per 1000 characters, for the running estimate
+
+# Background music mixed under the final cut. Empty = no music bed (add it on-platform).
+music_path: ""
+
+# Short clip appended after the last shot. Empty = none.
+outro_path: ""
+
+assemble:
+  width: 1080
+  height: 1920
+  fps: 30
+  vo_pad_seconds: 0.25          # shot length = VO length + this
+  min_shot_seconds: 1.2
+  zoom_end: 1.08                # still shots push in from 1.00 to this
+  caption_font: "Montserrat Black Italic"
+  caption_fallback_font: "Arial Black"
+  caption_size: 90
+  caption_y: 0.55               # vertical centre of the caption, fraction of height
+  music_volume: 0.15
+  saturation: 0.85
 
 # Upper bound on shots marked animate: true. Everything else stays a still.
 max_animated_shots: 8

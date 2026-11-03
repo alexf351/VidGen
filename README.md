@@ -4,8 +4,8 @@ A Python CLI that turns a one-line story premise into a finished 9:16 animated s
 Each pipeline step writes its output to `runs/<run_id>/`, so any step can be re-run on its
 own without redoing the others.
 
-**Status:** `script`, `images` and `video` are built. `voice` and `assemble` print
-`not implemented yet` and exit cleanly.
+**Status:** all five steps are built. `python main.py new "<premise>"` runs script, images,
+video, voice and assemble in order and leaves `runs/<run_id>/final.mp4`.
 
 ## Setup
 
@@ -19,8 +19,9 @@ cp .env.example .env   # then fill in the keys
 ```
 
 `.env` holds `ANTHROPIC_API_KEY`, `FAL_KEY` and `ELEVENLABS_API_KEY`. It is loaded with
-python-dotenv and ignored by git. The script step needs the Anthropic key; images and video
-need the fal key.
+python-dotenv and ignored by git. The script step needs the Anthropic key, images and video
+need the fal key, and voice needs the ElevenLabs key. Assembly needs `ffmpeg` and `ffprobe`
+on your PATH.
 
 ## Usage
 
@@ -31,7 +32,7 @@ python main.py new "A laid-off line cook opens a food truck and nobody shows up 
 # re-run a single step on an existing run
 python main.py step 20261103-201530-a-laid-off-line-cook script
 
-# regenerate only specific shots (images or video)
+# regenerate only specific shots (images, video or voice)
 python main.py step 20261103-201530-a-laid-off-line-cook images --only 3,7
 
 # regenerate one shot's image + video
@@ -57,6 +58,10 @@ runs/<run_id>/
   characters/<id>.png   reference sheet per character
   shots/<n>.png         keyframe per shot
   shots/<n>.mp4         clip, only for shots with animate: true
+  audio/<n>.mp3         voice-over per spoken shot
+  audio/<n>.json        per-word timings for that clip
+  build/                intermediate clips, captions.ass, the pre-outro mix
+  final.mp4             the finished short
 characters_cache/<id>.png   generated sheets for locked characters, reused by every run
 ```
 
@@ -80,6 +85,11 @@ characters_cache/<id>.png   generated sheets for locked characters, reused by ev
 | `fal.video_model`    | image-to-video endpoint (`bytedance/seedance-2.0/fast/image-to-video`) |
 | `fal.video_seconds` / `fal.video_resolution` / `fal.video_audio` | clip length (4), size (720p), audio (off) |
 | `fal.image_cost` / `fal.video_cost_per_second` | USD rates for the printed estimates |
+| `voices`             | speaker id to ElevenLabs voice id; empty entries fall back to `voice_id` |
+| `elevenlabs.model_id` / `output_format` / `cost_per_1k_chars` | TTS model, audio format, rate for the estimate |
+| `music_path`         | music bed under the whole cut; empty = none (add it on-platform) |
+| `outro_path`         | clip appended after the last shot; empty = none |
+| `assemble.*`         | output size and fps, shot timing, caption font and size, music volume, saturation |
 
 ## The script step
 
@@ -154,3 +164,31 @@ text-to-image. A running cost estimate is printed at the end.
 `steps/video.py` turns each `animate: true` keyframe into a 4 second, 720p, silent 9:16 clip
 at `runs/<run_id>/shots/<n>.mp4` using the shot's `motion_prompt`. It prints the estimated cost
 per shot (seconds × `fal.video_cost_per_second`) with a running total, and a total at the end.
+
+## The voice step
+
+`steps/voice.py` makes one ElevenLabs text-to-speech call per spoken shot through the
+`with-timestamps` endpoint and writes `audio/<n>.mp3` plus `audio/<n>.json`, which holds the
+clip's per-word start and end times grouped from the character alignment. The speaker is mapped
+to a voice through `voices` in config, falling back to `voice_id`. Silent shots are skipped, and
+existing clips are skipped unless named with `--only`.
+
+## The assemble step
+
+`steps/assemble.py` drives ffmpeg through subprocess and prints a clear error if ffmpeg or
+ffprobe is missing.
+
+- Each shot lasts its voice-over length plus 0.25 s, with a 1.2 s minimum.
+- Animated shots are trimmed to that length (the last frame is held if the clip is shorter).
+  Still shots get a slow push-in from 1.00 to 1.08 on the keyframe.
+- Every shot is scaled and cropped to fill 1080x1920 with no black bars, then all shots are
+  concatenated and the voice-over clips are placed at their shot start times.
+- Captions come from a generated `.ass` file and are burned in: each shot's caption appears
+  when its word is first spoken (from the timing json), or at the shot start for silent shots.
+  Bold italic white text with a soft pink-white glow, centred at 55% height, 90 px. Montserrat
+  Black Italic is used when installed, otherwise Arial Black, otherwise a substituted sans with
+  a printed warning.
+- A light grade is applied to the whole cut: saturation 0.85 and a slight cool tint.
+- A music bed is mixed under the cut only when `music_path` is set, and the outro is appended
+  only when `outro_path` is set. The result is `runs/<run_id>/final.mp4`, H.264 + AAC at 30 fps,
+  and the step ends with an estimated cost breakdown for images, video and voice.
