@@ -36,6 +36,10 @@ python main.py step 20261103-201530-a-laid-off-line-cook images --only 3,7
 
 # regenerate one shot's image + video
 python main.py reroll 20261103-201530-a-laid-off-line-cook 7
+
+# after editing locked_characters in config.yaml: update an existing run's script.json,
+# drop the stale reference sheets, and print the images --only command to regenerate
+python main.py recast 20261103-201530-a-laid-off-line-cook
 ```
 
 Every step skips shots whose output file already exists. `--only` and `reroll` override that
@@ -107,8 +111,10 @@ climbing counter (streak days and Bronze/Silver/Gold/Diamond rank, at least one 
 overshoot win, flex, the ex returns, reversal ("i'm good", Iro says "that's my boy"), and a
 closing CTA shot of the app with the caption `SEARCH IRO AI`.
 
-The hero, love interest, rival and mentor come from `locked_characters` in `config.yaml` and
-are reused by id with their descriptions copied word for word. Descriptions are physical identity
+The hero (marcus), love interest (jess), rival (tyler), mentor (iro), boss and new partner
+(sofia) come from `locked_characters` in `config.yaml` and are reused by id with their
+descriptions copied word for word. Iro's reference image is `assets/iro.png`, the gold mascot
+from the Kiro app; `assets/app_icon.png` is the app icon for the CTA shot. Descriptions are physical identity
 only; each image prompt adds a scene-fitting outfit (work clothes in setbacks, upgraded clothes in
 wins). Jess leaves Marcus for Tyler in beat 1, and the insult comes from her or Tyler, never the
 boss. Iro is always the penguin mascot.

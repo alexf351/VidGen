@@ -6,6 +6,7 @@ Commands:
   python main.py step <run_id> <step_name>  re-run a single step on an existing run
       ... images --only 3,7                 regenerate only those shots (images or video)
   python main.py reroll <run_id> <shot_n>   regenerate one shot's image + video
+  python main.py recast <run_id>            sync script.json with config's locked characters
 """
 
 from __future__ import annotations
@@ -59,6 +60,12 @@ def cmd_reroll(args, config) -> None:
     _step_module("video").reroll_shot(run_dir, config, n)
 
 
+def cmd_recast(args, config) -> None:
+    run_dir = run_dir_for(args.run_id)
+    print(f"\n=== recast ({run_dir.name}) ===")
+    importlib.import_module("recast").run(run_dir, config)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="main.py", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -79,6 +86,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_reroll.add_argument("run_id")
     p_reroll.add_argument("shot_number", type=int)
     p_reroll.set_defaults(func=cmd_reroll)
+
+    p_recast = sub.add_parser("recast", help="apply config's locked character descriptions to a run")
+    p_recast.add_argument("run_id")
+    p_recast.set_defaults(func=cmd_recast)
     return p
 
 

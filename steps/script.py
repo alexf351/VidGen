@@ -72,10 +72,13 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
         - The hero is the locked hero. The love interest / ex is the locked love interest.
           The rival / doubter is the locked rival. The mentor is ALWAYS Iro, the penguin mascot.
           Never invent a new mentor and never make Iro human.
-        - You may invent extra characters only for minor roles (a boss, the new girlfriend,
-          onlookers). Every character is clearly an adult, mid-20s or older, with an adult age
-          stated in the description. The hero is young, attractive and aspirational, never
-          tired or frumpy. Minor characters also get one locked sentence each.
+        - The boss is ALWAYS the locked boss (id "boss") and the new partner in the reversal
+          is ALWAYS the locked sofia (id "sofia"). Never invent a different boss or partner.
+        - You may invent extra characters only for background roles (onlookers, a crowd, a
+          coworker with no lines). Every character is clearly an adult, mid-20s or older, with
+          an adult age stated in the description. The hero is young, attractive and
+          aspirational, never tired or frumpy. Background characters also get one locked
+          sentence each.
 
         STORY FORMULA
         Every script follows these 10 beats, in this order. Spread them across
@@ -83,8 +86,8 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
           1. LOSS + DISS: the love interest leaves the hero FOR the rival. Show her getting
              into the rival's car or walking off with him in this beat. The hero is also
              rejected or fired. Must include a quoted direct insult ("loser" or equivalent) as a
-             vo_line spoken by the love interest or the rival. The boss NEVER insults him; if the
-             boss appears, the boss only delivers the firing.
+             vo_line spoken by the love interest or the rival. The boss NEVER insults him; the
+             boss only delivers the firing.
           2. ROCK BOTTOM: the hero alone and humiliated, others laughing at him or filming him.
           3. MENTOR: Iro appears and tells him to lock in. In this same beat the hero opens the
              Iro AI app on his phone and starts his first lesson.
@@ -100,7 +103,7 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
              number far above what anyone expected).
           7. FLEX: luxury car, a nice city or beach setting, warm golden light.
           8. EX RETURNS: the person who left sees his success and wants him back.
-          9. REVERSAL: the hero declines ("i'm good"), is with a new attractive partner, and
+          9. REVERSAL: the hero declines ("i'm good"), is with sofia, his new partner, and
              Iro approves ("that's my boy").
          10. CTA: the final shot is the Iro AI app on a phone screen, caption exactly
              "{CTA_CAPTION}".

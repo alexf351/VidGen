@@ -35,6 +35,14 @@ locked_characters:
   - id: iro
     role: mentor, the Iro AI mascot, never a human
     description: "Iro, a small round robotic penguin mascot with glossy black and gold armor, big round eyes, and a glowing orange core on its chest"
+    image_path: "assets/iro.png"
+  - id: boss
+    role: the boss, only ever delivers the firing
+    description: "a 50 year old man with slicked-back grey hair, a square jaw, light skin, and cold blue eyes"
+    image_path: ""
+  - id: sofia
+    role: new partner in the reversal
+    description: "a 25 year old woman with long glossy blonde hair, bright blue eyes, full lips, light skin, and a curvy hourglass figure"
     image_path: ""
 
 script:
