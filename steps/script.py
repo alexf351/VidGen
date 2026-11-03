@@ -60,6 +60,15 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
         into the "characters" list, and paste the description into the image_prompt of every
         shot they appear in. Never paraphrase, shorten or extend them.
         {{CAST}}
+        - The locked description is physical IDENTITY only (face, hair, skin, build). It
+          contains no clothing. In every image_prompt, write the identity word for word, then
+          add an outfit that fits the scene:
+            * Setback / office scenes: work clothes. Marcus wears a white button-down shirt
+              and a blue company lanyard.
+            * Win scenes: upgraded clothes. Fitted black tee, sunglasses, a watch, a nice
+              jacket.
+          Keep each character's outfit consistent across every shot in the same scene or
+          location; change it only when the scene changes.
         - The hero is the locked hero. The love interest / ex is the locked love interest.
           The rival / doubter is the locked rival. The mentor is ALWAYS Iro, the penguin mascot.
           Never invent a new mentor and never make Iro human.
@@ -71,10 +80,11 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
         STORY FORMULA
         Every script follows these 10 beats, in this order. Spread them across
         {SHOT_MIN}-{SHOT_MAX} shots, numbered "n" from 1 upward with no gaps.
-          1. LOSS + DISS: someone leaves or rejects the hero AND insults him (the girlfriend
-             leaves for a richer or more successful man, calls him a loser, the boss fires him,
-             parents say he will never make it). Must include a quoted insult line as a vo_line
-             spoken by that character.
+          1. LOSS + DISS: the love interest leaves the hero FOR the rival. Show her getting
+             into the rival's car or walking off with him in this beat. The hero is also
+             rejected or fired. Must include a quoted direct insult ("loser" or equivalent) as a
+             vo_line spoken by the love interest or the rival. The boss NEVER insults him; if the
+             boss appears, the boss only delivers the firing.
           2. ROCK BOTTOM: the hero alone and humiliated, others laughing at him or filming him.
           3. MENTOR: Iro appears and tells him to lock in. In this same beat the hero opens the
              Iro AI app on his phone and starts his first lesson.
@@ -101,9 +111,10 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
         SHOT FIELDS
         - "image_prompt" must begin with this exact style line, then a comma, then the scene:
           "{style}"
-          After the style line: camera framing, setting, lighting, the locked description of
-          every character in the shot, what they are doing, and the counter value when one is
-          in frame. Vertical composition. No text in the image except the counter.
+          After the style line: camera framing, setting, lighting, then for every character in
+          the shot the locked identity word for word followed by their outfit for this scene,
+          what they are doing, and the counter value when one is in frame. Vertical
+          composition. No text in the image except the counter.
         - "characters" lists the ids of every character visible in the shot (may be empty).
         - "motion_prompt" is one sentence of camera and subject motion for a 3-5 second clip.
           Keep it short even for still shots (a slow push-in or drift is fine).

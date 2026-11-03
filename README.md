@@ -91,7 +91,10 @@ overshoot win, flex, the ex returns, reversal ("i'm good", Iro says "that's my b
 closing CTA shot of the app with the caption `SEARCH IRO AI`.
 
 The hero, love interest, rival and mentor come from `locked_characters` in `config.yaml` and
-are reused by id with their descriptions copied word for word. Iro is always the penguin mascot.
+are reused by id with their descriptions copied word for word. Descriptions are physical identity
+only; each image prompt adds a scene-fitting outfit (work clothes in setbacks, upgraded clothes in
+wins). Jess leaves Marcus for Tyler in beat 1, and the insult comes from her or Tyler, never the
+boss. Iro is always the penguin mascot.
 New characters are only invented for minor roles. Setbacks are cold office light, wins are
 golden hour. A real AI tool (Claude or ChatGPT) is named at least once.
 
