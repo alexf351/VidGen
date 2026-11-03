@@ -13,17 +13,28 @@ import anthropic
 from common import StepError, read_premise, write_json
 
 SHOT_MIN, SHOT_MAX = 15, 22
+VO_WORDS_MIN, VO_WORDS_MAX = 90, 130   # total spoken words across all shots (40-55 s)
+CTA_CAPTION = "SEARCH IRO AI"          # required caption on the final shot
 SHOT_KEYS = {"n", "characters", "image_prompt", "motion_prompt", "vo_line",
              "speaker", "caption", "animate"}
 
 
 # ---------------------------------------------------------------- prompt ----
 
-def build_system_prompt(style: str, max_animated: int) -> str:
+def _cast_block(locked: list[dict]) -> str:
+    lines = []
+    for c in locked:
+        role = c.get("role", "")
+        role = f" ({role})" if role else ""
+        lines.append(f'  - id "{c["id"]}"{role}: "{c["description"]}"')
+    return "\n".join(lines) if lines else "  (none)"
+
+
+def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> str:
     return textwrap.dedent(f"""\
-        You write shot lists for short vertical (9:16) 3D-animated films. You answer with
-        ONLY a single JSON object. No prose, no markdown, no code fences, nothing before or
-        after the JSON.
+        You write shot lists for short vertical (9:16) 3D-animated films that advertise the
+        Iro AI app. You answer with ONLY a single JSON object. No prose, no markdown, no code
+        fences, nothing before or after the JSON.
 
         OUTPUT SCHEMA
         {{
@@ -44,35 +55,71 @@ def build_system_prompt(style: str, max_animated: int) -> str:
           ]
         }}
 
-        CHARACTERS
-        - Every character is clearly an adult (state an adult age range or adult role in the description).
-        - "id" is a short lowercase slug. "description" is ONE locked sentence covering face, hair,
-          build, clothing and one signature detail. That exact sentence, word for word, is pasted
-          into the image_prompt of EVERY shot the character appears in. Never paraphrase it.
+        LOCKED CAST
+        These characters are fixed. Reuse their ids and copy their descriptions WORD FOR WORD
+        into the "characters" list, and paste the description into the image_prompt of every
+        shot they appear in. Never paraphrase, shorten or extend them.
+        {{CAST}}
+        - The hero is the locked hero. The love interest / ex is the locked love interest.
+          The rival / doubter is the locked rival. The mentor is ALWAYS Iro, the penguin mascot.
+          Never invent a new mentor and never make Iro human.
+        - You may invent extra characters only for minor roles (a boss, the new girlfriend,
+          onlookers). Every character is clearly an adult, mid-20s or older, with an adult age
+          stated in the description. The hero is young, attractive and aspirational, never
+          tired or frumpy. Minor characters also get one locked sentence each.
 
-        SHOTS
-        - Produce between {SHOT_MIN} and {SHOT_MAX} shots, numbered "n" from 1 upward with no gaps.
-        - Story arc, in this order: a doubter or early setback -> a mentor appears -> a grind
-          montage with a VISIBLE counter that climbs across several shots (a number on a
-          whiteboard, a tally, a jar filling, a scoreboard, a day count) -> the win -> a payoff
-          that calls back to the opening doubt.
+        STORY FORMULA
+        Every script follows these 10 beats, in this order. Spread them across
+        {SHOT_MIN}-{SHOT_MAX} shots, numbered "n" from 1 upward with no gaps.
+          1. LOSS + DISS: someone leaves or rejects the hero AND insults him (the girlfriend
+             leaves for a richer or more successful man, calls him a loser, the boss fires him,
+             parents say he will never make it). Must include a quoted insult line as a vo_line
+             spoken by that character.
+          2. ROCK BOTTOM: the hero alone and humiliated, others laughing at him or filming him.
+          3. MENTOR: Iro appears and tells him to lock in. In this same beat the hero opens the
+             Iro AI app on his phone and starts his first lesson.
+          4. THE BET: the doubter raises the stakes; the hero answers with a time-bound
+             challenge (for example "give me 30 days").
+          5. GRIND + COUNTER: 3-4 shots with a floating on-screen counter that climbs: streak
+             days and AI rank (Bronze -> Silver -> Gold -> Diamond). Show at least one failure
+             before the progress. Put the current counter value in each image_prompt.
+          6. OVERSHOOT WIN: the result smashes the goal (for example a promotion plus a salary
+             number far above what anyone expected).
+          7. FLEX: luxury car, a nice city or beach setting, warm golden light.
+          8. EX RETURNS: the person who left sees his success and wants him back.
+          9. REVERSAL: the hero declines ("i'm good"), is with a new attractive partner, and
+             Iro approves ("that's my boy").
+         10. CTA: the final shot is the Iro AI app on a phone screen, caption exactly
+             "{CTA_CAPTION}".
+
+        TONE AND LOOK
+        - Setback scenes (beats 1-4): office, cold or dim lighting, grey and blue tones.
+        - Win scenes (beats 6-9): sunsets, beaches, parties, warm golden light.
+        - Name a real AI tool (Claude or ChatGPT) at least once, usually in the rival's or the
+          boss's line (for example the rival bragging that he "just lets ChatGPT do it").
+
+        SHOT FIELDS
         - "image_prompt" must begin with this exact style line, then a comma, then the scene:
           "{style}"
-          After the style line: camera framing, setting, lighting, the locked description sentence
-          of every character in the shot, what they are doing, and the visible counter value when
-          one is in frame. Vertical composition. No text in the image except the counter.
+          After the style line: camera framing, setting, lighting, the locked description of
+          every character in the shot, what they are doing, and the counter value when one is
+          in frame. Vertical composition. No text in the image except the counter.
         - "characters" lists the ids of every character visible in the shot (may be empty).
-        - "motion_prompt" is one sentence describing the camera and subject motion for a 3-5
-          second clip. Keep it short even for still shots (a slow push-in or drift is fine).
-        - "vo_line" is the voice-over spoken during the shot: one or two spoken sentences,
-          8-25 words, natural and punchy. "speaker" is "narrator" or a character id.
-        - "caption" is either an empty string or ONE OR TWO WORDS IN ALL CAPS that hit the beat
-          (examples: "DAY 1", "NO.", "AGAIN", "300 DOWN"). Use captions on roughly a third of shots.
-        - "animate" is true for AT MOST {max_animated} shots. Reserve it for shots where motion IS
-          the beat: vehicles moving, someone walking away, crowds, something thrown or dropped,
-          a counter climbing, a door slamming. Dialogue close-ups and establishing shots stay false.
+        - "motion_prompt" is one sentence of camera and subject motion for a 3-5 second clip.
+          Keep it short even for still shots (a slow push-in or drift is fine).
+        - "vo_line" is what is spoken during the shot, or "" for silent shots. Most shots are
+          3-8 words. Many beats work with a single caption word and no narration. The TOTAL
+          word count of all vo_lines across the script must be {VO_WORDS_MIN}-{VO_WORDS_MAX}
+          words (a 40-55 second video). Count before you answer.
+        - "speaker" is "narrator" or a character id (use "narrator" on silent shots).
+        - "caption" is "" or ONE OR TWO WORDS IN ALL CAPS that hit the beat ("LOSER", "DAY 1",
+          "DIAMOND", "I'M GOOD"). The only three-word caption allowed is "{CTA_CAPTION}" on the
+          last shot.
+        - "animate" is true for AT MOST {max_animated} shots. Reserve it for shots where motion
+          IS the beat: a car pulling away, someone walking out, a crowd, a thrown phone, the
+          counter climbing, a door slamming. Dialogue close-ups and establishing shots stay false.
 
-        Return only the JSON object.""")
+        Return only the JSON object.""").replace("{CAST}", _cast_block(locked))
 
 
 def build_user_prompt(premise: str) -> str:
@@ -149,12 +196,15 @@ def _is_str(v) -> bool:
     return isinstance(v, str)
 
 
-def validate_and_normalize(data: dict, style: str, max_animated: int) -> dict:
+def validate_and_normalize(data: dict, style: str, max_animated: int,
+                           locked: list[dict] | None = None) -> dict:
     """Raise ValueError listing every schema problem. Returns a normalized copy on success.
 
     Soft issues are fixed in place rather than failed: a missing style prefix on image_prompt
     is prepended, and captions are uppercased."""
     errors: list[str] = []
+    locked = locked or []
+    locked_desc = {c["id"]: c["description"] for c in locked}
 
     characters = data.get("characters")
     shots = data.get("shots")
@@ -179,12 +229,19 @@ def validate_and_normalize(data: dict, style: str, max_animated: int) -> dict:
             ids.append(cid)
         if not _is_str(desc) or not desc.strip():
             errors.append(f"characters[{i}].description must be a non-empty sentence")
+        elif cid in locked_desc and desc.strip() != locked_desc[cid]:
+            errors.append(f"characters[{i}] ({cid}) description must match config word for word: "
+                          f"{locked_desc[cid]!r}, got {desc.strip()!r}")
     id_set = set(ids)
+    for cid in locked_desc:
+        if cid not in id_set:
+            errors.append(f"locked character {cid!r} is missing from 'characters'")
 
     if not (SHOT_MIN <= len(shots) <= SHOT_MAX):
         errors.append(f"need {SHOT_MIN}-{SHOT_MAX} shots, got {len(shots)}")
 
     animated = 0
+    vo_words = 0
     normalized_shots = []
     for i, s in enumerate(shots):
         label = f"shots[{i}]"
@@ -206,16 +263,20 @@ def validate_and_normalize(data: dict, style: str, max_animated: int) -> dict:
             for c in chars:
                 if c not in id_set:
                     errors.append(f"{label}.characters references unknown id {c!r}")
-        for key in ("image_prompt", "motion_prompt", "vo_line"):
+        for key in ("image_prompt", "motion_prompt"):
             if not _is_str(s.get(key)) or not s.get(key).strip():
                 errors.append(f"{label}.{key} must be a non-empty string")
+        if not _is_str(s.get("vo_line")):
+            errors.append(f"{label}.vo_line must be a string (may be empty for silent shots)")
+        else:
+            vo_words += len(s["vo_line"].split())
         speaker = s.get("speaker")
         if not _is_str(speaker) or (speaker != "narrator" and speaker not in id_set):
             errors.append(f"{label}.speaker must be 'narrator' or a character id, got {speaker!r}")
         caption = s.get("caption")
         if not _is_str(caption):
             errors.append(f"{label}.caption must be a string (may be empty)")
-        elif len(caption.split()) > 2:
+        elif len(caption.split()) > 2 and caption.strip().upper() != CTA_CAPTION:
             errors.append(f"{label}.caption must be 1-2 words or empty, got {caption!r}")
         if not isinstance(s.get("animate"), bool):
             errors.append(f"{label}.animate must be true or false")
@@ -234,6 +295,12 @@ def validate_and_normalize(data: dict, style: str, max_animated: int) -> dict:
 
     if animated > max_animated:
         errors.append(f"at most {max_animated} shots may have animate: true, got {animated}")
+    if not (VO_WORDS_MIN <= vo_words <= VO_WORDS_MAX):
+        errors.append(f"total vo_line words must be {VO_WORDS_MIN}-{VO_WORDS_MAX}, got {vo_words}")
+    if normalized_shots:
+        last = normalized_shots[-1]
+        if last.get("caption") != CTA_CAPTION:
+            errors.append(f"last shot caption must be {CTA_CAPTION!r}, got {last.get('caption')!r}")
 
     if errors:
         raise ValueError("\n".join(f"- {e}" for e in errors))
@@ -254,7 +321,8 @@ def print_shot_table(script: dict, style: str) -> None:
         print(f"  {c['id']:<12} {c['description']}")
 
     animated = sum(1 for s in script["shots"] if s["animate"])
-    print(f"\nshots: {len(script['shots'])}  animated: {animated}\n")
+    vo_words = sum(len(s["vo_line"].split()) for s in script["shots"])
+    print(f"\nshots: {len(script['shots'])}  animated: {animated}  vo words: {vo_words}\n")
     header = f"{'#':>2}  {'A':1}  {'speaker':<10} {'caption':<10} {'vo_line':<44} scene"
     print(header)
     print("-" * len(header) + "-" * 40)
@@ -275,9 +343,10 @@ def generate_script(premise: str, config: dict, client=None) -> dict:
     max_animated = int(config["max_animated_shots"])
     model = config["script"]["model"]
     max_tokens = int(config["script"]["max_tokens"])
+    locked = config.get("locked_characters", [])
     client = client or create_client()
 
-    system = build_system_prompt(style, max_animated)
+    system = build_system_prompt(style, max_animated, locked)
     messages = [{"role": "user", "content": build_user_prompt(premise)}]
 
     last_error = None
@@ -286,7 +355,7 @@ def generate_script(premise: str, config: dict, client=None) -> dict:
         response = call_model(client, model, max_tokens, system, messages)
         text = response_text(response)
         try:
-            return validate_and_normalize(parse_json(text), style, max_animated)
+            return validate_and_normalize(parse_json(text), style, max_animated, locked)
         except ValueError as e:
             last_error = e
             print(f"[script] attempt {attempt} failed validation:\n{e}")

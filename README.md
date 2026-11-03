@@ -56,6 +56,7 @@ runs/<run_id>/
 | `music_path`         | background music file                                          |
 | `outro_path`         | clip appended after the last shot                              |
 | `max_animated_shots` | cap on shots marked `animate: true` (default 8)                |
+| `locked_characters`  | recurring cast: `id`, `role`, `description`, `image_path`      |
 | `script.model`       | Claude model for the script step (`claude-sonnet-5-5`)         |
 | `script.max_tokens`  | output cap for the script request                              |
 
@@ -81,14 +82,30 @@ this schema:
 }
 ```
 
+### Story formula
+
+Every script follows the same 10 beats in order: loss + diss (with a quoted insult),
+rock bottom, mentor (Iro appears and the hero opens the Iro AI app), the bet, grind with a
+climbing counter (streak days and Bronze/Silver/Gold/Diamond rank, at least one failure first),
+overshoot win, flex, the ex returns, reversal ("i'm good", Iro says "that's my boy"), and a
+closing CTA shot of the app with the caption `SEARCH IRO AI`.
+
+The hero, love interest, rival and mentor come from `locked_characters` in `config.yaml` and
+are reused by id with their descriptions copied word for word. Iro is always the penguin mascot.
+New characters are only invented for minor roles. Setbacks are cold office light, wins are
+golden hour. A real AI tool (Claude or ChatGPT) is named at least once.
+
+### Validation
+
 Rules enforced by the prompt and checked by the validator:
 
 - 15 to 22 shots, numbered from 1 with no gaps
-- arc: doubter/setback, mentor, grind with a visible counter, win, payoff
-- all characters are adults; each has one locked description sentence
+- every locked character is present and its description matches config exactly
+- total `vo_line` words across the script is 90 to 130 (a 40-55 second video); shots may be silent
+- the last shot's caption is exactly `SEARCH IRO AI`
 - the style line opens every `image_prompt` (prepended if the model forgets)
 - no more than `max_animated_shots` shots are `animate: true`, reserved for shots where motion is the beat
-- `speaker` is `narrator` or a known character id; captions are at most two words
+- `speaker` is `narrator` or a known character id; captions are at most two words (except the CTA)
 
 If the JSON is invalid or fails validation, the errors are sent back to the model and it gets
 one retry. The result is saved to `runs/<run_id>/script.json` and printed as a shot table.

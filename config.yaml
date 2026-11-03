@@ -15,6 +15,27 @@ outro_path: "assets/outro.mp4"
 # Upper bound on shots marked animate: true. Everything else stays a still.
 max_animated_shots: 8
 
+# Recurring cast. The script step reuses these ids and descriptions word for word;
+# the validator rejects a script that alters a description. image_path is a reference
+# image for later steps (empty = none yet; Iro's will point to the app icon).
+locked_characters:
+  - id: marcus
+    role: hero
+    description: "a 26 year old man with messy dark brown hair, light stubble, an athletic build, white button-down shirt and blue company lanyard"
+    image_path: ""
+  - id: jess
+    role: love interest / the ex who leaves
+    description: "a 26 year old woman with long wavy brown hair, cream sweater, light jeans, small gold hoop earrings"
+    image_path: ""
+  - id: tyler
+    role: rival / doubter
+    description: "a 28 year old man with slick blond hair, a smug grin, navy quarter-zip vest over a white shirt"
+    image_path: ""
+  - id: iro
+    role: mentor, the Iro AI mascot, never a human
+    description: "Iro, a small round robotic penguin mascot with glossy black and gold armor, big round eyes, and a glowing orange core on its chest"
+    image_path: ""
+
 script:
   model: "claude-sonnet-5-5"
   max_tokens: 16000

@@ -30,7 +30,32 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     cfg["script"].setdefault("max_tokens", 16000)
     if not cfg.get("style"):
         raise StepError("config.yaml is missing the 'style' line")
+    cfg["locked_characters"] = _check_locked_characters(cfg.get("locked_characters") or [])
     return cfg
+
+
+def _check_locked_characters(raw) -> list[dict]:
+    """Validate config.locked_characters and fill in defaults (image_path -> "")."""
+    if not isinstance(raw, list):
+        raise StepError("config.yaml: locked_characters must be a list")
+    seen: set[str] = set()
+    out = []
+    for i, c in enumerate(raw):
+        if not isinstance(c, dict):
+            raise StepError(f"config.yaml: locked_characters[{i}] must be a mapping")
+        cid, desc = c.get("id"), c.get("description")
+        if not isinstance(cid, str) or not re.fullmatch(r"[a-z][a-z0-9_-]*", cid):
+            raise StepError(f"config.yaml: locked_characters[{i}].id must be a lowercase slug, got {cid!r}")
+        if cid in seen:
+            raise StepError(f"config.yaml: duplicate locked character id {cid!r}")
+        if not isinstance(desc, str) or not desc.strip():
+            raise StepError(f"config.yaml: locked_characters[{i}] ({cid}) needs a description")
+        seen.add(cid)
+        entry = dict(c)
+        entry["description"] = desc.strip()
+        entry["image_path"] = (c.get("image_path") or "").strip()
+        out.append(entry)
+    return out
 
 
 def slugify(text: str, max_len: int = 32) -> str:
