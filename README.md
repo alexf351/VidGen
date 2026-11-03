@@ -4,8 +4,8 @@ A Python CLI that turns a one-line story premise into a finished 9:16 animated s
 Each pipeline step writes its output to `runs/<run_id>/`, so any step can be re-run on its
 own without redoing the others.
 
-**Status:** scaffold + the `script` step are built. `images`, `video`, `voice` and `assemble`
-print `not implemented yet` and exit cleanly.
+**Status:** `script`, `images` and `video` are built. `voice` and `assemble` print
+`not implemented yet` and exit cleanly.
 
 ## Setup
 
@@ -19,7 +19,8 @@ cp .env.example .env   # then fill in the keys
 ```
 
 `.env` holds `ANTHROPIC_API_KEY`, `FAL_KEY` and `ELEVENLABS_API_KEY`. It is loaded with
-python-dotenv and ignored by git.
+python-dotenv and ignored by git. The script step needs the Anthropic key; images and video
+need the fal key.
 
 ## Usage
 
@@ -30,9 +31,15 @@ python main.py new "A laid-off line cook opens a food truck and nobody shows up 
 # re-run a single step on an existing run
 python main.py step 20261103-201530-a-laid-off-line-cook script
 
+# regenerate only specific shots (images or video)
+python main.py step 20261103-201530-a-laid-off-line-cook images --only 3,7
+
 # regenerate one shot's image + video
 python main.py reroll 20261103-201530-a-laid-off-line-cook 7
 ```
+
+Every step skips shots whose output file already exists. `--only` and `reroll` override that
+for the shots they name.
 
 Step names, in pipeline order: `script`, `images`, `video`, `voice`, `assemble`.
 
@@ -40,9 +47,13 @@ Step names, in pipeline order: `script`, `images`, `video`, `voice`, `assemble`.
 
 ```
 runs/<run_id>/
-  premise.txt     the premise as given
-  run.json        run metadata
-  script.json     output of the script step
+  premise.txt           the premise as given
+  run.json              run metadata
+  script.json           output of the script step
+  characters/<id>.png   reference sheet per character
+  shots/<n>.png         keyframe per shot
+  shots/<n>.mp4         clip, only for shots with animate: true
+characters_cache/<id>.png   generated sheets for locked characters, reused by every run
 ```
 
 `<run_id>` is a timestamp plus a slug of the premise.
@@ -59,6 +70,12 @@ runs/<run_id>/
 | `locked_characters`  | recurring cast: `id`, `role`, `description`, `image_path`      |
 | `script.model`       | Claude model for the script step (`claude-sonnet-5-5`)         |
 | `script.max_tokens`  | output cap for the script request                              |
+| `characters_cache_dir` | where generated locked-character sheets are cached           |
+| `fal.image_model`    | text-to-image endpoint (`fal-ai/nano-banana`)                  |
+| `fal.image_edit_model` | reference-image endpoint (`fal-ai/nano-banana/edit`)         |
+| `fal.video_model`    | image-to-video endpoint (`bytedance/seedance-2.0/fast/image-to-video`) |
+| `fal.video_seconds` / `fal.video_resolution` / `fal.video_audio` | clip length (4), size (720p), audio (off) |
+| `fal.image_cost` / `fal.video_cost_per_second` | USD rates for the printed estimates |
 
 ## The script step
 
@@ -112,3 +129,22 @@ Rules enforced by the prompt and checked by the validator:
 
 If the JSON is invalid or fails validation, the errors are sent back to the model and it gets
 one retry. The result is saved to `runs/<run_id>/script.json` and printed as a shot table.
+
+## The images step
+
+`steps/images.py` first makes sure every character in `script.json` has a reference sheet at
+`runs/<run_id>/characters/<id>.png`. The source is, in order: the `image_path` set in
+`locked_characters`, a cached sheet in `characters_cache/`, a sheet already in the run, or a
+freshly generated sheet (front, three-quarter and side view on a plain light grey background).
+New sheets for locked characters are copied into `characters_cache/` for later runs.
+
+Then it generates one 9:16 keyframe per shot at `runs/<run_id>/shots/<n>.png`. Shots with
+characters go through the edit endpoint with those characters' sheets attached as references
+and a note telling the model which reference is which. Shots with no characters use plain
+text-to-image. A running cost estimate is printed at the end.
+
+## The video step
+
+`steps/video.py` turns each `animate: true` keyframe into a 4 second, 720p, silent 9:16 clip
+at `runs/<run_id>/shots/<n>.mp4` using the shot's `motion_prompt`. It prints the estimated cost
+per shot (seconds × `fal.video_cost_per_second`) with a running total, and a total at the end.

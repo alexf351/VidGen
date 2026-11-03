@@ -31,7 +31,48 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     if not cfg.get("style"):
         raise StepError("config.yaml is missing the 'style' line")
     cfg["locked_characters"] = _check_locked_characters(cfg.get("locked_characters") or [])
+    cfg.setdefault("characters_cache_dir", "characters_cache")
+    fal = cfg.setdefault("fal", {})
+    fal.setdefault("image_model", "fal-ai/nano-banana")
+    fal.setdefault("image_edit_model", "fal-ai/nano-banana/edit")
+    fal.setdefault("image_cost", 0.0398)
+    fal.setdefault("video_model", "bytedance/seedance-2.0/fast/image-to-video")
+    fal.setdefault("video_seconds", 4)
+    fal.setdefault("video_resolution", "720p")
+    fal.setdefault("video_audio", False)
+    fal.setdefault("video_cost_per_second", 0.2419)
     return cfg
+
+
+def read_script(run_dir: Path) -> dict:
+    path = run_dir / "script.json"
+    if not path.exists():
+        raise StepError(f"{path} is missing; run the script step first")
+    return read_json(path)
+
+
+def parse_only(only: str | None) -> set[int] | None:
+    """'3,7' -> {3, 7}; None/'' -> None (meaning every shot)."""
+    if not only:
+        return None
+    try:
+        nums = {int(x) for x in only.replace(" ", "").split(",") if x}
+    except ValueError:
+        raise StepError(f"--only expects comma-separated shot numbers, got {only!r}") from None
+    if not nums:
+        raise StepError("--only was given but no shot numbers followed")
+    return nums
+
+
+def select_shots(script: dict, only: set[int] | None) -> list[dict]:
+    shots = script["shots"]
+    if only is None:
+        return shots
+    known = {s["n"] for s in shots}
+    missing = sorted(only - known)
+    if missing:
+        raise StepError(f"shot number(s) {missing} not in script.json (has 1-{len(shots)})")
+    return [s for s in shots if s["n"] in only]
 
 
 def _check_locked_characters(raw) -> list[dict]:

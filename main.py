@@ -4,6 +4,7 @@
 Commands:
   python main.py new "<premise>"            create a run and execute every step in order
   python main.py step <run_id> <step_name>  re-run a single step on an existing run
+      ... images --only 3,7                 regenerate only those shots (images or video)
   python main.py reroll <run_id> <shot_n>   regenerate one shot's image + video
 """
 
@@ -22,9 +23,18 @@ def _step_module(name: str):
     return importlib.import_module(f"steps.{name}")
 
 
-def run_step(name: str, run_dir, config) -> None:
+STEPS_WITH_ONLY = {"images", "video"}
+
+
+def run_step(name: str, run_dir, config, only: str | None = None) -> None:
     print(f"\n=== step: {name} ({run_dir.name}) ===")
-    _step_module(name).run(run_dir, config)
+    module = _step_module(name)
+    if only is None:
+        module.run(run_dir, config)
+    elif name in STEPS_WITH_ONLY:
+        module.run(run_dir, config, only=only)
+    else:
+        raise StepError(f"--only is supported for {sorted(STEPS_WITH_ONLY)}, not '{name}'")
 
 
 def cmd_new(args, config) -> None:
@@ -38,7 +48,7 @@ def cmd_new(args, config) -> None:
 
 def cmd_step(args, config) -> None:
     run_dir = run_dir_for(args.run_id)
-    run_step(args.step_name, run_dir, config)
+    run_step(args.step_name, run_dir, config, only=args.only)
 
 
 def cmd_reroll(args, config) -> None:
@@ -61,6 +71,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_step = sub.add_parser("step", help="re-run one step on an existing run")
     p_step.add_argument("run_id")
     p_step.add_argument("step_name", choices=STEP_ORDER)
+    p_step.add_argument("--only", metavar="N,N", default=None,
+                        help="comma-separated shot numbers to (re)generate; images and video only")
     p_step.set_defaults(func=cmd_step)
 
     p_reroll = sub.add_parser("reroll", help="regenerate one shot's image and video")

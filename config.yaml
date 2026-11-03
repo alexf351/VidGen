@@ -40,3 +40,20 @@ locked_characters:
 script:
   model: "claude-sonnet-5-5"
   max_tokens: 16000
+
+# Generated reference sheets for locked characters are cached here (repo root) and
+# reused by every later run.
+characters_cache_dir: "characters_cache"
+
+fal:
+  # Keyframes: text-to-image for shots with no characters, edit (reference images) otherwise.
+  image_model: "fal-ai/nano-banana"
+  image_edit_model: "fal-ai/nano-banana/edit"
+  image_cost: 0.0398            # USD per image, for the running estimate
+
+  # Image-to-video for shots marked animate: true.
+  video_model: "bytedance/seedance-2.0/fast/image-to-video"
+  video_seconds: 4              # 4-15
+  video_resolution: "720p"      # 480p | 720p
+  video_audio: false            # generate_audio
+  video_cost_per_second: 0.2419 # USD per second of 720p output, for the running estimate

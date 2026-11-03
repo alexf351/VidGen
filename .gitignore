@@ -3,3 +3,5 @@ runs/
 .venv/
 __pycache__/
 *.pyc
+# generated character reference sheets reused across runs
+characters_cache/
