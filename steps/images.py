@@ -6,8 +6,12 @@ import re
 import shutil
 from pathlib import Path
 
+import threading
+
 import fal_api
+import sume_api
 from common import ROOT, StepError, parse_only, read_script, select_shots
+from parallel import TaskRunner
 
 SHEET_ASPECT = "16:9"
 SHOT_ASPECT = "9:16"
@@ -67,6 +71,53 @@ def shot_prompt(shot: dict, ref_ids: list[str]) -> str:
     )
 
 
+# -------------------------------------------------------------- provider ----
+
+def image_provider(config: dict) -> str:
+    return config["providers"]["images"]
+
+
+def image_cost(config: dict) -> float:
+    block = config["sume"] if image_provider(config) == "sume" else config["fal"]
+    return float(block["image_cost"])
+
+
+def _workers(config: dict) -> int:
+    # fal runs one request at a time, as it always has; Sume runs up to its concurrency cap.
+    return int(config["sume"]["max_concurrent"]) if image_provider(config) == "sume" else 1
+
+
+def _require_key(config: dict) -> None:
+    if image_provider(config) == "sume":
+        sume_api.require_key()
+    else:
+        fal_api.require_key()
+
+
+def _generate_image(config: dict, prompt: str, aspect: str, refs: list[Path], label: str,
+                    dest: Path) -> None:
+    """One image to `dest`: an edit when reference images are given, else text-to-image."""
+    if image_provider(config) == "sume":
+        sume_api.download(sume_api.generate_image(config, prompt, aspect, refs, label), dest)
+        return
+    if refs:
+        result = fal_api.call(config["fal"]["image_edit_model"], {
+            "prompt": prompt,
+            "image_urls": [fal_api.upload(p) for p in refs],
+            "num_images": 1,
+            "aspect_ratio": aspect,
+            "output_format": "png",
+        }, label=label)
+    else:
+        result = fal_api.call(config["fal"]["image_model"], {
+            "prompt": prompt,
+            "num_images": 1,
+            "aspect_ratio": aspect,
+            "output_format": "png",
+        }, label=label)
+    fal_api.download(fal_api.first_image_url(result, label), dest)
+
+
 # ------------------------------------------------------- reference sheets ----
 
 def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | None = None) -> dict[str, Path]:
@@ -77,6 +128,19 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
     locked = _locked_by_id(config)
     style = config["style"]
     out: dict[str, Path] = {}
+    runner = TaskRunner(_workers(config))
+
+    def generate_sheet(c: dict, dest: Path, lock: dict | None) -> None:
+        cid = c["id"]
+        print(f"  [{cid}] generating reference sheet...")
+        _generate_image(config, sheet_prompt(c["description"], style), SHEET_ASPECT, [],
+                        f"sheet {cid}", dest)
+        if lock:
+            cache = cache_path(config, cid)
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(dest, cache)
+            print(f"  [{cid}] cached at {cache.relative_to(ROOT)}")
+
     for c in script["characters"]:
         cid = c["id"]
         if needed is not None and cid not in needed:
@@ -100,20 +164,9 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
             shutil.copyfile(cache_path(config, cid), dest)
             print(f"  [{cid}] reference sheet from cache")
         else:
-            print(f"  [{cid}] generating reference sheet...")
-            result = fal_api.call(config["fal"]["image_model"], {
-                "prompt": sheet_prompt(c["description"], style),
-                "num_images": 1,
-                "aspect_ratio": SHEET_ASPECT,
-                "output_format": "png",
-            }, label=f"sheet {cid}")
-            fal_api.download(fal_api.first_image_url(result, f"sheet {cid}"), dest)
-            if lock:
-                cache = cache_path(config, cid)
-                cache.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(dest, cache)
-                print(f"  [{cid}] cached at {cache.relative_to(ROOT)}")
+            runner.submit(generate_sheet, c, dest, lock)
         out[cid] = dest
+    runner.join()
     return out
 
 
@@ -128,23 +181,8 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
     if missing:
         raise StepError(f"shot {n}: no reference sheet for {missing}")
 
-    label = f"shot {n}"
-    if ref_ids:
-        result = fal_api.call(config["fal"]["image_edit_model"], {
-            "prompt": shot_prompt(shot, ref_ids),
-            "image_urls": [fal_api.upload(sheets[cid]) for cid in ref_ids],
-            "num_images": 1,
-            "aspect_ratio": SHOT_ASPECT,
-            "output_format": "png",
-        }, label=label)
-    else:
-        result = fal_api.call(config["fal"]["image_model"], {
-            "prompt": shot_prompt(shot, []),
-            "num_images": 1,
-            "aspect_ratio": SHOT_ASPECT,
-            "output_format": "png",
-        }, label=label)
-    fal_api.download(fal_api.first_image_url(result, label), dest)
+    _generate_image(config, shot_prompt(shot, ref_ids), SHOT_ASPECT,
+                    [sheets[cid] for cid in ref_ids], f"shot {n}", dest)
 
     video = dest.with_suffix(".mp4")
     if shot.get("animate") and video.exists():
@@ -154,27 +192,39 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
 
 
 def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> None:
-    fal_api.require_key()
+    _require_key(config)
     script = read_script(run_dir)
     shots = select_shots(script, only)
+    if image_provider(config) == "sume":
+        print(f"[images] provider: Sume ({config['sume']['image_model']}), "
+              f"up to {_workers(config)} at once")
 
     print(f"[images] reference sheets ({len(script['characters'])} characters)")
     needed = None if only is None else {cid for s in shots for cid in s["characters"]}
     sheets = ensure_sheets(run_dir, config, script, needed)
 
     print(f"[images] keyframes ({len(shots)} shots)")
-    generated = 0
+    runner = TaskRunner(_workers(config))
+    done = []
+    lock = threading.Lock()
+
+    def make(shot: dict) -> None:
+        who = ", ".join(shot["characters"]) or "no characters"
+        print(f"  shot {shot['n']}: generating ({who})...")
+        generate_keyframe(run_dir, config, shot, sheets)
+        with lock:
+            done.append(shot["n"])
+
     for shot in shots:
         n = shot["n"]
         dest = shot_path(run_dir, n)
         if dest.exists() and not force:
             print(f"  shot {n}: exists, skipping")
             continue
-        who = ", ".join(shot["characters"]) or "no characters"
-        print(f"  shot {n}: generating ({who})...")
-        generate_keyframe(run_dir, config, shot, sheets)
-        generated += 1
-    cost = generated * float(config["fal"]["image_cost"])
+        runner.submit(make, shot)
+    runner.join()
+    generated = len(done)
+    cost = generated * image_cost(config)
     print(f"[images] generated {generated} keyframe(s), est. ${cost:.2f} -> {shots_dir(run_dir)}")
 
 

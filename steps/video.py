@@ -1,23 +1,40 @@
-"""Video step: image-to-video on each animated shot's keyframe, via fal.ai Seedance."""
+"""Video step: image-to-video on each animated shot's keyframe (Seedance 2.0 Fast on fal or Sume)."""
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 import fal_api
+import sume_api
 from common import StepError, parse_only, read_script, select_shots
+from parallel import TaskRunner
 from steps.images import shot_path
 
 ASPECT = "9:16"
-RESOLUTIONS = ("480p", "720p")   # what the Seedance 2.0 fast endpoint accepts
+RESOLUTIONS = ("480p", "720p")   # what Seedance 2.0 Fast accepts on both providers
+
+
+def video_provider(config: dict) -> str:
+    return config["providers"]["video"]
+
+
+def _block(config: dict) -> dict:
+    """The settings block of the active video provider."""
+    return config[video_provider(config)]
 
 
 def video_resolution(config: dict) -> str:
-    res = str(config["fal"]["video_resolution"])
+    res = str(_block(config)["video_resolution"])
     if res not in RESOLUTIONS:
-        raise StepError(f"config.yaml: fal.video_resolution must be one of {', '.join(RESOLUTIONS)}, "
-                        f"got '{res}'")
+        raise StepError(f"config.yaml: {video_provider(config)}.video_resolution must be one of "
+                        f"{', '.join(RESOLUTIONS)}, got '{res}'")
     return res
+
+
+def _workers(config: dict) -> int:
+    # fal runs one request at a time, as it always has; Sume runs up to its concurrency cap.
+    return int(config["sume"]["max_concurrent"]) if video_provider(config) == "sume" else 1
 
 
 def video_path(run_dir: Path, n: int) -> Path:
@@ -32,6 +49,11 @@ def generate_clip(run_dir: Path, config: dict, shot: dict) -> Path:
         raise StepError(f"shot {n}: keyframe {keyframe} is missing; run the images step first")
     dest = video_path(run_dir, n)
     label = f"shot {n}"
+    if video_provider(config) == "sume":
+        video_resolution(config)
+        url = sume_api.generate_video(config, shot["motion_prompt"].strip(), keyframe, label)
+        sume_api.download(url, dest)
+        return dest
     result = fal_api.call(fal["video_model"], {
         "prompt": shot["motion_prompt"].strip(),
         "image_url": fal_api.upload(keyframe),
@@ -45,35 +67,48 @@ def generate_clip(run_dir: Path, config: dict, shot: dict) -> Path:
 
 
 def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> None:
-    fal_api.require_key()
+    if video_provider(config) == "sume":
+        sume_api.require_key()
+    else:
+        fal_api.require_key()
     resolution = video_resolution(config)   # fail before any spend on a bad value
     script = read_script(run_dir)
-    fal = config["fal"]
-    seconds = int(fal["video_seconds"])
-    rate = float(fal["video_cost_per_second"])
+    block = _block(config)
+    seconds = int(block["video_seconds"])
+    rate = float(block["video_cost_per_second"])
 
     animated = [s for s in select_shots(script, only) if s.get("animate")]
     skipped_static = [s["n"] for s in select_shots(script, only) if not s.get("animate")]
     if only is not None and skipped_static:
         print(f"[video] shot(s) {skipped_static} are animate: false, nothing to render")
+    via = "" if video_provider(config) == "fal" else \
+        f" via Sume ({block['video_model']}, up to {_workers(config)} at once)"
     print(f"[video] {len(animated)} animated shot(s), {seconds}s each at {resolution}, "
-          f"${rate:.4f}/s")
+          f"${rate:.4f}/s{via}")
 
-    total = 0.0
-    generated = 0
+    totals = {"cost": 0.0, "count": 0}
+    lock = threading.Lock()
+
+    def make(shot: dict) -> None:
+        n = shot["n"]
+        print(f"  shot {n}: generating...")
+        generate_clip(run_dir, config, shot)
+        cost = seconds * rate
+        with lock:
+            totals["cost"] += cost
+            totals["count"] += 1
+            print(f"  shot {n}: {seconds}s  est. ${cost:.2f}  (running total ${totals['cost']:.2f})")
+
+    runner = TaskRunner(_workers(config))
     for shot in animated:
         n = shot["n"]
         dest = video_path(run_dir, n)
         if dest.exists() and not force:
             print(f"  shot {n}: exists, skipping")
             continue
-        print(f"  shot {n}: generating...")
-        generate_clip(run_dir, config, shot)
-        generated += 1
-        cost = seconds * rate
-        total += cost
-        print(f"  shot {n}: {seconds}s  est. ${cost:.2f}  (running total ${total:.2f})")
-    print(f"[video] generated {generated} clip(s), est. total ${total:.2f}")
+        runner.submit(make, shot)
+    runner.join()
+    print(f"[video] generated {totals['count']} clip(s), est. total ${totals['cost']:.2f}")
 
 
 def run(run_dir: Path, config: dict, only: str | None = None) -> None:

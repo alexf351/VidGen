@@ -82,6 +82,11 @@ script:
 # reused by every later run.
 characters_cache_dir: "characters_cache"
 
+# Which service generates the images and the video clips. Both default to fal.
+providers:
+  images: fal                   # fal | sume
+  video: fal                    # fal | sume
+
 fal:
   # Keyframes: text-to-image for shots with no characters, edit (reference images) otherwise.
   image_model: "fal-ai/nano-banana"
@@ -101,3 +106,23 @@ fal:
   video_cost_per_second:
     480p: 0.1125
     720p: 0.2419
+
+# Sume (sume.com/docs), used only where providers.* says sume. Prices are Sume's published
+# rates (sume.com/sume-api/pricing); Sume bills at the provider's price with no markup.
+sume:
+  base_url: "https://api.sume.com"
+  image_model: "nano-banana"    # one id for text-to-image and reference-image edits
+  image_cost: 0.039             # USD per image
+  video_model: "seedance-2-fast"
+  video_seconds: 4              # 4-15
+  video_resolution: "480p"      # 480p | 720p
+  video_audio: false            # generate_audio
+  video_cost_per_second:        # USD per second of output, by resolution
+    480p: 0.056246
+    720p: 0.12096
+  # Sume caps in-flight jobs per workspace (2 with no funds added in 28 days, more as you add
+  # funds; images and videos share the cap). Requests over it are refused, not queued.
+  max_concurrent: 2             # jobs VidGen runs at once
+  retry_window_seconds: 600     # keep retrying over-limit / busy refusals for this long
+  retry_base_seconds: 5         # first wait between retries, doubling up to 60s
+  job_timeout_seconds: 900      # stop polling one job after this long

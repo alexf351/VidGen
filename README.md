@@ -20,7 +20,8 @@ cp .env.example .env   # then fill in the keys
 
 `.env` holds `ANTHROPIC_API_KEY`, `FAL_KEY` and `ELEVENLABS_API_KEY`. It is loaded with
 python-dotenv and ignored by git. The script step needs the Anthropic key, images and video
-need the fal key, and voice needs the ElevenLabs key. Assembly needs `ffmpeg` and `ffprobe`
+need the fal key (or `SUME_API_KEY` when Sume is selected, see below), and voice needs the
+ElevenLabs key. Assembly needs `ffmpeg` and `ffprobe`
 on your PATH.
 
 ## Usage
@@ -86,6 +87,8 @@ characters_cache/<id>.png   generated sheets for locked characters, reused by ev
 | `fal.video_seconds` / `fal.video_resolution` / `fal.video_audio` | clip length (4), size (480p or 720p, default 480p), audio (off) |
 | `fal.image_cost` | USD per image for the printed estimates |
 | `fal.video_cost_per_second` | USD per second of video, keyed by resolution; the active one is used |
+| `providers.images` / `providers.video` | `fal` (default) or `sume`, chosen separately |
+| `sume.*`             | Sume models, settings, prices, `max_concurrent` and retry/poll limits |
 | `voices`             | speaker id to ElevenLabs voice id; empty entries fall back to `voice_id` |
 | `elevenlabs.model_id` / `output_format` / `cost_per_1k_chars` | TTS model, audio format, rate for the estimate |
 | `music_path`         | music bed under the whole cut; empty = none (add it on-platform) |
@@ -200,3 +203,28 @@ ffprobe is missing.
 - A music bed is mixed under the cut only when `music_path` is set, and the outro is appended
   only when `outro_path` is set. The result is `runs/<run_id>/final.mp4`, H.264 + AAC at 30 fps,
   and the step ends with an estimated cost breakdown for images, video and voice.
+
+## Providers: fal or Sume
+
+Images and video can each run on [fal.ai](https://fal.ai) (the default) or on
+[Sume](https://sume.com/docs). Switch them independently in `config.yaml`:
+
+```yaml
+providers:
+  images: sume
+  video: sume
+```
+
+Sume runs the same models: `nano-banana` for sheets and keyframes (one model id covers
+text-to-image and reference-image edits) and `seedance-2-fast` for clips, with the video
+settings in the `sume` block (4 s, 480p or 720p, 9:16, no audio). Its prices are Sume's
+published rates: $0.039 per image, $0.056246/s at 480p and $0.12096/s at 720p. The step
+estimates and the final cost report use the rates of whichever provider made each kind.
+
+Sume caps how many jobs a workspace has in flight (queued and running both count), and
+refuses requests over the cap without charging them. VidGen runs up to `sume.max_concurrent`
+jobs at once (default 2, Sume's cap for a workspace with no funds added in the last 28 days)
+and resends a refused request with the same `Idempotency-Key` after a backoff, for up to
+`sume.retry_window_seconds`. A shared reference sheet is uploaded once per run. If one shot
+fails, the others still finish and are saved before the step reports the error. With fal,
+requests stay one at a time exactly as before.

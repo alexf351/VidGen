@@ -42,6 +42,7 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     fal.setdefault("video_audio", False)
     fal.setdefault("video_cost_per_second", {"480p": 0.1125, "720p": 0.2419})
     _resolve_video_rate(fal)
+    _apply_providers(cfg)
     cfg["voices"] = {str(k): (v or "") for k, v in (cfg.get("voices") or {}).items()}
     el = cfg.setdefault("elevenlabs", {})
     el.setdefault("model_id", "eleven_multilingual_v2")
@@ -90,20 +91,57 @@ def select_shots(script: dict, only: set[int] | None) -> list[dict]:
     return [s for s in shots if s["n"] in only]
 
 
-def _resolve_video_rate(fal: dict) -> None:
+def _resolve_video_rate(block: dict, section: str = "fal") -> None:
     """video_cost_per_second may be a {resolution: rate} map. Keep the map and leave the
     active resolution's rate as a plain number, so every reader of the rate stays correct."""
-    rates = fal["video_cost_per_second"]
-    res = str(fal["video_resolution"]).strip()
-    fal["video_resolution"] = res
+    rates = block["video_cost_per_second"]
+    res = str(block["video_resolution"]).strip()
+    block["video_resolution"] = res
     if isinstance(rates, dict):
-        fal["video_cost_by_resolution"] = {str(k): float(v) for k, v in rates.items()}
-        if res not in fal["video_cost_by_resolution"]:
-            raise StepError(f"config.yaml: fal.video_cost_per_second has no rate for "
-                            f"video_resolution '{res}' (has {sorted(fal['video_cost_by_resolution'])})")
-        fal["video_cost_per_second"] = fal["video_cost_by_resolution"][res]
+        block["video_cost_by_resolution"] = {str(k): float(v) for k, v in rates.items()}
+        if res not in block["video_cost_by_resolution"]:
+            raise StepError(f"config.yaml: {section}.video_cost_per_second has no rate for "
+                            f"video_resolution '{res}' (has {sorted(block['video_cost_by_resolution'])})")
+        block["video_cost_per_second"] = block["video_cost_by_resolution"][res]
     else:
-        fal["video_cost_per_second"] = float(rates)
+        block["video_cost_per_second"] = float(rates)
+
+
+PROVIDERS = ("fal", "sume")
+
+
+def _apply_providers(cfg: dict) -> None:
+    prov = cfg.setdefault("providers", {}) or {}
+    cfg["providers"] = prov
+    for kind in ("images", "video"):
+        value = str(prov.get(kind) or "fal").strip().lower()
+        if value not in PROVIDERS:
+            raise StepError(f"config.yaml: providers.{kind} must be one of {', '.join(PROVIDERS)}, got '{value}'")
+        prov[kind] = value
+
+    sume = cfg.setdefault("sume", {}) or {}
+    cfg["sume"] = sume
+    for key, default in [("base_url", "https://api.sume.com"), ("image_model", "nano-banana"),
+                         ("image_cost", 0.039), ("video_model", "seedance-2-fast"),
+                         ("video_seconds", 4), ("video_resolution", "480p"), ("video_audio", False),
+                         ("video_cost_per_second", {"480p": 0.056246, "720p": 0.12096}),
+                         ("max_concurrent", 2), ("retry_window_seconds", 600),
+                         ("retry_base_seconds", 5), ("job_timeout_seconds", 900)]:
+        sume.setdefault(key, default)
+    if int(sume["max_concurrent"]) < 1:
+        raise StepError("config.yaml: sume.max_concurrent must be at least 1")
+    _resolve_video_rate(sume, "sume")
+
+    # The assemble step's cost report reads image_cost / video_seconds / video_cost_per_second
+    # from the fal block. When Sume generates a kind, point those keys at Sume's numbers so the
+    # final estimate prices what was actually used. fal's settings for that kind are not read
+    # by anything else while Sume is selected.
+    fal = cfg["fal"]
+    if prov["images"] == "sume":
+        fal["image_cost"] = float(sume["image_cost"])
+    if prov["video"] == "sume":
+        fal["video_seconds"] = int(sume["video_seconds"])
+        fal["video_cost_per_second"] = float(sume["video_cost_per_second"])
 
 
 def _check_locked_characters(raw) -> list[dict]:
