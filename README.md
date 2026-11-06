@@ -155,6 +155,12 @@ Rules enforced by the prompt and checked by the validator:
   in the grind, using a path from `app_screens` in `config.yaml`. An app_screen shot has no
   characters, no `vo_line`, `animate: false`, and is never the first or last shot. If no listed
   screenshot exists, none are asked for
+- a FLEX MONTAGE of 6 to 8 consecutive shots right before the CTA (after the "that's my boy"
+  reversal): the hero living the life (luxury car, watch close-up, suit outside a glass tower,
+  rooftop at night, holographic AI dashboards with Iro, private jet, beach sunset with sofia,
+  ending on a smirk at camera), warm golden or neon-night light, no dialogue. Montage shots
+  carry the optional `"montage": true` field and `animate: false`, sit outside the 15-22 story
+  shots, and never count toward the word budget. Scripts without montage shots still assemble
 - 1 to 3 time-jump card shots (optional `"card": "6 MONTHS LATER"` field) at the natural jumps
   in time; a card shot has no characters, no `vo_line`, `animate: false`, and is never the
   first or last shot. Shots without a `card` field work exactly as before
@@ -219,6 +225,9 @@ ffprobe is missing.
   rounded phone frame, centred on a blurred, darkened copy of the previous scene's last frame,
   with a slight push-in from 1.00 to 1.04 (`assemble.app_screen_zoom_end`). No captions are drawn
   over them. The images, video and voice steps make nothing for these shots.
+- Flex montage shots are 0.5 s each (`assemble.montage_seconds`) with hard cuts and a quick
+  eased punch-in from 1.00 to 1.12 (`assemble.montage_zoom_end`), and no captions. If a montage
+  shot was animated anyway, its clip gets the same punch-in.
 - Time-jump card shots are 1.5 s of black (`assemble.card_seconds`) with the card text centred
   in the caption style, fading in and out over 200 ms (`assemble.card_fade_ms`), with no zoom
   or pop. The images, video and voice steps make nothing for card shots.

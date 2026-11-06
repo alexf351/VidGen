@@ -17,7 +17,8 @@ VO_WORDS_MIN, VO_WORDS_MAX = 60, 100   # total spoken words across all shots
 CTA_CAPTION = "SEARCH IRO AI"          # required caption on the final shot
 SHOT_KEYS = {"n", "characters", "image_prompt", "motion_prompt", "vo_line",
              "speaker", "caption", "animate"}
-OPTIONAL_SHOT_KEYS = {"card", "app_screen"}   # time-jump card / real app screenshot shot
+OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage"}   # card / app screenshot / flex montage
+MONTAGE_MIN, MONTAGE_MAX = 6, 8        # flex montage shots, right before the CTA
 APP_SCREENS_MAX = 2
 # Wording that asks the image model to draw the Iro app. The mascot's own name is fine.
 APP_UI_PATTERNS = [
@@ -123,8 +124,9 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict],
           sentence each.
 
         STORY FORMULA
-        Every script follows these 10 beats, in this order. Spread them across
-        {SHOT_MIN}-{SHOT_MAX} shots, numbered "n" from 1 upward with no gaps.
+        Every script follows these 11 beats, in this order. Spread beats 1-9 and 11 across
+        {SHOT_MIN}-{SHOT_MAX} story shots; the {MONTAGE_MIN}-{MONTAGE_MAX} flex montage shots of beat 10
+        come on top of that. Number every shot "n" from 1 upward with no gaps.
           1. LOSS + DISS: the love interest leaves the hero FOR the rival. Show her getting
              into the rival's car or walking off with him in this beat. The hero is also
              rejected or fired. Must include a quoted direct insult ("loser" or equivalent) as a
@@ -147,7 +149,9 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict],
           8. EX RETURNS: the person who left sees his success and wants him back.
           9. REVERSAL: the hero declines ("i'm good"), is with sofia, his new partner, and
              Iro approves ("that's my boy").
-         10. CTA: the final shot is the hero (or Iro) holding up the phone with its BACK toward
+         10. FLEX MONTAGE: {MONTAGE_MIN}-{MONTAGE_MAX} rapid shots of the hero living the life (see FLEX
+             MONTAGE below), right after the reversal and right before the CTA.
+         11. CTA: the final shot is the hero (or Iro) holding up the phone with its BACK toward
              the camera, the screen glow on their face, caption exactly "{CTA_CAPTION}".
 
         TONE AND LOOK
@@ -192,6 +196,19 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict],
           screen's glow lighting their face. Never describe the app's UI, what a phone screen
           shows, menus, buttons, logos or the words "Iro AI" in any image_prompt.
 {{APP_SCREENS}}
+        FLEX MONTAGE
+        - Right after the reversal ("that's my boy") and right before the final CTA shot, add
+          {MONTAGE_MIN}-{MONTAGE_MAX} consecutive montage shots of the hero living the life, each one a
+          single striking image, about half a second on screen. Pick from: the luxury car, a
+          watch close-up on his wrist, him in a sharp suit outside a glass tower, a rooftop at
+          night over the city, holographic AI dashboards around him with Iro, a private jet,
+          a beach sunset with sofia; the LAST montage shot is always a final smirk at camera.
+        - Every montage shot has "montage": true, "vo_line": "", "speaker": "", "caption": ""
+          and "animate": false. No dialogue. Upgraded outfits, warm golden-hour or neon-night
+          lighting. Write image_prompt and motion_prompt as for any other shot, with the
+          locked identity of everyone in frame.
+        - "montage" appears ONLY on these shots.
+
         TIME-JUMP CARDS
         - Use {CARDS_MIN}-{CARDS_MAX} time-jump card shots per video, at the natural jumps in time:
           after rock bottom, during the grind (between counter shots), and before the payoff.
@@ -324,12 +341,16 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         if cid not in id_set:
             errors.append(f"locked character {cid!r} is missing from 'characters'")
 
-    if not (SHOT_MIN <= len(shots) <= SHOT_MAX):
-        errors.append(f"need {SHOT_MIN}-{SHOT_MAX} shots, got {len(shots)}")
+    montage_flags = [isinstance(x, dict) and x.get("montage") is True for x in shots]
+    story_count = len(shots) - sum(montage_flags)
+    if not (SHOT_MIN <= story_count <= SHOT_MAX):
+        errors.append(f"need {SHOT_MIN}-{SHOT_MAX} story shots (the flex montage comes on top), "
+                      f"got {story_count}")
 
     animated = 0
     vo_words = 0
     cards = 0
+    montage_idx: list[int] = []
     app_paths = [e["path"] for e in (app_screens or [])]
     app_shots = 0
     # Who may speak: the locked cast (or, with no locked cast, any character in the script).
@@ -363,6 +384,13 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             card = ""
         card = card.strip()
         is_card = bool(card)
+        montage = s.get("montage", False)
+        if montage is None:
+            montage = False
+        if not isinstance(montage, bool):
+            errors.append(f"{label}.montage must be true or false, got {montage!r}")
+            montage = False
+        is_montage = montage
         app = s.get("app_screen", "")
         if app is None:
             app = ""
@@ -385,6 +413,12 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 errors.append(f"{label} is an app_screen shot, so animate must be false")
             if i == 0 or i == len(shots) - 1:
                 errors.append(f"{label}: an app_screen shot cannot be the first or last shot")
+        if is_montage:
+            montage_idx.append(i)
+            if is_card or (_is_str(s.get("app_screen")) and s["app_screen"].strip()):
+                errors.append(f"{label} cannot be both a montage shot and a card or app_screen shot")
+            if _is_str(s.get("vo_line")) and s["vo_line"].strip():
+                errors.append(f"{label} is a montage shot, so vo_line must be empty (no dialogue)")
         if is_card:
             cards += 1
             if not (2 <= len(card.split()) <= CARD_WORDS_MAX):
@@ -411,7 +445,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         if not _is_str(vo):
             errors.append(f"{label}.vo_line must be a string (may be empty for silent shots)")
             vo = ""
-        vo_words += len(vo.split())
+        if not is_montage:                     # the montage never counts toward the word budget
+            vo_words += len(vo.split())
         speaker = s.get("speaker")
         if speaker == "narrator":
             errors.append(f"{label}.speaker is 'narrator'; there is no narrator, every line is "
@@ -441,6 +476,10 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             normalized_shots.append(shot)
             continue
         shot.pop("app_screen", None)
+        if is_montage:
+            shot["montage"] = True
+        else:
+            shot.pop("montage", None)
         if is_card:
             # A card is drawn by the assembly step; nothing else on the shot is used.
             shot.update({"card": card.upper(), "characters": [], "vo_line": "", "speaker": "",
@@ -458,12 +497,24 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 shot["caption"] = shot["caption"].strip().upper()
             if not vo.strip() and _is_str(shot.get("speaker")):
                 shot["speaker"] = ""
+            if is_montage:
+                shot["caption"] = ""
         normalized_shots.append(shot)
 
     if animated > max_animated:
         errors.append(f"at most {max_animated} shots may have animate: true, got {animated}")
     if not (VO_WORDS_MIN <= vo_words <= VO_WORDS_MAX):
         errors.append(f"total vo_line words must be {VO_WORDS_MIN}-{VO_WORDS_MAX}, got {vo_words}")
+    if not montage_idx:
+        errors.append(f"add the FLEX MONTAGE: {MONTAGE_MIN}-{MONTAGE_MAX} shots with \"montage\": true "
+                      f"right before the final CTA shot")
+    else:
+        if not (MONTAGE_MIN <= len(montage_idx) <= MONTAGE_MAX):
+            errors.append(f"the flex montage needs {MONTAGE_MIN}-{MONTAGE_MAX} shots, got {len(montage_idx)}")
+        contiguous = montage_idx == list(range(montage_idx[0], montage_idx[-1] + 1))
+        if not contiguous or montage_idx[-1] != len(shots) - 2:
+            errors.append(f"the montage shots must be consecutive and come right before the final CTA "
+                          f"shot; they are at shots {[i + 1 for i in montage_idx]} of {len(shots)}")
     if not (CARDS_MIN <= cards <= CARDS_MAX):
         errors.append(f"use {CARDS_MIN}-{CARDS_MAX} time-jump card shots, got {cards}")
     if app_paths and not (1 <= app_shots <= APP_SCREENS_MAX):
@@ -504,6 +555,8 @@ def print_shot_table(script: dict, style: str) -> None:
         scene = s["image_prompt"]
         if scene.lower().startswith(style.lower()):
             scene = scene[len(style):].lstrip(" ,")
+        if s.get("montage"):
+            scene = f"[MONTAGE] {scene}"
         if s.get("card"):
             scene = f"[CARD] {s['card']}"
         elif s.get("app_screen"):

@@ -37,6 +37,8 @@ assemble:
   card_fade_ms: 200             # card text fades in and out over this long
   app_screen_seconds: 1.5       # app_screen shots: real screenshot in a phone mockup
   app_screen_zoom_end: 1.04     # slight push-in on the mockup, from 1.00 to this
+  montage_seconds: 0.5          # flex montage: each shot this long, hard cuts
+  montage_zoom_end: 1.12        # quick punch-in on each montage shot, from 1.00 to this
   zoom_end: 1.08                # still shots push in from 1.00 to this
   caption_font: "Montserrat Black Italic"
   caption_fallback_font: "Arial Black"

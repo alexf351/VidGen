@@ -25,9 +25,10 @@ def shot_durations(run_dir: Path, script: dict, asm: dict) -> list[dict]:
     t = 0.0
     for shot in script["shots"]:
         n = shot["n"]
-        if shot.get("card") or shot.get("app_screen"):
-            # Time-jump card or app screen: fixed length, no voice.
-            duration = float(asm["card_seconds"] if shot.get("card") else asm["app_screen_seconds"])
+        if shot.get("card") or shot.get("app_screen") or shot.get("montage"):
+            # Time-jump card, app screen or flex montage: fixed length, no voice.
+            duration = float(asm["card_seconds"] if shot.get("card") else
+                             asm["app_screen_seconds"] if shot.get("app_screen") else asm["montage_seconds"])
             plan.append({"shot": shot, "n": n, "start": t, "duration": duration, "vo": None, "vo_len": 0.0})
             t += duration
             continue
@@ -51,13 +52,22 @@ def _fill_filter(w: int, h: int) -> str:
     return f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}"
 
 
-def _push_in(src: Path, out: Path, frames: int, zoom_end: float, asm: dict, label: str) -> None:
-    """Slow centred push-in on a still, 1.00 -> zoom_end over `frames` frames."""
+def _push_in(src: Path, out: Path, frames: int, zoom_end: float, asm: dict, label: str,
+             ease_out: bool = False, video: bool = False) -> None:
+    """Centred zoom 1.00 -> zoom_end over `frames` frames, on a still or (video=True) on the
+    first `frames` frames of a clip. ease_out makes it a punch: fast at first, then settling."""
     w, h, fps = int(asm["width"]), int(asm["height"]), int(asm["fps"])
+    if ease_out:
+        p = f"min(on/{max(1, frames - 1)},1)"
+        z = f"1+({zoom_end:.4f}-1)*(1-pow(1-{p},2))"
+    else:                                   # the original linear push-in, unchanged
+        z = f"min(1+({zoom_end:.4f}-1)*on/{frames},{zoom_end:.4f})"
+    # A still is one input frame held for `frames` outputs; a clip maps one frame to one.
+    hold = 1 if video else frames
+    prep = f"fps={fps}," if video else ""
     # Oversample first so zoompan's integer sampling does not jitter.
-    vf = (f"{_fill_filter(w * 2, h * 2)},"
-          f"zoompan=z='min(1+({zoom_end:.4f}-1)*on/{frames},{zoom_end:.4f})'"
-          f":d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={w}x{h}:fps={fps},setsar=1")
+    vf = (f"{prep}{_fill_filter(w * 2, h * 2)},"
+          f"zoompan=z='{z}':d={hold}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={w}x{h}:fps={fps},setsar=1")
     run_ffmpeg(["-i", str(src), "-vf", vf, "-frames:v", str(frames), "-an",
                 "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
                 str(out)], label)
@@ -140,6 +150,18 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
     keyframe = shot_path(run_dir, n)
     clip = video_path(run_dir, n)
     label = f"shot {n}"
+
+    if shot.get("montage"):
+        # Flex montage: a quick punch-in on the keyframe (or the clip, if one was made), no motion
+        # beyond that; the concat joins montage shots with hard cuts.
+        zoom = float(asm["montage_zoom_end"])
+        if shot.get("animate") and clip.exists():
+            _push_in(clip, out, frames, zoom, asm, label, ease_out=True, video=True)
+            return out
+        if not keyframe.exists():
+            raise StepError(f"shot {n}: keyframe {keyframe} is missing; run the images step first")
+        _push_in(keyframe, out, frames, zoom, asm, label, ease_out=True)
+        return out
 
     if shot.get("app_screen"):
         # Real screenshot in a phone mockup on the previous shot (blurred), slight push-in.
@@ -275,7 +297,7 @@ def shot_caption_events(run_dir: Path, item: dict) -> list[tuple[float, float, s
     shot (nothing if it is empty)."""
     shot_start = item["start"]
     shot_end = item["start"] + item["duration"]
-    if item["shot"].get("card") or item["shot"].get("app_screen"):
+    if item["shot"].get("card") or item["shot"].get("app_screen") or item["shot"].get("montage"):
         return []
     if item["vo"] is None:
         caption = (item["shot"].get("caption") or "").strip().upper()
@@ -479,7 +501,9 @@ def run(run_dir: Path, config: dict) -> None:
     clips = []
     scene_clip: Path | None = None   # last real scene, the blurred background for app screens
     for it in plan:
-        if it["shot"].get("app_screen"):
+        if it["shot"].get("montage"):
+            kind = "montage punch-in"
+        elif it["shot"].get("app_screen"):
             kind = f"app screen {it['shot']['app_screen']}"
         elif it["shot"].get("card"):
             kind = f"card \"{it['shot']['card']}\""
