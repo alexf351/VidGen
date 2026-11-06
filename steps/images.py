@@ -217,6 +217,9 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
 
     for shot in shots:
         n = shot["n"]
+        if shot.get("card"):
+            print(f"  shot {n}: time card \"{shot['card']}\", no image needed")
+            continue
         dest = shot_path(run_dir, n)
         if dest.exists() and not force:
             print(f"  shot {n}: exists, skipping")

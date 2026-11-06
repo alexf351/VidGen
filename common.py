@@ -51,6 +51,7 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     asm = cfg.setdefault("assemble", {})
     for key, default in [("width", 1080), ("height", 1920), ("fps", 30),
                          ("vo_pad_seconds", 0.25), ("min_shot_seconds", 1.2), ("zoom_end", 1.08),
+                         ("card_seconds", 1.5), ("card_fade_ms", 200),
                          ("caption_font", "Montserrat Black Italic"),
                          ("caption_fallback_font", "Arial Black"), ("caption_size", 90),
                          ("caption_y", 0.55), ("music_volume", 0.15), ("saturation", 0.85)]:

@@ -33,6 +33,8 @@ assemble:
   fps: 30
   vo_pad_seconds: 0.25          # shot length = VO length + this
   min_shot_seconds: 1.2
+  card_seconds: 1.5             # time-jump cards: black screen with the card text
+  card_fade_ms: 200             # card text fades in and out over this long
   zoom_end: 1.08                # still shots push in from 1.00 to this
   caption_font: "Montserrat Black Italic"
   caption_fallback_font: "Arial Black"

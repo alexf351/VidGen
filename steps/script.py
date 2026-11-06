@@ -13,10 +13,13 @@ import anthropic
 from common import StepError, read_premise, write_json
 
 SHOT_MIN, SHOT_MAX = 15, 22
-VO_WORDS_MIN, VO_WORDS_MAX = 90, 130   # total spoken words across all shots (40-55 s)
+VO_WORDS_MIN, VO_WORDS_MAX = 60, 100   # total spoken words across all shots
 CTA_CAPTION = "SEARCH IRO AI"          # required caption on the final shot
 SHOT_KEYS = {"n", "characters", "image_prompt", "motion_prompt", "vo_line",
              "speaker", "caption", "animate"}
+OPTIONAL_SHOT_KEYS = {"card"}          # "card": "6 MONTHS LATER" marks a time-jump card shot
+CARDS_MIN, CARDS_MAX = 1, 3
+CARD_WORDS_MAX = 4
 
 
 # ---------------------------------------------------------------- prompt ----
@@ -48,12 +51,24 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
               "image_prompt": "...",
               "motion_prompt": "...",
               "vo_line": "...",
-              "speaker": "narrator",
+              "speaker": "marcus",
+              "caption": "",
+              "animate": false
+            }},
+            {{
+              "n": 6,
+              "card": "6 MONTHS LATER",
+              "characters": [],
+              "image_prompt": "",
+              "motion_prompt": "",
+              "vo_line": "",
+              "speaker": "",
               "caption": "",
               "animate": false
             }}
           ]
         }}
+        "card" appears ONLY on time-jump card shots; leave it out of every other shot.
 
         LOCKED CAST
         These characters are fixed. Reuse their ids and copy their descriptions WORD FOR WORD
@@ -128,11 +143,15 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
         - "characters" lists the ids of every character visible in the shot (may be empty).
         - "motion_prompt" is one sentence of camera and subject motion for a 3-5 second clip.
           Keep it short even for still shots (a slow push-in or drift is fine).
-        - "vo_line" is what is spoken during the shot, or "" for silent shots. Most shots are
-          3-8 words. Many beats work with a single caption word and no narration. The TOTAL
-          word count of all vo_lines across the script must be {VO_WORDS_MIN}-{VO_WORDS_MAX}
-          words (a 40-55 second video). Count before you answer.
-        - "speaker" is "narrator" or a character id (use "narrator" on silent shots).
+        - "vo_line" is a line of dialogue spoken by one of the cast: {{SPEAKERS}}.
+          There is NO narrator: no voice-over that describes events, explains the story or
+          talks about the hero in the third person. Every spoken line is a character talking.
+          Shots with no dialogue have "vo_line": "" and let the visual carry the beat; MOST
+          shots should be silent. Spoken lines are short, usually 2-8 words. The TOTAL word
+          count of all vo_lines across the script must be {VO_WORDS_MIN}-{VO_WORDS_MAX} words.
+          Count before you answer.
+        - "speaker" is the id of the character who speaks the vo_line (one of {{SPEAKERS}}),
+          or "" when vo_line is "". Never "narrator".
         - "caption" is "" or ONE OR TWO WORDS IN ALL CAPS that hit the beat ("LOSER", "DAY 1",
           "DIAMOND", "I'M GOOD"). The only three-word caption allowed is "{CTA_CAPTION}" on the
           last shot.
@@ -140,7 +159,19 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
           IS the beat: a car pulling away, someone walking out, a crowd, a thrown phone, the
           counter climbing, a door slamming. Dialogue close-ups and establishing shots stay false.
 
-        Return only the JSON object.""").replace("{CAST}", _cast_block(locked))
+        TIME-JUMP CARDS
+        - Use {CARDS_MIN}-{CARDS_MAX} time-jump card shots per video, at the natural jumps in time:
+          after rock bottom, during the grind (between counter shots), and before the payoff.
+        - A card shot is a black screen with white text. Give it "card": a short span of time
+          in ALL CAPS, 2-{CARD_WORDS_MAX} words ("30 DAYS LATER", "6 MONTHS LATER",
+          "2 YEARS LATER"), and "characters": [], "image_prompt": "", "motion_prompt": "",
+          "vo_line": "", "speaker": "", "caption": "", "animate": false.
+        - Card times must fit the story: they never contradict the hero's bet (a "give me 30
+          days" grind can show "2 WEEKS LATER", not "2 YEARS LATER"). A card is never the first
+          or the last shot, and cards count toward the {SHOT_MIN}-{SHOT_MAX} shots.
+
+        Return only the JSON object.""").replace("{CAST}", _cast_block(locked)) \
+        .replace("{SPEAKERS}", ", ".join(c["id"] for c in locked) or "the cast")
 
 
 def build_user_prompt(premise: str) -> str:
@@ -263,6 +294,9 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
 
     animated = 0
     vo_words = 0
+    cards = 0
+    # Who may speak: the locked cast (or, with no locked cast, any character in the script).
+    speakers = set(locked_desc) or set(id_set)
     normalized_shots = []
     for i, s in enumerate(shots):
         label = f"shots[{i}]"
@@ -270,7 +304,7 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             errors.append(f"{label} must be an object")
             continue
         missing = SHOT_KEYS - set(s)
-        extra = set(s) - SHOT_KEYS
+        extra = set(s) - SHOT_KEYS - OPTIONAL_SHOT_KEYS
         if missing:
             errors.append(f"{label} missing keys: {sorted(missing)}")
         if extra:
@@ -284,16 +318,45 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             for c in chars:
                 if c not in id_set:
                     errors.append(f"{label}.characters references unknown id {c!r}")
-        for key in ("image_prompt", "motion_prompt"):
-            if not _is_str(s.get(key)) or not s.get(key).strip():
-                errors.append(f"{label}.{key} must be a non-empty string")
-        if not _is_str(s.get("vo_line")):
-            errors.append(f"{label}.vo_line must be a string (may be empty for silent shots)")
+        card = s.get("card", "")
+        if card is None:
+            card = ""
+        if not _is_str(card):
+            errors.append(f"{label}.card must be a string, got {card!r}")
+            card = ""
+        card = card.strip()
+        is_card = bool(card)
+        if is_card:
+            cards += 1
+            if not (2 <= len(card.split()) <= CARD_WORDS_MAX):
+                errors.append(f"{label}.card must be 2-{CARD_WORDS_MAX} words, got {card!r}")
+            if chars:
+                errors.append(f"{label} is a card shot, so characters must be [], got {chars!r}")
+            if _is_str(s.get("vo_line")) and s["vo_line"].strip():
+                errors.append(f"{label} is a card shot, so vo_line must be empty")
+            if s.get("animate") is True:
+                errors.append(f"{label} is a card shot, so animate must be false")
+            if i == 0 or i == len(shots) - 1:
+                errors.append(f"{label}: a card cannot be the first or last shot")
         else:
-            vo_words += len(s["vo_line"].split())
+            for key in ("image_prompt", "motion_prompt"):
+                if not _is_str(s.get(key)) or not s.get(key).strip():
+                    errors.append(f"{label}.{key} must be a non-empty string")
+        vo = s.get("vo_line")
+        if not _is_str(vo):
+            errors.append(f"{label}.vo_line must be a string (may be empty for silent shots)")
+            vo = ""
+        vo_words += len(vo.split())
         speaker = s.get("speaker")
-        if not _is_str(speaker) or (speaker != "narrator" and speaker not in id_set):
-            errors.append(f"{label}.speaker must be 'narrator' or a character id, got {speaker!r}")
+        if speaker == "narrator":
+            errors.append(f"{label}.speaker is 'narrator'; there is no narrator, every line is "
+                          f"spoken by a character ({', '.join(sorted(speakers))})")
+        elif vo.strip():
+            if speaker not in speakers:
+                errors.append(f"{label}.speaker must be the character who says the line, one of "
+                              f"{sorted(speakers)}, got {speaker!r}")
+        elif not _is_str(speaker) or (speaker and speaker not in id_set):
+            errors.append(f"{label}.speaker must be \"\" for a silent shot, got {speaker!r}")
         caption = s.get("caption")
         if not _is_str(caption):
             errors.append(f"{label}.caption must be a string (may be empty)")
@@ -305,19 +368,31 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             animated += 1
 
         shot = dict(s)
-        if _is_str(shot.get("image_prompt")):
-            prompt = shot["image_prompt"].strip()
-            if not prompt.lower().startswith(style.lower()):
-                prompt = f"{style}, {prompt}"
-            shot["image_prompt"] = prompt
-        if _is_str(shot.get("caption")):
-            shot["caption"] = shot["caption"].strip().upper()
+        if is_card:
+            # A card is drawn by the assembly step; nothing else on the shot is used.
+            shot.update({"card": card.upper(), "characters": [], "vo_line": "", "speaker": "",
+                         "caption": "", "animate": False,
+                         "image_prompt": (s.get("image_prompt") or "").strip() if _is_str(s.get("image_prompt")) else "",
+                         "motion_prompt": (s.get("motion_prompt") or "").strip() if _is_str(s.get("motion_prompt")) else ""})
+        else:
+            shot.pop("card", None)
+            if _is_str(shot.get("image_prompt")):
+                prompt = shot["image_prompt"].strip()
+                if not prompt.lower().startswith(style.lower()):
+                    prompt = f"{style}, {prompt}"
+                shot["image_prompt"] = prompt
+            if _is_str(shot.get("caption")):
+                shot["caption"] = shot["caption"].strip().upper()
+            if not vo.strip() and _is_str(shot.get("speaker")):
+                shot["speaker"] = ""
         normalized_shots.append(shot)
 
     if animated > max_animated:
         errors.append(f"at most {max_animated} shots may have animate: true, got {animated}")
     if not (VO_WORDS_MIN <= vo_words <= VO_WORDS_MAX):
         errors.append(f"total vo_line words must be {VO_WORDS_MIN}-{VO_WORDS_MAX}, got {vo_words}")
+    if not (CARDS_MIN <= cards <= CARDS_MAX):
+        errors.append(f"use {CARDS_MIN}-{CARDS_MAX} time-jump card shots, got {cards}")
     if normalized_shots:
         last = normalized_shots[-1]
         if last.get("caption") != CTA_CAPTION:
@@ -351,6 +426,8 @@ def print_shot_table(script: dict, style: str) -> None:
         scene = s["image_prompt"]
         if scene.lower().startswith(style.lower()):
             scene = scene[len(style):].lstrip(" ,")
+        if s.get("card"):
+            scene = f"[CARD] {s['card']}"
         print(f"{s['n']:>2}  {'*' if s['animate'] else ' '}  "
               f"{_clip(s['speaker'], 10):<10} {_clip(s['caption'], 10):<10} "
               f"{_clip(s['vo_line'], 44):<44} {_clip(scene, 40)}")

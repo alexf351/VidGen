@@ -25,6 +25,12 @@ def shot_durations(run_dir: Path, script: dict, asm: dict) -> list[dict]:
     t = 0.0
     for shot in script["shots"]:
         n = shot["n"]
+        if shot.get("card"):
+            # Time-jump card: fixed length, black, no voice.
+            duration = float(asm["card_seconds"])
+            plan.append({"shot": shot, "n": n, "start": t, "duration": duration, "vo": None, "vo_len": 0.0})
+            t += duration
+            continue
         vo = audio_path(run_dir, n)
         vo_len = 0.0
         if shot["vo_line"].strip():
@@ -55,6 +61,14 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict) -> Path:
     keyframe = shot_path(run_dir, n)
     clip = video_path(run_dir, n)
     label = f"shot {n}"
+
+    if shot.get("card"):
+        # Plain black frames; the card text is drawn by the caption pass with its own fade.
+        run_ffmpeg(["-f", "lavfi", "-i", f"color=c=black:s={w}x{h}:r={fps}",
+                    "-frames:v", str(frames), "-an", "-vf", "setsar=1",
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+                    str(out)], label)
+        return out
 
     if shot.get("animate") and clip.exists():
         # Trim to length; if the clip is shorter than the VO, hold its last frame.
@@ -167,6 +181,14 @@ def _spread_words(text: str, length: float) -> list[dict]:
             for i, t in enumerate(toks)]
 
 
+def card_event(item: dict) -> tuple[float, float, str] | None:
+    """A card shot's text for its whole length, or None for any other shot."""
+    card = (item["shot"].get("card") or "").strip().upper()
+    if not card:
+        return None
+    return (item["start"], item["start"] + item["duration"], card)
+
+
 def shot_caption_events(run_dir: Path, item: dict) -> list[tuple[float, float, str]]:
     """(start, end, text) in seconds on the final timeline for one shot's captions.
 
@@ -175,6 +197,8 @@ def shot_caption_events(run_dir: Path, item: dict) -> list[tuple[float, float, s
     shot (nothing if it is empty)."""
     shot_start = item["start"]
     shot_end = item["start"] + item["duration"]
+    if item["shot"].get("card"):
+        return []
     if item["vo"] is None:
         caption = (item["shot"].get("caption") or "").strip().upper()
         return [(shot_start, shot_end, caption)] if caption else []
@@ -234,8 +258,17 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
     ]
     # Pop-in on every chunk: start at 85% scale, animate to 100% over the first 80ms.
     pop = f"\\fscx{POP_FROM}\\fscy{POP_FROM}\\t(0,{POP_MS},\\fscx100\\fscy100)"
+    # Time-jump cards: same style, centred on the black frame, a quick fade in and out, no pop.
+    fade = int(asm["card_fade_ms"])
     count = 0
     for item in plan:
+        card = card_event(item)
+        if card is not None:
+            start, end, text = card
+            lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
+                         f"{{\\an5\\pos({w // 2},{h // 2})\\blur6\\fad({fade},{fade})}}{_ass_escape(text)}")
+            count += 1
+            continue
         for start, end, text in shot_caption_events(run_dir, item):
             lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
                          f"{{\\an5\\pos({w // 2},{cy})\\blur6{pop}}}{_ass_escape(text)}")
@@ -367,7 +400,10 @@ def run(run_dir: Path, config: dict) -> None:
 
     clips = []
     for it in plan:
-        kind = "clip" if (it["shot"].get("animate") and video_path(run_dir, it["n"]).exists()) else "push-in"
+        if it["shot"].get("card"):
+            kind = f"card \"{it['shot']['card']}\""
+        else:
+            kind = "clip" if (it["shot"].get("animate") and video_path(run_dir, it["n"]).exists()) else "push-in"
         print(f"  shot {it['n']}: {kind} {it['duration']:.2f}s" + (f" (VO {it['vo_len']:.2f}s)" if it["vo"] else ""))
         clips.append(build_shot_clip(run_dir, build, it, asm))
 

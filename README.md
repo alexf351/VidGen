@@ -141,7 +141,13 @@ Rules enforced by the prompt and checked by the validator:
 
 - 15 to 22 shots, numbered from 1 with no gaps
 - every locked character is present and its description matches config exactly
-- total `vo_line` words across the script is 90 to 130 (a 40-55 second video); shots may be silent
+- there is no narrator: every `vo_line` is dialogue spoken by a cast member (marcus, jess,
+  tyler, boss, sofia, iro), `speaker` names who says it, and silent shots have an empty
+  `vo_line` and `speaker`; a `narrator` speaker fails validation
+- total `vo_line` words across the script is 60 to 100, and most shots are silent
+- 1 to 3 time-jump card shots (optional `"card": "6 MONTHS LATER"` field) at the natural jumps
+  in time; a card shot has no characters, no `vo_line`, `animate: false`, and is never the
+  first or last shot. Shots without a `card` field work exactly as before
 - the last shot's caption is exactly `SEARCH IRO AI`
 - the style line opens every `image_prompt` (prepended if the model forgets)
 - no more than `max_animated_shots` shots are `animate: true`, reserved for shots where motion is the beat
@@ -199,6 +205,9 @@ ffprobe is missing.
   shot instead. Bold italic white text with a soft pink-white glow, centred at 55% height, 90 px. Montserrat
   Black Italic is used when installed, otherwise Arial Black, otherwise a substituted sans with
   a printed warning.
+- Time-jump card shots are 1.5 s of black (`assemble.card_seconds`) with the card text centred
+  in the caption style, fading in and out over 200 ms (`assemble.card_fade_ms`), with no zoom
+  or pop. The images, video and voice steps make nothing for card shots.
 - A light grade is applied to the whole cut: saturation 0.85 and a slight cool tint.
 - A music bed is mixed under the cut only when `music_path` is set, and the outro is appended
   only when `outro_path` is set. The result is `runs/<run_id>/final.mp4`, H.264 + AAC at 30 fps,
