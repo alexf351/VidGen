@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -114,24 +113,87 @@ def pick_caption_font(asm: dict) -> str:
     return wanted.replace(" Italic", "")
 
 
-def _norm(tok: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", tok.lower())
+MAX_CHUNK_WORDS = 2
+POP_MS = 80                    # pop-in: scale 85% -> 100% over this many milliseconds
+POP_FROM = 85
+_BREAK_AFTER = tuple(".,!?;:\u2014\u2013")   # a chunk always ends after a word ending in these
+_QUOTES = "\"'\u201c\u201d\u2018\u2019()[]"
+_DROP_TRAILING = ".,;:\u2014\u2013-"       # dropped from display; ! and ? are kept for tone
 
 
-def caption_offset(caption: str, words: list[dict]) -> float | None:
-    """Seconds into the VO at which the caption word(s) are spoken, or None if not found."""
-    targets = [_norm(t) for t in caption.split() if _norm(t)]
-    toks = [_norm(w["word"]) for w in words]
-    if not targets or not toks:
-        return None
-    k = len(targets)
-    for i in range(len(toks) - k + 1):
-        if toks[i:i + k] == targets:
-            return float(words[i]["start"])
-    for i, t in enumerate(toks):
-        if t == targets[0]:
-            return float(words[i]["start"])
-    return None
+def _display(word: str) -> str:
+    """Caption text for one spoken token: all caps, wrapping quotes and soft punctuation removed."""
+    text = word.strip().strip(_QUOTES).rstrip(_DROP_TRAILING).strip(_QUOTES)
+    return text.upper()
+
+
+def _ends_clause(word: str) -> bool:
+    return word.strip().rstrip(_QUOTES).endswith(_BREAK_AFTER)
+
+
+def chunk_words(words: list[dict]) -> list[dict]:
+    """Group timed words into chunks of at most MAX_CHUNK_WORDS, breaking after punctuation.
+
+    Returns [{"text": "THE WINDOW", "start": seconds into the clip}]. A token that is pure
+    punctuation (a standalone dash, an ellipsis) shows nothing and ends the current chunk."""
+    chunks: list[dict] = []
+    cur: list[str] = []
+    cur_start = 0.0
+    for w in words:
+        text = _display(w["word"])
+        if not text:
+            if cur:
+                chunks.append({"text": " ".join(cur), "start": cur_start})
+                cur = []
+            continue
+        if not cur:
+            cur_start = float(w["start"])
+        cur.append(text)
+        if len(cur) >= MAX_CHUNK_WORDS or _ends_clause(w["word"]):
+            chunks.append({"text": " ".join(cur), "start": cur_start})
+            cur = []
+    if cur:
+        chunks.append({"text": " ".join(cur), "start": cur_start})
+    return chunks
+
+
+def _spread_words(text: str, length: float) -> list[dict]:
+    """Even timing for a clip whose timing json is missing (fallback only)."""
+    toks = text.split()
+    if not toks or length <= 0:
+        return []
+    step = length / len(toks)
+    return [{"word": t, "start": round(i * step, 3), "end": round((i + 1) * step, 3)}
+            for i, t in enumerate(toks)]
+
+
+def shot_caption_events(run_dir: Path, item: dict) -> list[tuple[float, float, str]]:
+    """(start, end, text) in seconds on the final timeline for one shot's captions.
+
+    Spoken shot: every word, in chunks synced to the voice timing; each chunk holds until the
+    next one starts, the last until the shot ends. Silent shot: the caption field for the whole
+    shot (nothing if it is empty)."""
+    shot_start = item["start"]
+    shot_end = item["start"] + item["duration"]
+    if item["vo"] is None:
+        caption = (item["shot"].get("caption") or "").strip().upper()
+        return [(shot_start, shot_end, caption)] if caption else []
+
+    tp = timing_path(run_dir, item["n"])
+    words = read_json(tp).get("words", []) if tp.exists() else []
+    if not words:
+        print(f"  shot {item['n']}: no word timings in {tp.name}; spreading the words evenly over the VO")
+        words = _spread_words(item["shot"]["vo_line"], item["vo_len"])
+
+    chunks = chunk_words(words)
+    events = []
+    for i, ch in enumerate(chunks):
+        start = min(shot_start + ch["start"], shot_end)
+        end = shot_start + chunks[i + 1]["start"] if i + 1 < len(chunks) else shot_end
+        end = min(max(end, start + 0.05), shot_end)
+        if end > start:
+            events.append((start, end, ch["text"]))
+    return events
 
 
 def _ass_time(seconds: float) -> str:
@@ -170,22 +232,14 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
+    # Pop-in on every chunk: start at 85% scale, animate to 100% over the first 80ms.
+    pop = f"\\fscx{POP_FROM}\\fscy{POP_FROM}\\t(0,{POP_MS},\\fscx100\\fscy100)"
     count = 0
     for item in plan:
-        caption = (item["shot"].get("caption") or "").strip().upper()
-        if not caption:
-            continue
-        start = item["start"]
-        if item["vo"] is not None:
-            tp = timing_path(run_dir, item["n"])
-            words = read_json(tp).get("words", []) if tp.exists() else []
-            off = caption_offset(caption, words)
-            if off is not None:
-                start = item["start"] + off
-        end = item["start"] + item["duration"]
-        lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
-                     f"{{\\an5\\pos({w // 2},{cy})\\blur6}}{_ass_escape(caption)}")
-        count += 1
+        for start, end, text in shot_caption_events(run_dir, item):
+            lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
+                         f"{{\\an5\\pos({w // 2},{cy})\\blur6{pop}}}{_ass_escape(text)}")
+            count += 1
     path = build / "captions.ass"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path, count

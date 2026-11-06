@@ -187,9 +187,13 @@ ffprobe is missing.
   Still shots get a slow push-in from 1.00 to 1.08 on the keyframe.
 - Every shot is scaled and cropped to fill 1080x1920 with no black bars, then all shots are
   concatenated and the voice-over clips are placed at their shot start times.
-- Captions come from a generated `.ass` file and are burned in: each shot's caption appears
-  when its word is first spoken (from the timing json), or at the shot start for silent shots.
-  Bold italic white text with a soft pink-white glow, centred at 55% height, 90 px. Montserrat
+- Captions come from a generated `.ass` file and are burned in. Every spoken word is shown,
+  1-2 words at a time in all caps, built from the word timings in `audio/<n>.json`: a chunk
+  never holds more than two words and always breaks after punctuation, appears when its first
+  word starts and stays until the next chunk starts (the last one until the shot ends). Each
+  chunk pops in from 85% to 100% scale over 80 ms. Commas and periods are dropped from the
+  display; `!` and `?` are kept. Silent shots show the shot's `caption` field for the whole
+  shot instead. Bold italic white text with a soft pink-white glow, centred at 55% height, 90 px. Montserrat
   Black Italic is used when installed, otherwise Arial Black, otherwise a substituted sans with
   a printed warning.
 - A light grade is applied to the whole cut: saturation 0.85 and a slight cool tint.
