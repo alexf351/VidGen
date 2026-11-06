@@ -35,6 +35,8 @@ assemble:
   min_shot_seconds: 1.2
   card_seconds: 1.5             # time-jump cards: black screen with the card text
   card_fade_ms: 200             # card text fades in and out over this long
+  app_screen_seconds: 1.5       # app_screen shots: real screenshot in a phone mockup
+  app_screen_zoom_end: 1.04     # slight push-in on the mockup, from 1.00 to this
   zoom_end: 1.08                # still shots push in from 1.00 to this
   caption_font: "Montserrat Black Italic"
   caption_fallback_font: "Arial Black"
@@ -45,6 +47,19 @@ assemble:
 
 # Upper bound on shots marked animate: true. Everything else stays a still.
 max_animated_shots: 8
+
+# Real Iro app screenshots. The image model never draws the app; a shot with "app_screen"
+# shows one of these inside a phone mockup instead. `shows` tells the script writer what is on
+# screen. The script step only offers files that exist.
+app_screens:
+  - path: assets/screens/learn.jpg
+    shows: "the learning path map with the next lesson card and a START button (a first lesson)"
+  - path: assets/screens/lesson.jpg
+    shows: "a lesson in progress: Iro asks the learner to match AI tools to what they do best"
+  - path: assets/screens/progress.jpg
+    shows: "the progress screen: Gold II rank, XP bar and the six-skill operator build"
+  - path: assets/screens/create.jpg
+    shows: "the create screen for building a custom learning path on any topic"
 
 # Recurring cast. Descriptions are physical identity only (no clothing); the script step
 # reuses them word for word and adds a scene-appropriate outfit per shot. The validator

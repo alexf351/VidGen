@@ -3,4 +3,5 @@ python-dotenv>=1.0
 PyYAML>=6.0
 fal-client>=1.0,<2
 requests>=2.31
+Pillow>=10.0       # app_screen phone mockups
 # Later steps (voice/assemble) will add their own deps here, e.g. elevenlabs and ffmpeg.

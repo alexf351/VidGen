@@ -220,6 +220,9 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         if shot.get("card"):
             print(f"  shot {n}: time card \"{shot['card']}\", no image needed")
             continue
+        if shot.get("app_screen"):
+            print(f"  shot {n}: real app screenshot {shot['app_screen']}, no image needed")
+            continue
         dest = shot_path(run_dir, n)
         if dest.exists() and not force:
             print(f"  shot {n}: exists, skipping")

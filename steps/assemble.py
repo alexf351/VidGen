@@ -25,9 +25,9 @@ def shot_durations(run_dir: Path, script: dict, asm: dict) -> list[dict]:
     t = 0.0
     for shot in script["shots"]:
         n = shot["n"]
-        if shot.get("card"):
-            # Time-jump card: fixed length, black, no voice.
-            duration = float(asm["card_seconds"])
+        if shot.get("card") or shot.get("app_screen"):
+            # Time-jump card or app screen: fixed length, no voice.
+            duration = float(asm["card_seconds"] if shot.get("card") else asm["app_screen_seconds"])
             plan.append({"shot": shot, "n": n, "start": t, "duration": duration, "vo": None, "vo_len": 0.0})
             t += duration
             continue
@@ -51,7 +51,86 @@ def _fill_filter(w: int, h: int) -> str:
     return f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}"
 
 
-def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict) -> Path:
+def _push_in(src: Path, out: Path, frames: int, zoom_end: float, asm: dict, label: str) -> None:
+    """Slow centred push-in on a still, 1.00 -> zoom_end over `frames` frames."""
+    w, h, fps = int(asm["width"]), int(asm["height"]), int(asm["fps"])
+    # Oversample first so zoompan's integer sampling does not jitter.
+    vf = (f"{_fill_filter(w * 2, h * 2)},"
+          f"zoompan=z='min(1+({zoom_end:.4f}-1)*on/{frames},{zoom_end:.4f})'"
+          f":d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={w}x{h}:fps={fps},setsar=1")
+    run_ffmpeg(["-i", str(src), "-vf", vf, "-frames:v", str(frames), "-an",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+                str(out)], label)
+
+
+def last_frame(clip: Path, out_png: Path, label: str) -> Path:
+    run_ffmpeg(["-sseof", "-0.1", "-i", str(clip), "-frames:v", "1", "-update", "1", str(out_png)], label)
+    return out_png
+
+
+def compose_phone_mockup(screen: Path, background: Path | None, out: Path, w: int, h: int) -> Path:
+    """The real screenshot inside a rounded phone frame, centred on a blurred, darkened
+    background (the previous shot's last frame, or a plain dark fill if there is none)."""
+    try:
+        from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
+    except ImportError:
+        raise StepError("app_screen shots need Pillow: pip install -r requirements.txt") from None
+    lanczos = Image.Resampling.LANCZOS
+
+    if background is not None and background.exists():
+        bg = Image.open(background).convert("RGB")
+        scale = max(w / bg.width, h / bg.height)
+        bg = bg.resize((math.ceil(bg.width * scale), math.ceil(bg.height * scale)), lanczos)
+        left, top = (bg.width - w) // 2, (bg.height - h) // 2
+        bg = bg.crop((left, top, left + w, top + h)).filter(ImageFilter.GaussianBlur(36))
+        bg = ImageEnhance.Brightness(bg).enhance(0.55)
+    else:
+        bg = Image.new("RGB", (w, h), (12, 16, 26))
+
+    shot = Image.open(screen).convert("RGB")
+    sw = round(w * 0.62)
+    sh = round(sw * shot.height / shot.width)
+    if sh > h * 0.84:
+        sh = round(h * 0.84)
+        sw = round(sh * shot.width / shot.height)
+    shot = shot.resize((sw, sh), lanczos)
+    bezel = max(10, round(sw * 0.035))
+    r_screen = round(sw * 0.12)
+    r_body = r_screen + bezel
+    bw, bh = sw + 2 * bezel, sh + 2 * bezel
+    x0, y0 = (w - bw) // 2, (h - bh) // 2
+
+    canvas = bg.convert("RGBA")
+    shadow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(shadow).rounded_rectangle([x0, y0 + 26, x0 + bw, y0 + bh + 26], r_body, fill=(0, 0, 0, 170))
+    canvas = Image.alpha_composite(canvas, shadow.filter(ImageFilter.GaussianBlur(30)))
+    body = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(body).rounded_rectangle([x0, y0, x0 + bw - 1, y0 + bh - 1], r_body,
+                                           fill=(20, 20, 24, 255), outline=(82, 84, 94, 255), width=3)
+    canvas = Image.alpha_composite(canvas, body)
+    mask = Image.new("L", (sw, sh), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, sw - 1, sh - 1], r_screen, fill=255)
+    canvas.paste(shot, (x0 + bezel, y0 + bezel), mask)
+    # Dynamic-island pill, centred at the top of the screen (the status bar keeps its sides).
+    iw, ih = round(sw * 0.30), round(sw * 0.088)
+    ix, iy = x0 + bezel + (sw - iw) // 2, y0 + bezel + round(sw * 0.028)
+    ImageDraw.Draw(canvas).rounded_rectangle([ix, iy, ix + iw, iy + ih], ih // 2, fill=(0, 0, 0, 255))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    canvas.convert("RGB").save(out)
+    return out
+
+
+def app_screen_file(shot: dict) -> Path:
+    rel = str(shot["app_screen"]).strip()
+    path = Path(rel) if Path(rel).is_absolute() else ROOT / rel
+    if not path.is_file():
+        raise StepError(f"shot {shot['n']}: app_screen {rel} not found; add the screenshot or edit "
+                        f"script.json")
+    return path
+
+
+def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
+                    background: Path | None = None) -> Path:
     n = item["n"]
     shot = item["shot"]
     w, h, fps = int(asm["width"]), int(asm["height"]), int(asm["fps"])
@@ -61,6 +140,13 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict) -> Path:
     keyframe = shot_path(run_dir, n)
     clip = video_path(run_dir, n)
     label = f"shot {n}"
+
+    if shot.get("app_screen"):
+        # Real screenshot in a phone mockup on the previous shot (blurred), slight push-in.
+        bg_png = last_frame(background, build / f"bg_{n:02d}.png", label) if background else None
+        mock = compose_phone_mockup(app_screen_file(shot), bg_png, build / f"app_{n:02d}.png", w, h)
+        _push_in(mock, out, frames, float(asm["app_screen_zoom_end"]), asm, label)
+        return out
 
     if shot.get("card"):
         # Plain black frames; the card text is drawn by the caption pass with its own fade.
@@ -84,15 +170,7 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict) -> Path:
     if not keyframe.exists():
         raise StepError(f"shot {n}: keyframe {keyframe} is missing; run the images step first")
 
-    # Slow push-in. Oversample first so zoompan's integer sampling does not jitter.
-    zoom_end = float(asm["zoom_end"])
-    ow, oh = w * 2, h * 2
-    vf = (f"{_fill_filter(ow, oh)},"
-          f"zoompan=z='min(1+({zoom_end:.4f}-1)*on/{frames},{zoom_end:.4f})'"
-          f":d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={w}x{h}:fps={fps},setsar=1")
-    run_ffmpeg(["-i", str(keyframe), "-vf", vf, "-frames:v", str(frames), "-an",
-                "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
-                str(out)], label)
+    _push_in(keyframe, out, frames, float(asm["zoom_end"]), asm, label)
     return out
 
 
@@ -197,7 +275,7 @@ def shot_caption_events(run_dir: Path, item: dict) -> list[tuple[float, float, s
     shot (nothing if it is empty)."""
     shot_start = item["start"]
     shot_end = item["start"] + item["duration"]
-    if item["shot"].get("card"):
+    if item["shot"].get("card") or item["shot"].get("app_screen"):
         return []
     if item["vo"] is None:
         caption = (item["shot"].get("caption") or "").strip().upper()
@@ -399,13 +477,19 @@ def run(run_dir: Path, config: dict) -> None:
     print(f"[assemble] {len(plan)} shots, {total:.1f}s at {asm['width']}x{asm['height']} {asm['fps']}fps")
 
     clips = []
+    scene_clip: Path | None = None   # last real scene, the blurred background for app screens
     for it in plan:
-        if it["shot"].get("card"):
+        if it["shot"].get("app_screen"):
+            kind = f"app screen {it['shot']['app_screen']}"
+        elif it["shot"].get("card"):
             kind = f"card \"{it['shot']['card']}\""
         else:
             kind = "clip" if (it["shot"].get("animate") and video_path(run_dir, it["n"]).exists()) else "push-in"
         print(f"  shot {it['n']}: {kind} {it['duration']:.2f}s" + (f" (VO {it['vo_len']:.2f}s)" if it["vo"] else ""))
-        clips.append(build_shot_clip(run_dir, build, it, asm))
+        clip = build_shot_clip(run_dir, build, it, asm, background=scene_clip)
+        if not (it["shot"].get("card") or it["shot"].get("app_screen")):
+            scene_clip = clip
+        clips.append(clip)
 
     concat_list = build / "concat.txt"
     concat_list.write_text("".join(f"file '{c.name}'\n" for c in clips), encoding="utf-8")

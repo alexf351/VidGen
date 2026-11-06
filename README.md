@@ -77,6 +77,7 @@ characters_cache/<id>.png   generated sheets for locked characters, reused by ev
 | `music_path`         | background music file                                          |
 | `outro_path`         | clip appended after the last shot                              |
 | `max_animated_shots` | cap on shots marked `animate: true` (default 8)                |
+| `app_screens`        | real Iro app screenshots (`path`, `shows`) the script may put in app_screen shots |
 | `locked_characters`  | recurring cast: `id`, `role`, `description`, `image_path`      |
 | `script.model`       | Claude model for the script step (`claude-sonnet-5-5`)         |
 | `script.max_tokens`  | output cap for the script request                              |
@@ -145,6 +146,15 @@ Rules enforced by the prompt and checked by the validator:
   tyler, boss, sofia, iro), `speaker` names who says it, and silent shots have an empty
   `vo_line` and `speaker`; a `narrator` speaker fails validation
 - total `vo_line` words across the script is 60 to 100, and most shots are silent
+- the image model never draws the Iro app: a character using a phone is shown with the back
+  of the phone toward camera and the screen glow on their face, and an `image_prompt` that
+  names "Iro AI", the app's UI, a logo or what a screen shows fails validation (the mascot's
+  own name is fine). The closing CTA shot is a back-of-phone shot under `SEARCH IRO AI`
+- the real app appears in `app_screen` shots (optional `"app_screen": "assets/screens/lesson.jpg"`
+  field): exactly one right after the hero opens the app in the mentor beat and optionally one
+  in the grind, using a path from `app_screens` in `config.yaml`. An app_screen shot has no
+  characters, no `vo_line`, `animate: false`, and is never the first or last shot. If no listed
+  screenshot exists, none are asked for
 - 1 to 3 time-jump card shots (optional `"card": "6 MONTHS LATER"` field) at the natural jumps
   in time; a card shot has no characters, no `vo_line`, `animate: false`, and is never the
   first or last shot. Shots without a `card` field work exactly as before
@@ -205,6 +215,10 @@ ffprobe is missing.
   shot instead. Bold italic white text with a soft pink-white glow, centred at 55% height, 90 px. Montserrat
   Black Italic is used when installed, otherwise Arial Black, otherwise a substituted sans with
   a printed warning.
+- App screen shots are 1.5 s (`assemble.app_screen_seconds`) of the real screenshot inside a
+  rounded phone frame, centred on a blurred, darkened copy of the previous scene's last frame,
+  with a slight push-in from 1.00 to 1.04 (`assemble.app_screen_zoom_end`). No captions are drawn
+  over them. The images, video and voice steps make nothing for these shots.
 - Time-jump card shots are 1.5 s of black (`assemble.card_seconds`) with the card text centred
   in the caption style, fading in and out over 200 ms (`assemble.card_fade_ms`), with no zoom
   or pop. The images, video and voice steps make nothing for card shots.

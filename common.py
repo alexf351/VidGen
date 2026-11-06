@@ -31,6 +31,7 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     if not cfg.get("style"):
         raise StepError("config.yaml is missing the 'style' line")
     cfg["locked_characters"] = _check_locked_characters(cfg.get("locked_characters") or [])
+    cfg["app_screens"] = _check_app_screens(cfg.get("app_screens") or [])
     cfg.setdefault("characters_cache_dir", "characters_cache")
     fal = cfg.setdefault("fal", {})
     fal.setdefault("image_model", "fal-ai/nano-banana")
@@ -52,6 +53,7 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     for key, default in [("width", 1080), ("height", 1920), ("fps", 30),
                          ("vo_pad_seconds", 0.25), ("min_shot_seconds", 1.2), ("zoom_end", 1.08),
                          ("card_seconds", 1.5), ("card_fade_ms", 200),
+                         ("app_screen_seconds", 1.5), ("app_screen_zoom_end", 1.04),
                          ("caption_font", "Montserrat Black Italic"),
                          ("caption_fallback_font", "Arial Black"), ("caption_size", 90),
                          ("caption_y", 0.55), ("music_volume", 0.15), ("saturation", 0.85)]:
@@ -143,6 +145,29 @@ def _apply_providers(cfg: dict) -> None:
     if prov["video"] == "sume":
         fal["video_seconds"] = int(sume["video_seconds"])
         fal["video_cost_per_second"] = float(sume["video_cost_per_second"])
+
+
+def _check_app_screens(raw) -> list[dict]:
+    """config.app_screens: [{path, shows}]. Paths are repo-relative; files may be added later."""
+    if not isinstance(raw, list):
+        raise StepError("config.yaml: app_screens must be a list")
+    out, seen = [], set()
+    for i, e in enumerate(raw):
+        if isinstance(e, str):
+            e = {"path": e}
+        if not isinstance(e, dict) or not isinstance(e.get("path"), str) or not e["path"].strip():
+            raise StepError(f"config.yaml: app_screens[{i}] needs a path")
+        path = e["path"].strip()
+        if path in seen:
+            raise StepError(f"config.yaml: app_screens lists {path!r} twice")
+        seen.add(path)
+        out.append({"path": path, "shows": str(e.get("shows") or "").strip()})
+    return out
+
+
+def available_app_screens(config: dict) -> list[dict]:
+    """The configured screenshots whose files exist."""
+    return [e for e in config.get("app_screens", []) if (ROOT / e["path"]).is_file()]
 
 
 def _check_locked_characters(raw) -> list[dict]:

@@ -10,14 +10,22 @@ from pathlib import Path
 
 import anthropic
 
-from common import StepError, read_premise, write_json
+from common import StepError, available_app_screens, read_premise, write_json
 
 SHOT_MIN, SHOT_MAX = 15, 22
 VO_WORDS_MIN, VO_WORDS_MAX = 60, 100   # total spoken words across all shots
 CTA_CAPTION = "SEARCH IRO AI"          # required caption on the final shot
 SHOT_KEYS = {"n", "characters", "image_prompt", "motion_prompt", "vo_line",
              "speaker", "caption", "animate"}
-OPTIONAL_SHOT_KEYS = {"card"}          # "card": "6 MONTHS LATER" marks a time-jump card shot
+OPTIONAL_SHOT_KEYS = {"card", "app_screen"}   # time-jump card / real app screenshot shot
+APP_SCREENS_MAX = 2
+# Wording that asks the image model to draw the Iro app. The mascot's own name is fine.
+APP_UI_PATTERNS = [
+    (r"\biro\s*ai\b", "the app name 'Iro AI'"), (r"\biro\s+app\b", "'Iro app'"),
+    (r"\bapp('s)?\s+(ui|interface|screen|logo|icon|name|home ?screen|menu|dashboard)\b", "app UI"),
+    (r"\buser interface\b", "'user interface'"), (r"\bui\b", "'UI'"), (r"\blogos?\b", "a logo"),
+    (r"\bscreen\s+(shows|showing|displays|displaying|reads|reading)\b", "what a screen shows"),
+]
 CARDS_MIN, CARDS_MAX = 1, 3
 CARD_WORDS_MAX = 4
 
@@ -33,7 +41,25 @@ def _cast_block(locked: list[dict]) -> str:
     return "\n".join(lines) if lines else "  (none)"
 
 
-def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> str:
+def _app_screens_block(screens: list[dict]) -> str:
+    if not screens:
+        return ("        - No real app screenshots are available, so do not add any \"app_screen\" "
+                "shots.\n")
+    lines = "\n".join(f'            * "{e["path"]}": {e["shows"] or "an Iro app screen"}' for e in screens)
+    return (
+        "        - The real app is shown with app screen shots, which put a real screenshot in a\n"
+        "          phone mockup. Add exactly one app screen shot RIGHT AFTER the hero opens the app\n"
+        f"          in the mentor beat, and optionally one more during the grind (at most {APP_SCREENS_MAX}).\n"
+        "          Pick the screenshot whose content fits the moment, using its exact path:\n"
+        f"{lines}\n"
+        '        - An app screen shot has "app_screen": "<path>", "characters": [],\n'
+        '          "image_prompt": "", "motion_prompt": "", "vo_line": "", "speaker": "",\n'
+        '          "caption": "", "animate": false. It is never the first or last shot, and it counts\n'
+        "          toward the shot total.\n")
+
+
+def build_system_prompt(style: str, max_animated: int, locked: list[dict],
+                        app_screens: list[dict] | None = None) -> str:
     return textwrap.dedent(f"""\
         You write shot lists for short vertical (9:16) 3D-animated films that advertise the
         Iro AI app. You answer with ONLY a single JSON object. No prose, no markdown, no code
@@ -68,7 +94,8 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
             }}
           ]
         }}
-        "card" appears ONLY on time-jump card shots; leave it out of every other shot.
+        "card" appears ONLY on time-jump card shots and "app_screen" ONLY on app screen shots;
+        leave both out of every other shot.
 
         LOCKED CAST
         These characters are fixed. Reuse their ids and copy their descriptions WORD FOR WORD
@@ -105,7 +132,7 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
              boss only delivers the firing.
           2. ROCK BOTTOM: the hero alone and humiliated, others laughing at him or filming him.
           3. MENTOR: Iro appears and tells him to lock in. In this same beat the hero opens the
-             Iro AI app on his phone and starts his first lesson.
+             app on his phone and starts his first lesson.
           4. THE BET: the doubter raises the stakes; the hero answers with a time-bound
              challenge (for example "give me 30 days").
           5. GRIND + COUNTER: 3-4 shots with a floating on-screen counter that climbs. The
@@ -120,8 +147,8 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
           8. EX RETURNS: the person who left sees his success and wants him back.
           9. REVERSAL: the hero declines ("i'm good"), is with sofia, his new partner, and
              Iro approves ("that's my boy").
-         10. CTA: the final shot is the Iro AI app on a phone screen, caption exactly
-             "{CTA_CAPTION}".
+         10. CTA: the final shot is the hero (or Iro) holding up the phone with its BACK toward
+             the camera, the screen glow on their face, caption exactly "{CTA_CAPTION}".
 
         TONE AND LOOK
         - Setback scenes (beats 1-4): office, cold or dim lighting, grey and blue tones.
@@ -129,9 +156,9 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
         - Name a real AI tool (Claude or ChatGPT) at least once, usually in the rival's or the
           boss's line (for example the rival bragging that he "just lets ChatGPT do it").
         - Whenever the hero uses AI, show it cinematically: glowing holographic screens and
-          dashboards floating around him, multiple monitors, phone notifications stacking up
-          ("payment received", "new client"). After the mentor beat, never show a plain laptop
-          on a desk.
+          dashboards floating around him, multiple monitors, notification cards floating in the
+          air around him ("payment received", "new client"), never on a phone screen. After the
+          mentor beat, never show a plain laptop on a desk.
 
         SHOT FIELDS
         - "image_prompt" must begin with this exact style line, then a comma, then the scene:
@@ -159,6 +186,12 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
           IS the beat: a car pulling away, someone walking out, a crowd, a thrown phone, the
           counter climbing, a door slamming. Dialogue close-ups and establishing shots stay false.
 
+        THE APP ON SCREEN
+        - The image model must never draw the app. Whenever a character uses the app (or any
+          phone), the image_prompt shows the BACK of the phone toward the camera, with the
+          screen's glow lighting their face. Never describe the app's UI, what a phone screen
+          shows, menus, buttons, logos or the words "Iro AI" in any image_prompt.
+{{APP_SCREENS}}
         TIME-JUMP CARDS
         - Use {CARDS_MIN}-{CARDS_MAX} time-jump card shots per video, at the natural jumps in time:
           after rock bottom, during the grind (between counter shots), and before the payoff.
@@ -171,7 +204,8 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict]) -> st
           or the last shot, and cards count toward the {SHOT_MIN}-{SHOT_MAX} shots.
 
         Return only the JSON object.""").replace("{CAST}", _cast_block(locked)) \
-        .replace("{SPEAKERS}", ", ".join(c["id"] for c in locked) or "the cast")
+        .replace("{SPEAKERS}", ", ".join(c["id"] for c in locked) or "the cast") \
+        .replace("{APP_SCREENS}", _app_screens_block(app_screens or []))
 
 
 def build_user_prompt(premise: str) -> str:
@@ -249,7 +283,8 @@ def _is_str(v) -> bool:
 
 
 def validate_and_normalize(data: dict, style: str, max_animated: int,
-                           locked: list[dict] | None = None) -> dict:
+                           locked: list[dict] | None = None,
+                           app_screens: list[dict] | None = None) -> dict:
     """Raise ValueError listing every schema problem. Returns a normalized copy on success.
 
     Soft issues are fixed in place rather than failed: a missing style prefix on image_prompt
@@ -295,6 +330,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
     animated = 0
     vo_words = 0
     cards = 0
+    app_paths = [e["path"] for e in (app_screens or [])]
+    app_shots = 0
     # Who may speak: the locked cast (or, with no locked cast, any character in the script).
     speakers = set(locked_desc) or set(id_set)
     normalized_shots = []
@@ -326,6 +363,28 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             card = ""
         card = card.strip()
         is_card = bool(card)
+        app = s.get("app_screen", "")
+        if app is None:
+            app = ""
+        if not _is_str(app):
+            errors.append(f"{label}.app_screen must be a string path, got {app!r}")
+            app = ""
+        app = app.strip()
+        is_app = bool(app)
+        if is_app:
+            app_shots += 1
+            if is_card:
+                errors.append(f"{label} cannot be both a card and an app_screen shot")
+            if app not in app_paths:
+                errors.append(f"{label}.app_screen must be one of {app_paths or 'the configured app_screens (none available)'}, got {app!r}")
+            if chars:
+                errors.append(f"{label} is an app_screen shot, so characters must be [], got {chars!r}")
+            if _is_str(s.get("vo_line")) and s["vo_line"].strip():
+                errors.append(f"{label} is an app_screen shot, so vo_line must be empty")
+            if s.get("animate") is True:
+                errors.append(f"{label} is an app_screen shot, so animate must be false")
+            if i == 0 or i == len(shots) - 1:
+                errors.append(f"{label}: an app_screen shot cannot be the first or last shot")
         if is_card:
             cards += 1
             if not (2 <= len(card.split()) <= CARD_WORDS_MAX):
@@ -338,10 +397,16 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 errors.append(f"{label} is a card shot, so animate must be false")
             if i == 0 or i == len(shots) - 1:
                 errors.append(f"{label}: a card cannot be the first or last shot")
-        else:
+        elif not is_app:
             for key in ("image_prompt", "motion_prompt"):
                 if not _is_str(s.get(key)) or not s.get(key).strip():
                     errors.append(f"{label}.{key} must be a non-empty string")
+            if _is_str(s.get("image_prompt")):
+                ip = s["image_prompt"].lower()
+                hits = [what for pat, what in APP_UI_PATTERNS if re.search(pat, ip)]
+                if hits:
+                    errors.append(f"{label}.image_prompt must not describe the app ({', '.join(hits)}); "
+                                  f"show the back of the phone with the screen glow on their face")
         vo = s.get("vo_line")
         if not _is_str(vo):
             errors.append(f"{label}.vo_line must be a string (may be empty for silent shots)")
@@ -368,6 +433,14 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             animated += 1
 
         shot = dict(s)
+        if is_app and not is_card:
+            # Drawn by the assembly step from the real screenshot; nothing else on the shot is used.
+            shot.update({"app_screen": app, "characters": [], "vo_line": "", "speaker": "",
+                         "caption": "", "animate": False, "image_prompt": "", "motion_prompt": ""})
+            shot.pop("card", None)
+            normalized_shots.append(shot)
+            continue
+        shot.pop("app_screen", None)
         if is_card:
             # A card is drawn by the assembly step; nothing else on the shot is used.
             shot.update({"card": card.upper(), "characters": [], "vo_line": "", "speaker": "",
@@ -393,6 +466,11 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         errors.append(f"total vo_line words must be {VO_WORDS_MIN}-{VO_WORDS_MAX}, got {vo_words}")
     if not (CARDS_MIN <= cards <= CARDS_MAX):
         errors.append(f"use {CARDS_MIN}-{CARDS_MAX} time-jump card shots, got {cards}")
+    if app_paths and not (1 <= app_shots <= APP_SCREENS_MAX):
+        errors.append(f"use 1-{APP_SCREENS_MAX} app_screen shots (one right after the hero opens the "
+                      f"app, optionally one in the grind), got {app_shots}")
+    if not app_paths and app_shots:
+        errors.append(f"no app screenshots are available, so remove the {app_shots} app_screen shot(s)")
     if normalized_shots:
         last = normalized_shots[-1]
         if last.get("caption") != CTA_CAPTION:
@@ -428,6 +506,8 @@ def print_shot_table(script: dict, style: str) -> None:
             scene = scene[len(style):].lstrip(" ,")
         if s.get("card"):
             scene = f"[CARD] {s['card']}"
+        elif s.get("app_screen"):
+            scene = f"[APP] {s['app_screen']}"
         print(f"{s['n']:>2}  {'*' if s['animate'] else ' '}  "
               f"{_clip(s['speaker'], 10):<10} {_clip(s['caption'], 10):<10} "
               f"{_clip(s['vo_line'], 44):<44} {_clip(scene, 40)}")
@@ -442,9 +522,13 @@ def generate_script(premise: str, config: dict, client=None) -> dict:
     model = config["script"]["model"]
     max_tokens = int(config["script"]["max_tokens"])
     locked = config.get("locked_characters", [])
+    screens = available_app_screens(config)
+    for e in config.get("app_screens", []):
+        if e not in screens:
+            print(f"[script] app screenshot {e['path']} is listed in config but missing; not offering it")
     client = client or create_client()
 
-    system = build_system_prompt(style, max_animated, locked)
+    system = build_system_prompt(style, max_animated, locked, screens)
     messages = [{"role": "user", "content": build_user_prompt(premise)}]
 
     last_error = None
@@ -453,7 +537,7 @@ def generate_script(premise: str, config: dict, client=None) -> dict:
         response = call_model(client, model, max_tokens, system, messages)
         text = response_text(response)
         try:
-            return validate_and_normalize(parse_json(text), style, max_animated, locked)
+            return validate_and_normalize(parse_json(text), style, max_animated, locked, screens)
         except ValueError as e:
             last_error = e
             print(f"[script] attempt {attempt} failed validation:\n{e}")
