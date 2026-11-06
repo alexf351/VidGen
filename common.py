@@ -38,9 +38,10 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     fal.setdefault("image_cost", 0.0398)
     fal.setdefault("video_model", "bytedance/seedance-2.0/fast/image-to-video")
     fal.setdefault("video_seconds", 4)
-    fal.setdefault("video_resolution", "720p")
+    fal.setdefault("video_resolution", "480p")
     fal.setdefault("video_audio", False)
-    fal.setdefault("video_cost_per_second", 0.2419)
+    fal.setdefault("video_cost_per_second", {"480p": 0.1125, "720p": 0.2419})
+    _resolve_video_rate(fal)
     cfg["voices"] = {str(k): (v or "") for k, v in (cfg.get("voices") or {}).items()}
     el = cfg.setdefault("elevenlabs", {})
     el.setdefault("model_id", "eleven_multilingual_v2")
@@ -87,6 +88,22 @@ def select_shots(script: dict, only: set[int] | None) -> list[dict]:
     if missing:
         raise StepError(f"shot number(s) {missing} not in script.json (has 1-{len(shots)})")
     return [s for s in shots if s["n"] in only]
+
+
+def _resolve_video_rate(fal: dict) -> None:
+    """video_cost_per_second may be a {resolution: rate} map. Keep the map and leave the
+    active resolution's rate as a plain number, so every reader of the rate stays correct."""
+    rates = fal["video_cost_per_second"]
+    res = str(fal["video_resolution"]).strip()
+    fal["video_resolution"] = res
+    if isinstance(rates, dict):
+        fal["video_cost_by_resolution"] = {str(k): float(v) for k, v in rates.items()}
+        if res not in fal["video_cost_by_resolution"]:
+            raise StepError(f"config.yaml: fal.video_cost_per_second has no rate for "
+                            f"video_resolution '{res}' (has {sorted(fal['video_cost_by_resolution'])})")
+        fal["video_cost_per_second"] = fal["video_cost_by_resolution"][res]
+    else:
+        fal["video_cost_per_second"] = float(rates)
 
 
 def _check_locked_characters(raw) -> list[dict]:

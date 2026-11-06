@@ -83,8 +83,9 @@ characters_cache/<id>.png   generated sheets for locked characters, reused by ev
 | `fal.image_model`    | text-to-image endpoint (`fal-ai/nano-banana`)                  |
 | `fal.image_edit_model` | reference-image endpoint (`fal-ai/nano-banana/edit`)         |
 | `fal.video_model`    | image-to-video endpoint (`bytedance/seedance-2.0/fast/image-to-video`) |
-| `fal.video_seconds` / `fal.video_resolution` / `fal.video_audio` | clip length (4), size (720p), audio (off) |
-| `fal.image_cost` / `fal.video_cost_per_second` | USD rates for the printed estimates |
+| `fal.video_seconds` / `fal.video_resolution` / `fal.video_audio` | clip length (4), size (480p or 720p, default 480p), audio (off) |
+| `fal.image_cost` | USD per image for the printed estimates |
+| `fal.video_cost_per_second` | USD per second of video, keyed by resolution; the active one is used |
 | `voices`             | speaker id to ElevenLabs voice id; empty entries fall back to `voice_id` |
 | `elevenlabs.model_id` / `output_format` / `cost_per_1k_chars` | TTS model, audio format, rate for the estimate |
 | `music_path`         | music bed under the whole cut; empty = none (add it on-platform) |
@@ -161,9 +162,12 @@ text-to-image. A running cost estimate is printed at the end.
 
 ## The video step
 
-`steps/video.py` turns each `animate: true` keyframe into a 4 second, 720p, silent 9:16 clip
+`steps/video.py` turns each `animate: true` keyframe into a 4 second, silent 9:16 clip at
+`fal.video_resolution` (480p by default; assembly upscales to 1080x1920 either way)
 at `runs/<run_id>/shots/<n>.mp4` using the shot's `motion_prompt`. It prints the estimated cost
-per shot (seconds × `fal.video_cost_per_second`) with a running total, and a total at the end.
+per shot (seconds × the per-second rate for the configured resolution) with a running total, and
+a total at the end. fal publishes the 720p rate ($0.2419/s); the 480p rate ($0.1125/s) is derived
+from fal's token formula, as explained in `config.yaml`.
 
 ## The voice step
 

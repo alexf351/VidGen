@@ -91,6 +91,13 @@ fal:
   # Image-to-video for shots marked animate: true.
   video_model: "bytedance/seedance-2.0/fast/image-to-video"
   video_seconds: 4              # 4-15
-  video_resolution: "720p"      # 480p | 720p
+  video_resolution: "480p"      # 480p | 720p (assemble scales to 1080x1920 either way)
   video_audio: false            # generate_audio
-  video_cost_per_second: 0.2419 # USD per second of 720p output, for the running estimate
+  # USD per second of output, by resolution, for the cost estimates.
+  # 720p is the rate published on the fal.ai model page. fal does not publish a 480p rate, so
+  # it is derived from fal's own token formula, tokens = w * h * seconds * 24 / 1024 at
+  # $0.0112 per 1k tokens, which reproduces the 720p rate exactly at 720x1280. At 480p the
+  # 9:16 frame is 496x864: 10,044 tokens per second = $0.1125.
+  video_cost_per_second:
+    480p: 0.1125
+    720p: 0.2419

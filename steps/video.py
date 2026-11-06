@@ -9,6 +9,15 @@ from common import StepError, parse_only, read_script, select_shots
 from steps.images import shot_path
 
 ASPECT = "9:16"
+RESOLUTIONS = ("480p", "720p")   # what the Seedance 2.0 fast endpoint accepts
+
+
+def video_resolution(config: dict) -> str:
+    res = str(config["fal"]["video_resolution"])
+    if res not in RESOLUTIONS:
+        raise StepError(f"config.yaml: fal.video_resolution must be one of {', '.join(RESOLUTIONS)}, "
+                        f"got '{res}'")
+    return res
 
 
 def video_path(run_dir: Path, n: int) -> Path:
@@ -27,7 +36,7 @@ def generate_clip(run_dir: Path, config: dict, shot: dict) -> Path:
         "prompt": shot["motion_prompt"].strip(),
         "image_url": fal_api.upload(keyframe),
         "duration": int(fal["video_seconds"]),
-        "resolution": str(fal["video_resolution"]),
+        "resolution": video_resolution(config),
         "aspect_ratio": ASPECT,
         "generate_audio": bool(fal["video_audio"]),
     }, label=label)
@@ -37,6 +46,7 @@ def generate_clip(run_dir: Path, config: dict, shot: dict) -> Path:
 
 def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> None:
     fal_api.require_key()
+    resolution = video_resolution(config)   # fail before any spend on a bad value
     script = read_script(run_dir)
     fal = config["fal"]
     seconds = int(fal["video_seconds"])
@@ -46,7 +56,7 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
     skipped_static = [s["n"] for s in select_shots(script, only) if not s.get("animate")]
     if only is not None and skipped_static:
         print(f"[video] shot(s) {skipped_static} are animate: false, nothing to render")
-    print(f"[video] {len(animated)} animated shot(s), {seconds}s each at {fal['video_resolution']}, "
+    print(f"[video] {len(animated)} animated shot(s), {seconds}s each at {resolution}, "
           f"${rate:.4f}/s")
 
     total = 0.0
