@@ -156,6 +156,46 @@ python main.py import-skill path/to/my-skill --no-dry-run
 Imported formats are always 9:16 (the image and video models are called at 9:16) and use no
 app screenshots. A skill's `{{VARIABLES}}` that VidGen does not fill are written as `<VARIABLES>`.
 
+## Local web UI and HTTP API
+
+```bash
+python main.py ui                 # http://127.0.0.1:8765/, opens your browser
+python main.py ui --port 9000 --no-browser
+```
+
+A FastAPI server on **127.0.0.1 only** (it holds your API keys; nothing else on the network
+can reach it). It calls the same functions as the CLI (`commands.py`), so runs made in the UI
+and in the terminal are the same runs in the same output folder. `ui/` is served at `/`
+(a placeholder page for now); interactive API docs are at `/api/docs`.
+
+Commands run as **jobs**, one at a time on a background thread; the rest wait in a queue. Each
+job has an id, the run it belongs to, an action (`new`, `step`, `reroll`, `recast`), a status
+(`queued`, `running`, `done`, `failed`), start and finish times, and its log: everything the
+pipeline prints while it runs. Job history is kept in `jobs.json` in the output folder; a job
+that was running or queued when the server stopped is marked failed on the next start.
+
+| endpoint | does |
+|---|---|
+| `GET /api/formats` | installed formats, descriptions, beats, cast |
+| `GET /api/config` | default providers, available providers, which keys are set (never their values), locked cast |
+| `GET /api/doctor` | the `doctor` checks as JSON |
+| `POST /api/runs` `{premise, format, provider, dry_run}` | creates the run and queues `new`; returns `job_id` and `run_id` |
+| `GET /api/runs` | every run: premise, format, created, status per step, final video, estimated cost |
+| `GET /api/runs/{run_id}` | the script, per-shot image / clip / audio URLs and word timings, step status, cost rows |
+| `POST /api/runs/{run_id}/step` `{step, only, provider}` | reruns one step (`only`: shot numbers, for images / video / voice) |
+| `POST /api/runs/{run_id}/reroll` `{shot, provider}` | new image + clip for one shot |
+| `POST /api/runs/{run_id}/recast` | recast |
+| `PUT /api/runs/{run_id}/script` | saves an edited script.json after validating it with the run's format (422 with the errors otherwise; 409 while a job is working on that run) |
+| `GET /api/jobs`, `GET /api/jobs/{id}?since=N` | job status and log (from line N) |
+| `GET /api/jobs/{id}/stream` | Server-Sent Events: `log` events (one per line, `id` = line number, resumable with `Last-Event-ID`) and `status` events; ends when the job does |
+| `GET /files/<run_id>/...` | images, clips, audio, captions, final.mp4 from the output folder (supports Range for video seeking) |
+
+`provider` is `"fal"`, `"sume"` or `{"images": "...", "video": "..."}` and applies to that job
+only; leave it out to use the configured providers. Writes must be JSON
+(`content-type: application/json`), requests must use the `127.0.0.1` / `localhost` host name,
+and requests from other web pages are refused, so a website you visit cannot drive the server.
+`/files` only serves media and text files inside the output folder.
+
 ## Run layout
 
 ```

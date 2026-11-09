@@ -4,4 +4,7 @@ PyYAML>=6.0
 fal-client>=1.0,<2
 requests>=2.31
 Pillow>=10.0       # app_screen phone mockups
+fastapi>=0.115     # python main.py ui (local server)
+uvicorn>=0.30
+sse-starlette>=2.1
 # Later steps (voice/assemble) will add their own deps here, e.g. elevenlabs and ffmpeg.

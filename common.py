@@ -138,11 +138,12 @@ def _resolve_tools_and_dirs(cfg: dict) -> None:
 
 
 def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG_PATH,
-                format_name: str | None = None) -> dict:
+                format_name: str | None = None, providers: dict | None = None) -> dict:
     """config.yaml, then the video format's format.yaml, then config.local.yaml (if present),
     each deep-merged over the last, then env vars. cfg['format'] is the loaded format
     (default pixar_arc); cfg['_sources'] says which layers were used (names only, never
-    secret values)."""
+    secret values). `providers` ({"images": .., "video": ..}) overrides every layer for this
+    load only; the local server uses it for a per-job provider choice."""
     from format_loader import load_format
     fmt = load_format(format_name)
     cfg = deep_merge(_read_yaml(path), fmt["overlay"])
@@ -152,6 +153,13 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
         local = _read_yaml(Path(local_path))
     cfg = _apply_local_layers(cfg, local, Path(local_path).name if local_path else "config.local.yaml")
     _resolve_tools_and_dirs(cfg)
+    if providers:
+        unknown = sorted(set(providers) - {"images", "video"})
+        if unknown:
+            raise StepError(f"provider override for unknown kind(s) {unknown}; use images, video")
+        cfg["providers"] = {**(cfg.get("providers") or {}),
+                            **{k: v for k, v in providers.items() if v}}
+        cfg["_sources"]["env"].append("request (providers)")
     cfg.setdefault("max_animated_shots", 8)
     cfg.setdefault("script", {})
     cfg["script"].setdefault("model", "claude-sonnet-5-5")

@@ -26,7 +26,8 @@ def _run(cmd: list[str]) -> str:
     return proc.stdout + proc.stderr
 
 
-def run_doctor(config: dict, key_sources: dict[str, str]) -> int:
+def doctor_checks(config: dict, key_sources: dict[str, str]) -> list[tuple[str, str, str]]:
+    """Every check as (PASS|FAIL|SKIP, item, detail). No paid API calls; keys are presence only."""
     rows: list[tuple[str, str, str]] = []   # (PASS|FAIL|SKIP, item, detail)
 
     def add(ok: bool | None, item: str, detail: str) -> None:
@@ -94,7 +95,11 @@ def run_doctor(config: dict, key_sources: dict[str, str]) -> int:
         add(True, "output dir writable", str(out))
     except OSError as e:
         add(False, "output dir writable", f"{out}: {e}")
+    return rows
 
+
+def run_doctor(config: dict, key_sources: dict[str, str]) -> int:
+    rows = doctor_checks(config, key_sources)
     width = max(len(r[1]) for r in rows)
     print("\nVidGen doctor (no paid API calls; keys are checked for presence only)\n")
     for status, item, detail in rows:

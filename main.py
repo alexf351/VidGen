@@ -6,6 +6,7 @@ Commands:
       ... --format <name>                   video format to use (default pixar_arc)
   python main.py new "<premise>" --dry-run  script step only: print the shot list, nothing else
   python main.py formats                    list the installed video formats
+  python main.py ui [--port 8765]           local web UI + HTTP API on 127.0.0.1 (opens the browser)
   python main.py import-skill <skill>       turn a Claude skill folder (or its SKILL.md) into a format
       ... --name <name> --force             format name / replace an existing format
       ... --premise "<p>" --no-dry-run      test premise / skip the test script run
@@ -21,68 +22,37 @@ step, reroll and recast reuse the format the run was created with (saved in run.
 from __future__ import annotations
 
 import argparse
-import importlib
 import os
 import sys
 
 from dotenv import load_dotenv
 
-from common import (KEY_ENV, STEP_ORDER, StepError, create_run, load_config, peek_runs_dir,
-                    run_dir_for, run_format)
+import commands
+from common import KEY_ENV, STEP_ORDER, StepError, load_config, peek_runs_dir, run_format
 from format_loader import DEFAULT_FORMAT, format_summaries
 
 
-def _step_module(name: str):
-    return importlib.import_module(f"steps.{name}")
-
-
-STEPS_WITH_ONLY = {"images", "video", "voice"}
-
-
-def run_step(name: str, run_dir, config, only: str | None = None) -> None:
-    print(f"\n=== step: {name} ({run_dir.name}) ===")
-    module = _step_module(name)
-    if only is None:
-        module.run(run_dir, config)
-    elif name in STEPS_WITH_ONLY:
-        module.run(run_dir, config, only=only)
-    else:
-        raise StepError(f"--only is supported for {sorted(STEPS_WITH_ONLY)}, not '{name}'")
+# The command logic lives in commands.py (shared with the local server); these adapt argparse.
+_step_module = commands.step_module
+STEPS_WITH_ONLY = commands.STEPS_WITH_ONLY
+run_step = commands.run_step
 
 
 def cmd_new(args, config) -> None:
-    run_dir = create_run(args.premise, config["format"]["name"])
-    print(f"created run {run_dir.name} (format {config['format']['name']})")
-    print(f"  {run_dir}")
-    if args.dry_run:
-        # Only the script step runs. It calls Claude (a few cents) to write the shot list;
-        # nothing is sent to fal, Sume or ElevenLabs.
-        run_step("script", run_dir, config)
-        print(f"\ndry run: stopped after the script step; no images, video or voice were generated.")
-        print(f"continue this run with:  python main.py step {run_dir.name} images  (then video, voice, assemble)")
-        return
-    for name in STEP_ORDER:
-        run_step(name, run_dir, config)
-    print(f"\nrun {run_dir.name} complete")
+    run_dir = commands.create_new_run(args.premise, config)
+    commands.execute_new(run_dir, config, args.dry_run)
 
 
 def cmd_step(args, config) -> None:
-    run_dir = run_dir_for(args.run_id)
-    run_step(args.step_name, run_dir, config, only=args.only)
+    commands.step(args.run_id, args.step_name, config, only=args.only)
 
 
 def cmd_reroll(args, config) -> None:
-    run_dir = run_dir_for(args.run_id)
-    n = args.shot_number
-    print(f"\n=== reroll shot {n} ({run_dir.name}) ===")
-    _step_module("images").reroll_shot(run_dir, config, n)
-    _step_module("video").reroll_shot(run_dir, config, n)
+    commands.reroll(args.run_id, args.shot_number, config)
 
 
 def cmd_recast(args, config) -> None:
-    run_dir = run_dir_for(args.run_id)
-    print(f"\n=== recast ({run_dir.name}) ===")
-    importlib.import_module("recast").run(run_dir, config)
+    commands.recast(args.run_id, config)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -120,6 +90,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_formats = sub.add_parser("formats", help="list the installed video formats")
     p_formats.set_defaults(func=None)
+
+    p_ui = sub.add_parser("ui", help="start the local web UI and HTTP API on 127.0.0.1")
+    p_ui.add_argument("--port", type=int, default=8765, help="port (default 8765)")
+    p_ui.add_argument("--no-browser", action="store_true", help="do not open a browser window")
+    p_ui.set_defaults(func=None)
 
     p_imp = sub.add_parser("import-skill", help="turn a Claude skill folder into a video format")
     p_imp.add_argument("skill", help="path to the skill folder or its SKILL.md")
@@ -248,6 +223,12 @@ def main(argv=None) -> int:
         if args.command == "doctor":
             from doctor import run_doctor
             return run_doctor(config, key_sources)
+        if args.command == "ui":
+            try:
+                from server import serve
+            except ImportError as e:
+                raise StepError(f"the web UI needs {e.name}: pip install -r requirements.txt") from None
+            return serve(load_config, key_sources, port=args.port, open_browser=not args.no_browser)
         rc = args.func(args, config)
         if isinstance(rc, int):
             return rc
