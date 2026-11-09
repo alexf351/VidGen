@@ -3,12 +3,16 @@
 
 Commands:
   python main.py new "<premise>"            create a run and execute every step in order
+      ... --format <name>                   video format to use (default pixar_arc)
   python main.py new "<premise>" --dry-run  script step only: print the shot list, nothing else
+  python main.py formats                    list the installed video formats
   python main.py doctor                     check ffmpeg, font, API keys and assets (no API calls)
   python main.py step <run_id> <step_name>  re-run a single step on an existing run
       ... images --only 3,7                 regenerate only those shots (images, video, voice)
   python main.py reroll <run_id> <shot_n>   regenerate one shot's image + video
-  python main.py recast <run_id>            sync script.json with config's locked characters
+  python main.py recast <run_id>            sync script.json with the format's locked characters
+
+step, reroll and recast reuse the format the run was created with (saved in run.json).
 """
 
 from __future__ import annotations
@@ -20,7 +24,9 @@ import sys
 
 from dotenv import load_dotenv
 
-from common import KEY_ENV, STEP_ORDER, StepError, create_run, load_config, run_dir_for
+from common import (KEY_ENV, STEP_ORDER, StepError, create_run, load_config, peek_runs_dir,
+                    run_dir_for, run_format)
+from format_loader import DEFAULT_FORMAT, format_summaries
 
 
 def _step_module(name: str):
@@ -42,8 +48,8 @@ def run_step(name: str, run_dir, config, only: str | None = None) -> None:
 
 
 def cmd_new(args, config) -> None:
-    run_dir = create_run(args.premise)
-    print(f"created run {run_dir.name}")
+    run_dir = create_run(args.premise, config["format"]["name"])
+    print(f"created run {run_dir.name} (format {config['format']['name']})")
     print(f"  {run_dir}")
     if args.dry_run:
         # Only the script step runs. It calls Claude (a few cents) to write the shot list;
@@ -85,6 +91,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument("premise", help="story premise, in quotes")
     p_new.add_argument("--dry-run", action="store_true",
                        help="run only the script step and print the shot list (no image/video/voice calls)")
+    p_new.add_argument("--format", default=DEFAULT_FORMAT, metavar="NAME",
+                       help=f"video format, a folder under formats/ (default {DEFAULT_FORMAT}); "
+                            f"see: python main.py formats")
     p_new.set_defaults(func=cmd_new)
 
     p_step = sub.add_parser("step", help="re-run one step on an existing run")
@@ -105,7 +114,48 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_doctor = sub.add_parser("doctor", help="check ffmpeg, the caption font, API keys and assets")
     p_doctor.set_defaults(func=None)
+
+    p_formats = sub.add_parser("formats", help="list the installed video formats")
+    p_formats.set_defaults(func=None)
     return p
+
+
+def list_formats() -> int:
+    formats = format_summaries()
+    if not formats:
+        print("no formats installed (expected folders under formats/)")
+        return 1
+    print("installed formats:\n")
+    for f in formats:
+        default = "  (default)" if f["name"] == DEFAULT_FORMAT else ""
+        print(f"  {f['name']}{default}")
+        if f.get("error"):
+            print(f"    error: {f['error']}\n")
+            continue
+        if f["description"]:
+            print(f"    {f['description']}")
+        facts = [f"aspect {f['aspect']}" if f["aspect"] else "",
+                 f"{f['duration_target']}" if f["duration_target"] else "",
+                 f"{f['clip_seconds']}s clips" if f["clip_seconds"] else "",
+                 f"cast: {f['cast']}"]
+        print(f"    {', '.join(x for x in facts if x)}")
+        if f["beats"]:
+            print(f"    beats: {' -> '.join(f['beats'])}")
+        if f["examples"]:
+            print(f"    examples: {', '.join(f['examples'])}")
+        print()
+    print("use one with:  python main.py new \"<premise>\" --format <name>")
+    return 0
+
+
+def format_for(args) -> str:
+    """new: --format. step / reroll / recast: the format saved with the run."""
+    if args.command == "new":
+        return args.format
+    run_id = getattr(args, "run_id", None)
+    if run_id:
+        return run_format(peek_runs_dir() / run_id) or DEFAULT_FORMAT
+    return DEFAULT_FORMAT
 
 
 def _utf8_console() -> None:
@@ -133,6 +183,7 @@ def print_config_sources(config: dict, key_sources: dict[str, str]) -> None:
         line += " + env (" + ", ".join(src["env"]) + ")"
     keys = ", ".join(f"{var}: {where}" for var, where in key_sources.items())
     print(f"[config] {line}")
+    print(f"[config] format: {config['format']['name']}")
     print(f"[config] keys: {keys}")
     print(f"[config] providers: images={config['providers']['images']}, video={config['providers']['video']}; "
           f"output: {config['output_dir']}")
@@ -145,7 +196,9 @@ def main(argv=None) -> int:
     from_dotenv = {v for v in KEY_ENV.values() if v in os.environ and v not in before}
     args = build_parser().parse_args(argv)
     try:
-        config = load_config()
+        if args.command == "formats":
+            return list_formats()
+        config = load_config(format_name=format_for(args))
         key_sources = _key_sources(config, from_dotenv)
         print_config_sources(config, key_sources)
         if args.command == "doctor":

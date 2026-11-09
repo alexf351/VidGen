@@ -1,7 +1,9 @@
 # VidGen configuration
-
-# Prepended word-for-word to every image_prompt in the script.
-style: "3D animated feature film style, soft cinematic lighting, warm saturated colors, vertical 9:16"
+#
+# Machine and provider settings. Everything that defines a kind of video (story beats, prompt
+# text, cast, style line, aspect, clip length, captions, grade, shot timing) lives in the video
+# format: formats/<name>/format.yaml, picked with  python main.py new "..." --format <name>
+# (default pixar_arc). Layering: this file < the format < config.local.yaml < env vars.
 
 # ElevenLabs voice id used when a speaker has no entry in `voices` below.
 voice_id: "21m00Tcm4TlvDq8ikWAM"
@@ -34,71 +36,8 @@ music_path: ""
 outro_path: ""
 
 assemble:
-  width: 1080
-  height: 1920
-  fps: 30
-  vo_pad_seconds: 0.25          # shot length = VO length + this
-  min_shot_seconds: 1.2
-  card_seconds: 1.5             # time-jump cards: black screen with the card text
-  card_fade_ms: 200             # card text fades in and out over this long
-  app_screen_seconds: 1.5       # app_screen shots: real screenshot in a phone mockup
-  app_screen_zoom_end: 1.04     # slight push-in on the mockup, from 1.00 to this
-  montage_seconds: 0.5          # flex montage: each shot this long, hard cuts
-  montage_zoom_end: 1.12        # quick punch-in on each montage shot, from 1.00 to this
-  zoom_end: 1.08                # still shots push in from 1.00 to this
-  caption_font: "Montserrat Black Italic"
-  caption_font_file: "assets/fonts/Montserrat-BlackItalic.ttf"   # bundled (SIL OFL); loaded by libass directly
-  caption_fallback_font: "Arial Black"
-  caption_size: 90
-  caption_y: 0.55               # vertical centre of the caption, fraction of height
-  music_volume: 0.15
-  saturation: 0.85
-
-# Upper bound on shots marked animate: true. Everything else stays a still.
-max_animated_shots: 8
-
-# Real Iro app screenshots. The image model never draws the app; a shot with "app_screen"
-# shows one of these inside a phone mockup instead. `shows` tells the script writer what is on
-# screen. The script step only offers files that exist.
-app_screens:
-  - path: assets/screens/learn.jpg
-    shows: "the learning path map with the next lesson card and a START button (a first lesson)"
-  - path: assets/screens/lesson.jpg
-    shows: "a lesson in progress: Iro asks the learner to match AI tools to what they do best"
-  - path: assets/screens/progress.jpg
-    shows: "the progress screen: Gold II rank, XP bar and the six-skill operator build"
-  - path: assets/screens/create.jpg
-    shows: "the create screen for building a custom learning path on any topic"
-
-# Recurring cast. Descriptions are physical identity only (no clothing); the script step
-# reuses them word for word and adds a scene-appropriate outfit per shot. The validator
-# rejects a script that alters a description. image_path is a reference image for later
-# steps (empty = none yet; Iro's will point to the app icon).
-locked_characters:
-  - id: marcus
-    role: hero
-    description: "a 26 year old man with messy dark brown hair, light stubble, warm tan skin, an athletic build"
-    image_path: ""
-  - id: jess
-    role: love interest / the ex who leaves
-    description: "a 26 year old woman with long wavy brown hair, green eyes, small gold hoop earrings"
-    image_path: ""
-  - id: tyler
-    role: rival / doubter
-    description: "a 28 year old man with slick blond hair and a smug grin"
-    image_path: ""
-  - id: iro
-    role: mentor, the Iro AI mascot, never a human
-    description: "Iro, a small round robotic penguin mascot with glossy black and gold armor, big round eyes, and a glowing orange core on its chest"
-    image_path: "assets/iro.png"
-  - id: boss
-    role: the boss, only ever delivers the firing
-    description: "a 50 year old man with slicked-back grey hair, a square jaw, light skin, and cold blue eyes"
-    image_path: ""
-  - id: sofia
-    role: new partner in the reversal
-    description: "a 25 year old woman with long glossy blonde hair, bright blue eyes, full lips, light skin, and a curvy hourglass figure"
-    image_path: ""
+  music_volume: 0.15            # music bed level under the voice (aspect, captions, grade and
+                                # shot timing are set by the format)
 
 script:
   model: "claude-sonnet-5-5"
@@ -119,9 +58,9 @@ fal:
   image_edit_model: "fal-ai/nano-banana/edit"
   image_cost: 0.0398            # USD per image, for the running estimate
 
-  # Image-to-video for shots marked animate: true.
+  # Image-to-video for shots marked animate: true. Clip length comes from the format
+  # (clip_seconds); set video_seconds here or in config.local.yaml to override it (4-15).
   video_model: "bytedance/seedance-2.0/fast/image-to-video"
-  video_seconds: 4              # 4-15
   video_resolution: "480p"      # 480p | 720p (assemble scales to 1080x1920 either way)
   video_audio: false            # generate_audio
   # USD per second of output, by resolution, for the cost estimates.
@@ -140,7 +79,6 @@ sume:
   image_model: "nano-banana"    # one id for text-to-image and reference-image edits
   image_cost: 0.039             # USD per image
   video_model: "seedance-2-fast"
-  video_seconds: 4              # 4-15
   video_resolution: "480p"      # 480p | 720p
   video_audio: false            # generate_audio
   video_cost_per_second:        # USD per second of output, by resolution

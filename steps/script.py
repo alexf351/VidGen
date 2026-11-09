@@ -5,30 +5,22 @@ from __future__ import annotations
 import json
 import os
 import re
-import textwrap
 from pathlib import Path
 
 import anthropic
 
 from common import StepError, available_app_screens, read_premise, write_json
+from format_loader import DEFAULT_FORMAT, load_format, render
 
-SHOT_MIN, SHOT_MAX = 15, 22
-VO_WORDS_MIN, VO_WORDS_MAX = 60, 100   # total spoken words across all shots
-CTA_CAPTION = "SEARCH IRO AI"          # required caption on the final shot
 SHOT_KEYS = {"n", "characters", "image_prompt", "motion_prompt", "vo_line",
              "speaker", "caption", "animate"}
 OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage"}   # card / app screenshot / flex montage
-MONTAGE_MIN, MONTAGE_MAX = 6, 8        # flex montage shots, right before the CTA
-APP_SCREENS_MAX = 2
-# Wording that asks the image model to draw the Iro app. The mascot's own name is fine.
-APP_UI_PATTERNS = [
-    (r"\biro\s*ai\b", "the app name 'Iro AI'"), (r"\biro\s+app\b", "'Iro app'"),
-    (r"\bapp('s)?\s+(ui|interface|screen|logo|icon|name|home ?screen|menu|dashboard)\b", "app UI"),
-    (r"\buser interface\b", "'user interface'"), (r"\bui\b", "'UI'"), (r"\blogos?\b", "a logo"),
-    (r"\bscreen\s+(shows|showing|displays|displaying|reads|reading)\b", "what a screen shows"),
-]
-CARDS_MIN, CARDS_MAX = 1, 3
-CARD_WORDS_MAX = 4
+
+# The story, the rules and the prompt text come from the video format (formats/<name>/).
+
+
+def _format(fmt: dict | None) -> dict:
+    return fmt if fmt is not None else load_format(DEFAULT_FORMAT)
 
 
 # ---------------------------------------------------------------- prompt ----
@@ -42,187 +34,47 @@ def _cast_block(locked: list[dict]) -> str:
     return "\n".join(lines) if lines else "  (none)"
 
 
-def _app_screens_block(screens: list[dict]) -> str:
+def _app_screens_block(screens: list[dict], fmt: dict | None = None) -> str:
+    fmt = _format(fmt)
+    blocks, prompt = fmt["blocks"], fmt["prompt"]
+    where = f"formats/{fmt['name']}/blocks"
     if not screens:
-        return ("        - No real app screenshots are available, so do not add any \"app_screen\" "
-                "shots.\n")
-    lines = "\n".join(f'            * "{e["path"]}": {e["shows"] or "an Iro app screen"}' for e in screens)
-    return (
-        "        - The real app is shown with app screen shots, which put a real screenshot in a\n"
-        "          phone mockup. Add exactly one app screen shot RIGHT AFTER the hero opens the app\n"
-        f"          in the mentor beat, and optionally one more during the grind (at most {APP_SCREENS_MAX}).\n"
-        "          Pick the screenshot whose content fits the moment, using its exact path:\n"
-        f"{lines}\n"
-        '        - An app screen shot has "app_screen": "<path>", "characters": [],\n'
-        '          "image_prompt": "", "motion_prompt": "", "vo_line": "", "speaker": "",\n'
-        '          "caption": "", "animate": false. It is never the first or last shot, and it counts\n'
-        "          toward the shot total.\n")
+        return render(blocks.get("no_app_screens", ""), {}, where) + "\n"
+    lines = "\n".join(render(prompt["app_screen_line"],
+                             {"PATH": e["path"], "SHOWS": e["shows"] or prompt["app_screen_unknown"]},
+                             f"{fmt['file']}: prompt.app_screen_line") for e in screens)
+    values = {"SCREEN_LIST": lines, "APP_SCREENS_MAX": fmt["rules"]["app_screens"]["max"]}
+    return render(blocks.get("app_screens", ""), values, where) + "\n"
+
+
+def prompt_values(fmt: dict) -> dict:
+    """The format's rule numbers, as the prompt's {{NAME}} placeholders."""
+    r = fmt["rules"]
+    v = {"SHOT_MIN": r["story_shots"][0], "SHOT_MAX": r["story_shots"][1],
+         "VO_WORDS_MIN": r["vo_words"][0], "VO_WORDS_MAX": r["vo_words"][1],
+         "CTA_CAPTION": r["cta_caption"], "APP_SCREENS_MAX": r["app_screens"]["max"]}
+    if r["montage"]:
+        v["MONTAGE_MIN"], v["MONTAGE_MAX"] = r["montage"]["count"]
+    if r["cards"]:
+        v["CARDS_MIN"], v["CARDS_MAX"] = r["cards"]["count"]
+        v["CARD_WORDS_MIN"], v["CARD_WORDS_MAX"] = r["cards"]["words"]
+    return v
 
 
 def build_system_prompt(style: str, max_animated: int, locked: list[dict],
-                        app_screens: list[dict] | None = None) -> str:
-    return textwrap.dedent(f"""\
-        You write shot lists for short vertical (9:16) 3D-animated films that advertise the
-        Iro AI app. You answer with ONLY a single JSON object. No prose, no markdown, no code
-        fences, nothing before or after the JSON.
-
-        OUTPUT SCHEMA
-        {{
-          "characters": [
-            {{"id": "marcus", "description": "<one sentence>"}}
-          ],
-          "shots": [
-            {{
-              "n": 1,
-              "characters": ["marcus"],
-              "image_prompt": "...",
-              "motion_prompt": "...",
-              "vo_line": "...",
-              "speaker": "marcus",
-              "caption": "",
-              "animate": false
-            }},
-            {{
-              "n": 6,
-              "card": "6 MONTHS LATER",
-              "characters": [],
-              "image_prompt": "",
-              "motion_prompt": "",
-              "vo_line": "",
-              "speaker": "",
-              "caption": "",
-              "animate": false
-            }}
-          ]
-        }}
-        "card" appears ONLY on time-jump card shots and "app_screen" ONLY on app screen shots;
-        leave both out of every other shot.
-
-        LOCKED CAST
-        These characters are fixed. Reuse their ids and copy their descriptions WORD FOR WORD
-        into the "characters" list, and paste the description into the image_prompt of every
-        shot they appear in. Never paraphrase, shorten or extend them.
-        {{CAST}}
-        - The locked description is physical IDENTITY only (face, hair, skin, build). It
-          contains no clothing. In every image_prompt, write the identity word for word, then
-          add an outfit that fits the scene:
-            * Setback / office scenes: work clothes. Marcus wears a white button-down shirt
-              and a blue company lanyard.
-            * Win scenes: upgraded clothes. Fitted black tee, sunglasses, a watch, a nice
-              jacket.
-          Keep each character's outfit consistent across every shot in the same scene or
-          location; change it only when the scene changes.
-        - The hero is the locked hero. The love interest / ex is the locked love interest.
-          The rival / doubter is the locked rival. The mentor is ALWAYS Iro, the penguin mascot.
-          Never invent a new mentor and never make Iro human.
-        - The boss is ALWAYS the locked boss (id "boss") and the new partner in the reversal
-          is ALWAYS the locked sofia (id "sofia"). Never invent a different boss or partner.
-        - You may invent extra characters only for background roles (onlookers, a crowd, a
-          coworker with no lines). Every character is clearly an adult, mid-20s or older, with
-          an adult age stated in the description. The hero is young, attractive and
-          aspirational, never tired or frumpy. Background characters also get one locked
-          sentence each.
-
-        STORY FORMULA
-        Every script follows these 11 beats, in this order. Spread beats 1-9 and 11 across
-        {SHOT_MIN}-{SHOT_MAX} story shots; the {MONTAGE_MIN}-{MONTAGE_MAX} flex montage shots of beat 10
-        come on top of that. Number every shot "n" from 1 upward with no gaps.
-          1. LOSS + DISS: the love interest leaves the hero FOR the rival. Show her getting
-             into the rival's car or walking off with him in this beat. The hero is also
-             rejected or fired. Must include a quoted direct insult ("loser" or equivalent) as a
-             vo_line spoken by the love interest or the rival. The boss NEVER insults him; the
-             boss only delivers the firing.
-          2. ROCK BOTTOM: the hero alone and humiliated, others laughing at him or filming him.
-          3. MENTOR: Iro appears and tells him to lock in. In this same beat the hero opens the
-             app on his phone and starts his first lesson.
-          4. THE BET: the doubter raises the stakes; the hero answers with a time-bound
-             challenge (for example "give me 30 days").
-          5. GRIND + COUNTER: 3-4 shots with a floating on-screen counter that climbs. The
-             counter is streak days and AI rank (Bronze -> Silver -> Gold -> Diamond), or money
-             (monthly revenue, clients signed), or both. Show at least one failure before the
-             progress. Put the current counter value in each image_prompt. As the hero levels
-             up, the work setting upgrades shot by shot: dark apartment -> modern office ->
-             rooftop at sunset -> luxury villa.
-          6. OVERSHOOT WIN: the result smashes the goal (for example a promotion plus a salary
-             number far above what anyone expected).
-          7. FLEX: luxury car, a nice city or beach setting, warm golden light.
-          8. EX RETURNS: the person who left sees his success and wants him back.
-          9. REVERSAL: the hero declines ("i'm good"), is with sofia, his new partner, and
-             Iro approves ("that's my boy").
-         10. FLEX MONTAGE: {MONTAGE_MIN}-{MONTAGE_MAX} rapid shots of the hero living the life (see FLEX
-             MONTAGE below), right after the reversal and right before the CTA.
-         11. CTA: the final shot is the hero (or Iro) holding up the phone with its BACK toward
-             the camera, the screen glow on their face, caption exactly "{CTA_CAPTION}".
-
-        TONE AND LOOK
-        - Setback scenes (beats 1-4): office, cold or dim lighting, grey and blue tones.
-        - Win scenes (beats 6-9): sunsets, beaches, parties, warm golden light.
-        - Name a real AI tool (Claude or ChatGPT) at least once, usually in the rival's or the
-          boss's line (for example the rival bragging that he "just lets ChatGPT do it").
-        - Whenever the hero uses AI, show it cinematically: glowing holographic screens and
-          dashboards floating around him, multiple monitors, notification cards floating in the
-          air around him ("payment received", "new client"), never on a phone screen. After the
-          mentor beat, never show a plain laptop on a desk.
-
-        SHOT FIELDS
-        - "image_prompt" must begin with this exact style line, then a comma, then the scene:
-          "{style}"
-          After the style line: camera framing, setting, lighting, then for every character in
-          the shot the locked identity word for word followed by their outfit for this scene,
-          what they are doing, and the counter value when one is in frame. Vertical
-          composition. No text in the image except the counter.
-        - "characters" lists the ids of every character visible in the shot (may be empty).
-        - "motion_prompt" is one sentence of camera and subject motion for a 3-5 second clip.
-          Keep it short even for still shots (a slow push-in or drift is fine).
-        - "vo_line" is a line of dialogue spoken by one of the cast: {{SPEAKERS}}.
-          There is NO narrator: no voice-over that describes events, explains the story or
-          talks about the hero in the third person. Every spoken line is a character talking.
-          Shots with no dialogue have "vo_line": "" and let the visual carry the beat; MOST
-          shots should be silent. Spoken lines are short, usually 2-8 words. The TOTAL word
-          count of all vo_lines across the script must be {VO_WORDS_MIN}-{VO_WORDS_MAX} words.
-          Count before you answer.
-        - "speaker" is the id of the character who speaks the vo_line (one of {{SPEAKERS}}),
-          or "" when vo_line is "". Never "narrator".
-        - "caption" is "" or ONE OR TWO WORDS IN ALL CAPS that hit the beat ("LOSER", "DAY 1",
-          "DIAMOND", "I'M GOOD"). The only three-word caption allowed is "{CTA_CAPTION}" on the
-          last shot.
-        - "animate" is true for AT MOST {max_animated} shots. Reserve it for shots where motion
-          IS the beat: a car pulling away, someone walking out, a crowd, a thrown phone, the
-          counter climbing, a door slamming. Dialogue close-ups and establishing shots stay false.
-
-        THE APP ON SCREEN
-        - The image model must never draw the app. Whenever a character uses the app (or any
-          phone), the image_prompt shows the BACK of the phone toward the camera, with the
-          screen's glow lighting their face. Never describe the app's UI, what a phone screen
-          shows, menus, buttons, logos or the words "Iro AI" in any image_prompt.
-{{APP_SCREENS}}
-        FLEX MONTAGE
-        - Right after the reversal ("that's my boy") and right before the final CTA shot, add
-          {MONTAGE_MIN}-{MONTAGE_MAX} consecutive montage shots of the hero living the life, each one a
-          single striking image, about half a second on screen. Pick from: the luxury car, a
-          watch close-up on his wrist, him in a sharp suit outside a glass tower, a rooftop at
-          night over the city, holographic AI dashboards around him with Iro, a private jet,
-          a beach sunset with sofia; the LAST montage shot is always a final smirk at camera.
-        - Every montage shot has "montage": true, "vo_line": "", "speaker": "", "caption": ""
-          and "animate": false. No dialogue. Upgraded outfits, warm golden-hour or neon-night
-          lighting. Write image_prompt and motion_prompt as for any other shot, with the
-          locked identity of everyone in frame.
-        - "montage" appears ONLY on these shots.
-
-        TIME-JUMP CARDS
-        - Use {CARDS_MIN}-{CARDS_MAX} time-jump card shots per video, at the natural jumps in time:
-          after rock bottom, during the grind (between counter shots), and before the payoff.
-        - A card shot is a black screen with white text. Give it "card": a short span of time
-          in ALL CAPS, 2-{CARD_WORDS_MAX} words ("30 DAYS LATER", "6 MONTHS LATER",
-          "2 YEARS LATER"), and "characters": [], "image_prompt": "", "motion_prompt": "",
-          "vo_line": "", "speaker": "", "caption": "", "animate": false.
-        - Card times must fit the story: they never contradict the hero's bet (a "give me 30
-          days" grind can show "2 WEEKS LATER", not "2 YEARS LATER"). A card is never the first
-          or the last shot, and cards count toward the {SHOT_MIN}-{SHOT_MAX} shots.
-
-        Return only the JSON object.""").replace("{CAST}", _cast_block(locked)) \
-        .replace("{SPEAKERS}", ", ".join(c["id"] for c in locked) or "the cast") \
-        .replace("{APP_SCREENS}", _app_screens_block(app_screens or []))
+                        app_screens: list[dict] | None = None, fmt: dict | None = None) -> str:
+    """The format's script_prompt.md with shot_rules.md and the cast / app screens filled in."""
+    fmt = _format(fmt)
+    values = prompt_values(fmt)
+    values.update({
+        "STYLE": style,
+        "MAX_ANIMATED": max_animated,
+        "CAST": _cast_block(locked),
+        "SPEAKERS": ", ".join(c["id"] for c in locked) or "the cast",
+        "APP_SCREENS": _app_screens_block(app_screens or [], fmt)[:-1],
+    })
+    values["SHOT_RULES"] = render(fmt["shot_rules"], values, f"formats/{fmt['name']}/shot_rules.md")
+    return render(fmt["script_prompt"], values, f"formats/{fmt['name']}/script_prompt.md")
 
 
 def build_user_prompt(premise: str) -> str:
@@ -301,11 +153,21 @@ def _is_str(v) -> bool:
 
 def validate_and_normalize(data: dict, style: str, max_animated: int,
                            locked: list[dict] | None = None,
-                           app_screens: list[dict] | None = None) -> dict:
+                           app_screens: list[dict] | None = None,
+                           rules: dict | None = None) -> dict:
     """Raise ValueError listing every schema problem. Returns a normalized copy on success.
 
+    `rules` are the format's (format.yaml `rules`); default: the default format's.
     Soft issues are fixed in place rather than failed: a missing style prefix on image_prompt
     is prepended, and captions are uppercased."""
+    rules = rules if rules is not None else _format(None)["rules"]
+    SHOT_MIN, SHOT_MAX = rules["story_shots"]
+    VO_WORDS_MIN, VO_WORDS_MAX = rules["vo_words"]
+    CTA_CAPTION = rules["cta_caption"]
+    CAPTION_MAX_WORDS = rules["caption_max_words"]
+    montage_rule, card_rule = rules["montage"], rules["cards"]
+    APP_SCREENS_MAX, app_hint = rules["app_screens"]["max"], rules["app_screens"]["hint"]
+    banned = rules["banned_image_prompt"]
     errors: list[str] = []
     locked = locked or []
     locked_desc = {c["id"]: c["description"] for c in locked}
@@ -344,8 +206,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
     montage_flags = [isinstance(x, dict) and x.get("montage") is True for x in shots]
     story_count = len(shots) - sum(montage_flags)
     if not (SHOT_MIN <= story_count <= SHOT_MAX):
-        errors.append(f"need {SHOT_MIN}-{SHOT_MAX} story shots (the flex montage comes on top), "
-                      f"got {story_count}")
+        on_top = f" (the {montage_rule['name'].lower()} comes on top)" if montage_rule else ""
+        errors.append(f"need {SHOT_MIN}-{SHOT_MAX} story shots{on_top}, got {story_count}")
 
     animated = 0
     vo_words = 0
@@ -415,14 +277,19 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 errors.append(f"{label}: an app_screen shot cannot be the first or last shot")
         if is_montage:
             montage_idx.append(i)
+            if not montage_rule:
+                errors.append(f"{label}: this format has no montage, so leave out \"montage\"")
             if is_card or (_is_str(s.get("app_screen")) and s["app_screen"].strip()):
                 errors.append(f"{label} cannot be both a montage shot and a card or app_screen shot")
             if _is_str(s.get("vo_line")) and s["vo_line"].strip():
                 errors.append(f"{label} is a montage shot, so vo_line must be empty (no dialogue)")
         if is_card:
             cards += 1
-            if not (2 <= len(card.split()) <= CARD_WORDS_MAX):
-                errors.append(f"{label}.card must be 2-{CARD_WORDS_MAX} words, got {card!r}")
+            if not card_rule:
+                errors.append(f"{label}: this format has no time-jump cards, so leave out \"card\"")
+            elif not (card_rule["words"][0] <= len(card.split()) <= card_rule["words"][1]):
+                errors.append(f"{label}.card must be {card_rule['words'][0]}-{card_rule['words'][1]} "
+                              f"words, got {card!r}")
             if chars:
                 errors.append(f"{label} is a card shot, so characters must be [], got {chars!r}")
             if _is_str(s.get("vo_line")) and s["vo_line"].strip():
@@ -437,10 +304,11 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                     errors.append(f"{label}.{key} must be a non-empty string")
             if _is_str(s.get("image_prompt")):
                 ip = s["image_prompt"].lower()
-                hits = [what for pat, what in APP_UI_PATTERNS if re.search(pat, ip)]
+                hits = [what for pat, what in banned["patterns"] if re.search(pat, ip)]
                 if hits:
-                    errors.append(f"{label}.image_prompt must not describe the app ({', '.join(hits)}); "
-                                  f"show the back of the phone with the screen glow on their face")
+                    fix = f"; {banned['fix']}" if banned["fix"] else ""
+                    errors.append(f"{label}.image_prompt must not describe the app ({', '.join(hits)})"
+                                  f"{fix}")
         vo = s.get("vo_line")
         if not _is_str(vo):
             errors.append(f"{label}.vo_line must be a string (may be empty for silent shots)")
@@ -448,7 +316,7 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         if not is_montage:                     # the montage never counts toward the word budget
             vo_words += len(vo.split())
         speaker = s.get("speaker")
-        if speaker == "narrator":
+        if speaker == "narrator" and not rules["narrator"]:
             errors.append(f"{label}.speaker is 'narrator'; there is no narrator, every line is "
                           f"spoken by a character ({', '.join(sorted(speakers))})")
         elif vo.strip():
@@ -460,8 +328,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         caption = s.get("caption")
         if not _is_str(caption):
             errors.append(f"{label}.caption must be a string (may be empty)")
-        elif len(caption.split()) > 2 and caption.strip().upper() != CTA_CAPTION:
-            errors.append(f"{label}.caption must be 1-2 words or empty, got {caption!r}")
+        elif len(caption.split()) > CAPTION_MAX_WORDS and caption.strip().upper() != CTA_CAPTION:
+            errors.append(f"{label}.caption must be 1-{CAPTION_MAX_WORDS} words or empty, got {caption!r}")
         if not isinstance(s.get("animate"), bool):
             errors.append(f"{label}.animate must be true or false")
         elif s["animate"]:
@@ -505,24 +373,31 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         errors.append(f"at most {max_animated} shots may have animate: true, got {animated}")
     if not (VO_WORDS_MIN <= vo_words <= VO_WORDS_MAX):
         errors.append(f"total vo_line words must be {VO_WORDS_MIN}-{VO_WORDS_MAX}, got {vo_words}")
-    if not montage_idx:
-        errors.append(f"add the FLEX MONTAGE: {MONTAGE_MIN}-{MONTAGE_MAX} shots with \"montage\": true "
+    if not montage_rule:
+        pass
+    elif not montage_idx:
+        MONTAGE_MIN, MONTAGE_MAX = montage_rule["count"]
+        errors.append(f"add the {montage_rule['name']}: {MONTAGE_MIN}-{MONTAGE_MAX} shots with \"montage\": true "
                       f"right before the final CTA shot")
     else:
+        MONTAGE_MIN, MONTAGE_MAX = montage_rule["count"]
         if not (MONTAGE_MIN <= len(montage_idx) <= MONTAGE_MAX):
-            errors.append(f"the flex montage needs {MONTAGE_MIN}-{MONTAGE_MAX} shots, got {len(montage_idx)}")
+            errors.append(f"the {montage_rule['name'].lower()} needs {MONTAGE_MIN}-{MONTAGE_MAX} shots, "
+                          f"got {len(montage_idx)}")
         contiguous = montage_idx == list(range(montage_idx[0], montage_idx[-1] + 1))
         if not contiguous or montage_idx[-1] != len(shots) - 2:
             errors.append(f"the montage shots must be consecutive and come right before the final CTA "
                           f"shot; they are at shots {[i + 1 for i in montage_idx]} of {len(shots)}")
-    if not (CARDS_MIN <= cards <= CARDS_MAX):
-        errors.append(f"use {CARDS_MIN}-{CARDS_MAX} time-jump card shots, got {cards}")
-    if app_paths and not (1 <= app_shots <= APP_SCREENS_MAX):
-        errors.append(f"use 1-{APP_SCREENS_MAX} app_screen shots (one right after the hero opens the "
-                      f"app, optionally one in the grind), got {app_shots}")
+    if card_rule and not (card_rule["count"][0] <= cards <= card_rule["count"][1]):
+        errors.append(f"use {card_rule['count'][0]}-{card_rule['count'][1]} time-jump card shots, got {cards}")
+    if app_paths and APP_SCREENS_MAX and not (1 <= app_shots <= APP_SCREENS_MAX):
+        hint = f" ({app_hint})" if app_hint else ""
+        errors.append(f"use 1-{APP_SCREENS_MAX} app_screen shots{hint}, got {app_shots}")
+    if app_paths and not APP_SCREENS_MAX and app_shots:
+        errors.append(f"this format uses no app_screen shots, so remove the {app_shots} app_screen shot(s)")
     if not app_paths and app_shots:
         errors.append(f"no app screenshots are available, so remove the {app_shots} app_screen shot(s)")
-    if normalized_shots:
+    if normalized_shots and CTA_CAPTION:
         last = normalized_shots[-1]
         if last.get("caption") != CTA_CAPTION:
             errors.append(f"last shot caption must be {CTA_CAPTION!r}, got {last.get('caption')!r}")
@@ -575,13 +450,14 @@ def generate_script(premise: str, config: dict, client=None) -> dict:
     model = config["script"]["model"]
     max_tokens = int(config["script"]["max_tokens"])
     locked = config.get("locked_characters", [])
+    fmt = config["format"]
     screens = available_app_screens(config)
     for e in config.get("app_screens", []):
         if e not in screens:
             print(f"[script] app screenshot {e['path']} is listed in config but missing; not offering it")
     client = client or create_client()
 
-    system = build_system_prompt(style, max_animated, locked, screens)
+    system = build_system_prompt(style, max_animated, locked, screens, fmt)
     messages = [{"role": "user", "content": build_user_prompt(premise)}]
 
     last_error = None
@@ -590,7 +466,8 @@ def generate_script(premise: str, config: dict, client=None) -> dict:
         response = call_model(client, model, max_tokens, system, messages)
         text = response_text(response)
         try:
-            return validate_and_normalize(parse_json(text), style, max_animated, locked, screens)
+            return validate_and_normalize(parse_json(text), style, max_animated, locked, screens,
+                                          fmt["rules"])
         except ValueError as e:
             last_error = e
             print(f"[script] attempt {attempt} failed validation:\n{e}")
@@ -610,6 +487,7 @@ def generate_script(premise: str, config: dict, client=None) -> dict:
 def run(run_dir: Path, config: dict) -> None:
     premise = read_premise(run_dir)
     print(f"[script] premise: {premise}")
+    print(f"[script] format: {config['format']['name']}")
     script = generate_script(premise, config)
     out = run_dir / "script.json"
     write_json(out, script)

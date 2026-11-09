@@ -1,4 +1,5 @@
-"""recast: sync a run's script.json with the locked character descriptions in config.yaml."""
+"""recast: sync a run's script.json with the locked character descriptions of its format
+(formats/<name>/format.yaml, or a config.local.yaml override)."""
 
 from __future__ import annotations
 

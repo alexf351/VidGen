@@ -42,12 +42,16 @@ quotes PowerShell replaces `$500` with an empty variable): `python main.py new '
 
 ### Configuration layers
 
-1. `config.yaml`: committed project settings (style, cast, models, prices, assembly).
-2. `config.local.yaml`: your machine. Not committed. Deep-merged over `config.yaml`, so it only
+1. `config.yaml`: committed project settings (models, prices, providers, voices, music).
+2. `formats/<name>/format.yaml`: the video format picked with `--format` (default
+   `pixar_arc`): style line, cast, aspect, clip length, captions, grade, shot timing and
+   the script rules. See [Video formats](#video-formats).
+3. `config.local.yaml`: your machine. Not committed. Deep-merged over `config.yaml`, so it only
    needs the settings you change: API keys, `ffmpeg_path`, `default_video_provider`,
    `default_image_provider`, `output_dir`, or any other key. Start from
-   `config.local.example.yaml`.
-3. Environment variables win over both files: the API keys (`ANTHROPIC_API_KEY`, `FAL_KEY`,
+   `config.local.example.yaml`. Format settings can be overridden here too (for example
+   `assemble: {caption_size: 80}`).
+4. Environment variables win over all files: the API keys (`ANTHROPIC_API_KEY`, `FAL_KEY`,
    `ELEVENLABS_API_KEY`, `SUME_API_KEY`, also loaded from `.env`), and `VIDGEN_FFMPEG_PATH`,
    `VIDGEN_OUTPUT_DIR`, `VIDGEN_VIDEO_PROVIDER`, `VIDGEN_IMAGE_PROVIDER`.
 
@@ -64,6 +68,10 @@ Captions use the bundled `assets/fonts/Montserrat-BlackItalic.ttf` (SIL Open Fon
 # create a run and execute every step in order
 python main.py new "A laid-off line cook opens a food truck and nobody shows up on day one"
 
+# pick a video format (default pixar_arc); list the installed ones
+python main.py new "A laid-off line cook opens a food truck" --format pixar_arc
+python main.py formats
+
 # script only: write and print the shot list, nothing sent to fal, Sume or ElevenLabs
 # (it still calls Claude to write the script, a few cents)
 python main.py new "A laid-off line cook opens a food truck" --dry-run
@@ -77,7 +85,7 @@ python main.py step 20261103-201530-a-laid-off-line-cook images --only 3,7
 # regenerate one shot's image + video
 python main.py reroll 20261103-201530-a-laid-off-line-cook 7
 
-# after editing locked_characters in config.yaml: update an existing run's script.json,
+# after editing locked_characters in the format: update an existing run's script.json,
 # drop the stale reference sheets, and print the images --only command to regenerate
 python main.py recast 20261103-201530-a-laid-off-line-cook
 ```
@@ -87,12 +95,42 @@ for the shots they name.
 
 Step names, in pipeline order: `script`, `images`, `video`, `voice`, `assemble`.
 
+`step`, `reroll` and `recast` reuse the format the run was created with (saved in `run.json`);
+runs made before formats existed use `pixar_arc`.
+
+## Video formats
+
+A format is a folder under `formats/` that holds everything specific to one kind of video. The
+pipeline (steps, providers, ffmpeg) is shared; the format supplies the settings and the prompt
+text.
+
+```
+formats/<name>/
+  format.yaml        name, description, duration target, aspect + resolution, fps,
+                     clip_seconds, cast (locked | none), beats, style line,
+                     max_animated_shots, rules (shot counts, word budget, CTA caption,
+                     cards, montage, app screens, banned image_prompt wording),
+                     captions, grade, timing, app_screens, locked_characters
+  script_prompt.md   system prompt for the script step
+  shot_rules.md      image / video prompt rules, inserted at {{SHOT_RULES}}
+  blocks/*.md        prompt pieces the script step picks between (app screens / none)
+  examples/          optional example scripts
+```
+
+Prompt files are sent as written, with `{{NAME}}` placeholders filled from the format's
+rules (`{{SHOT_MIN}}`, `{{CTA_CAPTION}}`, `{{STYLE}}`, `{{CAST}}`, ...); an unknown
+placeholder is an error. `python main.py formats` lists what is installed.
+
+`pixar_arc` is the original pipeline moved into this shape with nothing changed: the same
+prompt bytes, validation, captions, grade and timing. To make a new format, copy
+`formats/pixar_arc`, rename the folder and `name:`, and edit.
+
 ## Run layout
 
 ```
 runs/<run_id>/
   premise.txt           the premise as given
-  run.json              run metadata
+  run.json              run metadata, including the format it was made with
   script.json           output of the script step
   characters/<id>.png   reference sheet per character
   shots/<n>.png         keyframe per shot
@@ -110,20 +148,14 @@ characters_cache/<id>.png   generated sheets for locked characters, reused by ev
 
 | key                  | purpose                                                       |
 |----------------------|---------------------------------------------------------------|
-| `style`              | style line prepended word-for-word to every `image_prompt`     |
 | `voice_id`           | default ElevenLabs voice                                       |
-| `music_path`         | background music file                                          |
-| `outro_path`         | clip appended after the last shot                              |
-| `max_animated_shots` | cap on shots marked `animate: true` (default 8)                |
-| `app_screens`        | real Iro app screenshots (`path`, `shows`) the script may put in app_screen shots |
-| `locked_characters`  | recurring cast: `id`, `role`, `description`, `image_path`      |
 | `script.model`       | Claude model for the script step (`claude-sonnet-5-5`)         |
 | `script.max_tokens`  | output cap for the script request                              |
 | `characters_cache_dir` | where generated locked-character sheets are cached           |
 | `fal.image_model`    | text-to-image endpoint (`fal-ai/nano-banana`)                  |
 | `fal.image_edit_model` | reference-image endpoint (`fal-ai/nano-banana/edit`)         |
 | `fal.video_model`    | image-to-video endpoint (`bytedance/seedance-2.0/fast/image-to-video`) |
-| `fal.video_seconds` / `fal.video_resolution` / `fal.video_audio` | clip length (4), size (480p or 720p, default 480p), audio (off) |
+| `fal.video_resolution` / `fal.video_audio` | clip size (480p or 720p, default 480p), audio (off); clip length is the format's `clip_seconds` |
 | `fal.image_cost` | USD per image for the printed estimates |
 | `fal.video_cost_per_second` | USD per second of video, keyed by resolution; the active one is used |
 | `providers.images` / `providers.video` | `fal` (default) or `sume`, chosen separately |
@@ -132,7 +164,22 @@ characters_cache/<id>.png   generated sheets for locked characters, reused by ev
 | `elevenlabs.model_id` / `output_format` / `cost_per_1k_chars` | TTS model, audio format, rate for the estimate |
 | `music_path`         | music bed under the whole cut; empty = none (add it on-platform) |
 | `outro_path`         | clip appended after the last shot; empty = none |
-| `assemble.*`         | output size and fps, shot timing, caption font and size, music volume, saturation |
+| `assemble.music_volume` | level of the music bed under the voice                     |
+
+Set by the format (`formats/<name>/format.yaml`), overridable in `config.local.yaml`:
+
+| format key           | becomes                                                        |
+|----------------------|---------------------------------------------------------------|
+| `style`              | style line prepended word-for-word to every `image_prompt`     |
+| `max_animated_shots` | cap on shots marked `animate: true`                            |
+| `app_screens`        | real Iro app screenshots (`path`, `shows`) the script may put in app_screen shots |
+| `locked_characters` (with `cast: locked`) | recurring cast: `id`, `role`, `description`, `image_path` |
+| `resolution`, `fps`  | `assemble.width` / `height` / `fps`                            |
+| `clip_seconds`       | `fal.video_seconds` and `sume.video_seconds`                   |
+| `captions.*`         | `assemble.caption_*` (font, size, y, max_words, colours, outline, blur, pop) and `assemble.card_fade_ms` |
+| `grade.*`            | `assemble.saturation`, `assemble.colorbalance`                 |
+| `timing.*`           | `assemble.*` shot lengths and zooms                            |
+| `rules`              | what the script validator enforces                             |
 
 ## The script step
 
@@ -165,7 +212,7 @@ overshoot win, flex, the ex returns, reversal ("i'm good", Iro says "that's my b
 closing CTA shot of the app with the caption `SEARCH IRO AI`.
 
 The hero (marcus), love interest (jess), rival (tyler), mentor (iro), boss and new partner
-(sofia) come from `locked_characters` in `config.yaml` and are reused by id with their
+(sofia) come from `locked_characters` in `formats/pixar_arc/format.yaml` and are reused by id with their
 descriptions copied word for word. Iro's reference image is `assets/iro.png`, the gold mascot
 from the Kiro app; `assets/app_icon.png` is the app icon for the CTA shot. Descriptions are physical identity
 only; each image prompt adds a scene-fitting outfit (work clothes in setbacks, upgraded clothes in
@@ -176,7 +223,8 @@ golden hour. A real AI tool (Claude or ChatGPT) is named at least once.
 
 ### Validation
 
-Rules enforced by the prompt and checked by the validator:
+Rules enforced by the prompt and checked by the validator (the numbers and wording are the
+`pixar_arc` format's `rules`):
 
 - 15 to 22 shots, numbered from 1 with no gaps
 - every locked character is present and its description matches config exactly
@@ -190,7 +238,7 @@ Rules enforced by the prompt and checked by the validator:
   own name is fine). The closing CTA shot is a back-of-phone shot under `SEARCH IRO AI`
 - the real app appears in `app_screen` shots (optional `"app_screen": "assets/screens/lesson.jpg"`
   field): exactly one right after the hero opens the app in the mentor beat and optionally one
-  in the grind, using a path from `app_screens` in `config.yaml`. An app_screen shot has no
+  in the grind, using a path from the format's `app_screens`. An app_screen shot has no
   characters, no `vo_line`, `animate: false`, and is never the first or last shot. If no listed
   screenshot exists, none are asked for
 - a FLEX MONTAGE of 6 to 8 consecutive shots right before the CTA (after the "that's my boy"

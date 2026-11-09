@@ -280,9 +280,9 @@ def pick_caption_font(asm: dict, build: Path | None = None) -> str:
     return wanted.replace(" Italic", "")
 
 
+# Caption chunking and pop-in come from the format (assemble.caption_max_words / _pop_*);
+# these are only the defaults for callers that pass none.
 MAX_CHUNK_WORDS = 2
-POP_MS = 80                    # pop-in: scale 85% -> 100% over this many milliseconds
-POP_FROM = 85
 _BREAK_AFTER = tuple(".,!?;:\u2014\u2013")   # a chunk always ends after a word ending in these
 _QUOTES = "\"'\u201c\u201d\u2018\u2019()[]"
 _DROP_TRAILING = ".,;:\u2014\u2013-"       # dropped from display; ! and ? are kept for tone
@@ -298,8 +298,8 @@ def _ends_clause(word: str) -> bool:
     return word.strip().rstrip(_QUOTES).endswith(_BREAK_AFTER)
 
 
-def chunk_words(words: list[dict]) -> list[dict]:
-    """Group timed words into chunks of at most MAX_CHUNK_WORDS, breaking after punctuation.
+def chunk_words(words: list[dict], max_words: int = MAX_CHUNK_WORDS) -> list[dict]:
+    """Group timed words into chunks of at most max_words, breaking after punctuation.
 
     Returns [{"text": "THE WINDOW", "start": seconds into the clip}]. A token that is pure
     punctuation (a standalone dash, an ellipsis) shows nothing and ends the current chunk."""
@@ -316,7 +316,7 @@ def chunk_words(words: list[dict]) -> list[dict]:
         if not cur:
             cur_start = float(w["start"])
         cur.append(text)
-        if len(cur) >= MAX_CHUNK_WORDS or _ends_clause(w["word"]):
+        if len(cur) >= max_words or _ends_clause(w["word"]):
             chunks.append({"text": " ".join(cur), "start": cur_start})
             cur = []
     if cur:
@@ -342,7 +342,8 @@ def card_event(item: dict) -> tuple[float, float, str] | None:
     return (item["start"], item["start"] + item["duration"], card)
 
 
-def shot_caption_events(run_dir: Path, item: dict) -> list[tuple[float, float, str]]:
+def shot_caption_events(run_dir: Path, item: dict,
+                        max_words: int = MAX_CHUNK_WORDS) -> list[tuple[float, float, str]]:
     """(start, end, text) in seconds on the final timeline for one shot's captions.
 
     Spoken shot: every word, in chunks synced to the voice timing; each chunk holds until the
@@ -362,7 +363,7 @@ def shot_caption_events(run_dir: Path, item: dict) -> list[tuple[float, float, s
         print(f"  shot {item['n']}: no word timings in {tp.name}; spreading the words evenly over the VO")
         words = _spread_words(item["shot"]["vo_line"], item["vo_len"])
 
-    chunks = chunk_words(words)
+    chunks = chunk_words(words, max_words)
     events = []
     for i, ch in enumerate(chunks):
         start = min(shot_start + ch["start"], shot_end)
@@ -390,6 +391,10 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
     font = pick_caption_font(asm, build)
     size = int(asm["caption_size"])
     cy = int(round(h * float(asm["caption_y"])))
+    fill, outline_color = str(asm["caption_fill"]), str(asm["caption_outline_color"])
+    outline, blur = int(asm["caption_outline"]), int(asm["caption_blur"])
+    pop_from, pop_ms = int(asm["caption_pop_from"]), int(asm["caption_pop_ms"])
+    max_words = int(asm["caption_max_words"])
     lines = [
         "[Script Info]",
         "ScriptType: v4.00+",
@@ -402,15 +407,15 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
         "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, "
         "Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        # white fill, pink-white outline (&HAABBGGRR), bold italic, outline 5 + \\blur6 = soft glow
-        f"Style: Caption,{font},{size},&H00FFFFFF,&H00FFFFFF,&H00E6C8FF,&H00000000,"
-        f"-1,-1,0,0,100,100,0,0,1,5,0,5,40,40,0,1",
+        # fill, outline colour (&HAABBGGRR), bold italic, outline + \\blur = soft glow (format's captions)
+        f"Style: Caption,{font},{size},{fill},{fill},{outline_color},&H00000000,"
+        f"-1,-1,0,0,100,100,0,0,1,{outline},0,5,40,40,0,1",
         "",
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
-    # Pop-in on every chunk: start at 85% scale, animate to 100% over the first 80ms.
-    pop = f"\\fscx{POP_FROM}\\fscy{POP_FROM}\\t(0,{POP_MS},\\fscx100\\fscy100)"
+    # Pop-in on every chunk: start at pop_from% scale, animate to 100% over the first pop_ms.
+    pop = f"\\fscx{pop_from}\\fscy{pop_from}\\t(0,{pop_ms},\\fscx100\\fscy100)"
     # Time-jump cards: same style, centred on the black frame, a quick fade in and out, no pop.
     fade = int(asm["card_fade_ms"])
     count = 0
@@ -419,12 +424,12 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
         if card is not None:
             start, end, text = card
             lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
-                         f"{{\\an5\\pos({w // 2},{h // 2})\\blur6\\fad({fade},{fade})}}{_ass_escape(text)}")
+                         f"{{\\an5\\pos({w // 2},{h // 2})\\blur{blur}\\fad({fade},{fade})}}{_ass_escape(text)}")
             count += 1
             continue
-        for start, end, text in shot_caption_events(run_dir, item):
+        for start, end, text in shot_caption_events(run_dir, item, max_words):
             lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
-                         f"{{\\an5\\pos({w // 2},{cy})\\blur6{pop}}}{_ass_escape(text)}")
+                         f"{{\\an5\\pos({w // 2},{cy})\\blur{blur}{pop}}}{_ass_escape(text)}")
             count += 1
     path = build / "captions.ass"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -451,13 +456,15 @@ def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total:
     if music_file:
         args += ["-stream_loop", "-1", "-i", str(music_file)]
 
-    # Video: burn captions, then a light grade (desaturate + a slight cool tint).
+    # Video: burn captions, then the format's grade (pixar_arc: desaturate + a slight cool tint).
     sat = float(asm["saturation"])
     # Relative paths only (cwd is the build dir), so no Windows drive-letter colon ever
     # reaches the filter graph.
     fonts = f":fontsdir={FONTS_SUBDIR}" if (build / FONTS_SUBDIR).is_dir() else ""
+    cb = str(asm.get("colorbalance") or "").strip()
+    tint = f"colorbalance={cb}," if cb else ""
     vchain = (f"[0:v]ass=captions.ass{fonts},eq=saturation={sat:.3f},"
-              f"colorbalance=rs=-0.03:bs=0.04:rm=-0.02:bm=0.03:rh=-0.01:bh=0.02,"
+              f"{tint}"
               f"format=yuv420p[v]")
 
     # Audio: VO clips at their shot start times, optional music bed, padded to the cut length.

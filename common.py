@@ -137,11 +137,16 @@ def _resolve_tools_and_dirs(cfg: dict) -> None:
     cfg["output_dir"] = str(RUNS_DIR)
 
 
-def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG_PATH) -> dict:
-    """config.yaml, then config.local.yaml deep-merged over it (if present), then env vars.
-    cfg['_sources'] says which of those were used (names only, never secret values)."""
-    cfg = _read_yaml(path)
-    cfg["_sources"] = {"files": [path.name], "keys": {}, "env": []}
+def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG_PATH,
+                format_name: str | None = None) -> dict:
+    """config.yaml, then the video format's format.yaml, then config.local.yaml (if present),
+    each deep-merged over the last, then env vars. cfg['format'] is the loaded format
+    (default pixar_arc); cfg['_sources'] says which layers were used (names only, never
+    secret values)."""
+    from format_loader import load_format
+    fmt = load_format(format_name)
+    cfg = deep_merge(_read_yaml(path), fmt["overlay"])
+    cfg["_sources"] = {"files": [path.name, fmt["file"]], "keys": {}, "env": []}
     local = {}
     if local_path is not None and Path(local_path).is_file():
         local = _read_yaml(Path(local_path))
@@ -152,9 +157,10 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
     cfg["script"].setdefault("model", "claude-sonnet-5-5")
     cfg["script"].setdefault("max_tokens", 16000)
     if not cfg.get("style"):
-        raise StepError("config.yaml is missing the 'style' line")
-    cfg["locked_characters"] = _check_locked_characters(cfg.get("locked_characters") or [])
-    cfg["app_screens"] = _check_app_screens(cfg.get("app_screens") or [])
+        raise StepError(f"{fmt['file']} is missing the 'style' line")
+    cfg["format"] = {k: v for k, v in fmt.items() if k != "overlay"}
+    cfg["locked_characters"] = _check_locked_characters(cfg.get("locked_characters") or [], fmt["file"])
+    cfg["app_screens"] = _check_app_screens(cfg.get("app_screens") or [], fmt["file"])
     cfg.setdefault("characters_cache_dir", "characters_cache")
     fal = cfg.setdefault("fal", {})
     fal.setdefault("image_model", "fal-ai/nano-banana")
@@ -181,7 +187,12 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
                          ("caption_font", "Montserrat Black Italic"),
                          ("caption_font_file", "assets/fonts/Montserrat-BlackItalic.ttf"),
                          ("caption_fallback_font", "Arial Black"), ("caption_size", 90),
-                         ("caption_y", 0.55), ("music_volume", 0.15), ("saturation", 0.85)]:
+                         ("caption_y", 0.55), ("caption_max_words", 2),
+                         ("caption_fill", "&H00FFFFFF"), ("caption_outline_color", "&H00E6C8FF"),
+                         ("caption_outline", 5), ("caption_blur", 6),
+                         ("caption_pop_from", 85), ("caption_pop_ms", 80),
+                         ("music_volume", 0.15), ("saturation", 0.85),
+                         ("colorbalance", "rs=-0.03:bs=0.04:rm=-0.02:bm=0.03:rh=-0.01:bh=0.02")]:
         asm.setdefault(key, default)
     cfg["music_path"] = (cfg.get("music_path") or "").strip()
     cfg["outro_path"] = (cfg.get("outro_path") or "").strip()
@@ -272,19 +283,19 @@ def _apply_providers(cfg: dict) -> None:
         fal["video_cost_per_second"] = float(sume["video_cost_per_second"])
 
 
-def _check_app_screens(raw) -> list[dict]:
-    """config.app_screens: [{path, shows}]. Paths are repo-relative; files may be added later."""
+def _check_app_screens(raw, where: str = "config.yaml") -> list[dict]:
+    """app_screens: [{path, shows}]. Paths are repo-relative; files may be added later."""
     if not isinstance(raw, list):
-        raise StepError("config.yaml: app_screens must be a list")
+        raise StepError(f"{where}: app_screens must be a list")
     out, seen = [], set()
     for i, e in enumerate(raw):
         if isinstance(e, str):
             e = {"path": e}
         if not isinstance(e, dict) or not isinstance(e.get("path"), str) or not e["path"].strip():
-            raise StepError(f"config.yaml: app_screens[{i}] needs a path")
+            raise StepError(f"{where}: app_screens[{i}] needs a path")
         path = e["path"].strip()
         if path in seen:
-            raise StepError(f"config.yaml: app_screens lists {path!r} twice")
+            raise StepError(f"{where}: app_screens lists {path!r} twice")
         seen.add(path)
         out.append({"path": path, "shows": str(e.get("shows") or "").strip()})
     return out
@@ -295,22 +306,22 @@ def available_app_screens(config: dict) -> list[dict]:
     return [e for e in config.get("app_screens", []) if (ROOT / e["path"]).is_file()]
 
 
-def _check_locked_characters(raw) -> list[dict]:
-    """Validate config.locked_characters and fill in defaults (image_path -> "")."""
+def _check_locked_characters(raw, where: str = "config.yaml") -> list[dict]:
+    """Validate locked_characters and fill in defaults (image_path -> "")."""
     if not isinstance(raw, list):
-        raise StepError("config.yaml: locked_characters must be a list")
+        raise StepError(f"{where}: locked_characters must be a list")
     seen: set[str] = set()
     out = []
     for i, c in enumerate(raw):
         if not isinstance(c, dict):
-            raise StepError(f"config.yaml: locked_characters[{i}] must be a mapping")
+            raise StepError(f"{where}: locked_characters[{i}] must be a mapping")
         cid, desc = c.get("id"), c.get("description")
         if not isinstance(cid, str) or not re.fullmatch(r"[a-z][a-z0-9_-]*", cid):
-            raise StepError(f"config.yaml: locked_characters[{i}].id must be a lowercase slug, got {cid!r}")
+            raise StepError(f"{where}: locked_characters[{i}].id must be a lowercase slug, got {cid!r}")
         if cid in seen:
             raise StepError(f"config.yaml: duplicate locked character id {cid!r}")
         if not isinstance(desc, str) or not desc.strip():
-            raise StepError(f"config.yaml: locked_characters[{i}] ({cid}) needs a description")
+            raise StepError(f"{where}: locked_characters[{i}] ({cid}) needs a description")
         seen.add(cid)
         entry = dict(c)
         entry["description"] = desc.strip()
@@ -340,7 +351,7 @@ def run_dir_for(run_id: str, must_exist: bool = True) -> Path:
     return run_dir
 
 
-def create_run(premise: str) -> Path:
+def create_run(premise: str, format_name: str) -> Path:
     run_id = new_run_id(premise)
     run_dir = RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
@@ -348,9 +359,36 @@ def create_run(premise: str) -> Path:
     write_json(run_dir / "run.json", {
         "run_id": run_id,
         "premise": premise.strip(),
+        "format": format_name,
         "created_at": datetime.now().isoformat(timespec="seconds"),
     })
     return run_dir
+
+
+def peek_runs_dir(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG_PATH) -> Path:
+    """Where runs live, read without loading the whole config (which needs the run's format)."""
+    value = os.environ.get("VIDGEN_OUTPUT_DIR", "").strip()
+    if not value and local_path is not None and Path(local_path).is_file():
+        value = str(_read_yaml(Path(local_path)).get("output_dir") or "").strip()
+    if not value:
+        value = str(_read_yaml(path).get("output_dir") or "").strip() or "runs"
+    out = Path(value).expanduser()
+    return out if out.is_absolute() else ROOT / out
+
+
+def run_format(run_dir: Path) -> str | None:
+    """The format a run was made with (run.json). Runs from before formats existed have none
+    recorded; they were all made with the original pipeline, pixar_arc. None if the run is
+    missing (the caller reports that once the config is loaded)."""
+    path = Path(run_dir) / "run.json"
+    if not Path(run_dir).is_dir():
+        return None
+    if not path.is_file():
+        return "pixar_arc"
+    try:
+        return str(read_json(path).get("format") or "pixar_arc")
+    except (OSError, ValueError) as e:
+        raise StepError(f"{path} is not valid JSON: {e}") from e
 
 
 def read_premise(run_dir: Path) -> str:
