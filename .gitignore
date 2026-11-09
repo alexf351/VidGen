@@ -7,3 +7,6 @@ __pycache__/
 characters_cache/
 # machine-specific settings and keys (see config.local.example.yaml)
 config.local.yaml
+
+# Skill sources kept for reference; large placeholder media stays out of git
+skills/**/*.m4a
