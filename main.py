@@ -6,6 +6,9 @@ Commands:
       ... --format <name>                   video format to use (default pixar_arc)
   python main.py new "<premise>" --dry-run  script step only: print the shot list, nothing else
   python main.py formats                    list the installed video formats
+  python main.py import-skill <skill>       turn a Claude skill folder (or its SKILL.md) into a format
+      ... --name <name> --force             format name / replace an existing format
+      ... --premise "<p>" --no-dry-run      test premise / skip the test script run
   python main.py doctor                     check ffmpeg, font, API keys and assets (no API calls)
   python main.py step <run_id> <step_name>  re-run a single step on an existing run
       ... images --only 3,7                 regenerate only those shots (images, video, voice)
@@ -117,7 +120,48 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_formats = sub.add_parser("formats", help="list the installed video formats")
     p_formats.set_defaults(func=None)
+
+    p_imp = sub.add_parser("import-skill", help="turn a Claude skill folder into a video format")
+    p_imp.add_argument("skill", help="path to the skill folder or its SKILL.md")
+    p_imp.add_argument("--name", default=None, help="format name (default: from the skill)")
+    p_imp.add_argument("--force", action="store_true", help="replace formats/<name> if it exists")
+    p_imp.add_argument("--premise", default=None,
+                       help="premise for the test run (default: one the import suggests)")
+    p_imp.add_argument("--no-dry-run", action="store_true",
+                       help="skip the test run of the script step (saves one Claude call)")
+    p_imp.set_defaults(func=cmd_import_skill)
     return p
+
+
+def cmd_import_skill(args, config) -> int:
+    """import-skill: convert, write, validate, then a dry run of the new format."""
+    from format_import import import_skill, print_summary
+    summary = import_skill(args.skill, config, name=args.name, force=args.force)
+    print_summary(summary)
+    name = summary["name"]
+    if summary["checks"]:
+        print(f"\n[import] formats/{name} does not load cleanly:")
+        for c in summary["checks"]:
+            print(f"  - {c}")
+        print(f"fix the files in formats/{name}/ and rerun with --force, or edit them by hand")
+        return 1
+    print(f"\n[import] format.yaml is valid and the script prompt renders")
+    if args.no_dry_run:
+        print(f"\ntry it:  python main.py new \"<premise>\" --format {name} --dry-run")
+        return 0
+    premise = args.premise or summary["data"]["sample_premise"].strip() or "A short test story"
+    print(f"\n[import] test run: new --format {name} --dry-run")
+    fmt_config = load_config(format_name=name)
+    try:
+        cmd_new(argparse.Namespace(premise=premise, dry_run=True, format=name), fmt_config)
+    except StepError as e:
+        print(f"\n[import] the test run did not produce a valid shot list:\n{e}", file=sys.stderr)
+        print(f"formats/{name} was kept; adjust its rules or prompts and try "
+              f"python main.py new \"{premise}\" --format {name} --dry-run", file=sys.stderr)
+        return 1
+    print(f"\n[import] formats/{name} produced a shot list. Make a video with:\n"
+          f"  python main.py new \"<premise>\" --format {name}")
+    return 0
 
 
 def list_formats() -> int:
@@ -204,7 +248,9 @@ def main(argv=None) -> int:
         if args.command == "doctor":
             from doctor import run_doctor
             return run_doctor(config, key_sources)
-        args.func(args, config)
+        rc = args.func(args, config)
+        if isinstance(rc, int):
+            return rc
     except StepError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

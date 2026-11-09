@@ -125,6 +125,37 @@ placeholder is an error. `python main.py formats` lists what is installed.
 prompt bytes, validation, captions, grade and timing. To make a new format, copy
 `formats/pixar_arc`, rename the folder and `name:`, and edit.
 
+### Importing a Claude skill as a format
+
+```bash
+python main.py import-skill path/to/my-skill            # a folder with SKILL.md, or the SKILL.md itself
+python main.py import-skill path/to/my-skill --name drama --premise "She finds a letter"
+python main.py import-skill path/to/my-skill --force    # replace formats/<name> if it exists
+python main.py import-skill path/to/my-skill --no-dry-run
+```
+
+1. Reads SKILL.md (frontmatter and body) and the files it references inside its folder (links,
+   `backticked` paths, bare relative paths and folders, followed two levels deep). URLs and paths
+   outside the folder are ignored; binary files are listed by name only.
+2. One Claude call (`import_skill.model` in `config.yaml`, default `claude-opus-5-5`, with
+   structured output) maps the skill onto the format schema, keeping the skill's wording in
+   `script_prompt.md` and `shot_rules.md` and choosing example files. If the result does not fit
+   the schema, the problems are sent back once for a corrected version. The importer appends
+   VidGen's own output section (the JSON shot list the script step validates) to the prompt.
+3. Writes `formats/<name>/` with `format.yaml`, the two prompts, `examples/`, and `source/`
+   (the original SKILL.md and its referenced files). The name comes from `--name`, else the
+   skill's `name`, else the folder. An existing format is never replaced without `--force`,
+   and `pixar_arc` is never replaced.
+4. Prints what was filled from the skill, what was guessed (`[?]`, including VidGen defaults
+   kept and anything the importer adjusted), and what the skill wants that VidGen cannot do
+   (`[x]`, for example another aspect ratio, music generation or on-screen graphics).
+5. Validates `format.yaml` against the schema, loads the format the way the pipeline does,
+   then runs `new --format <name> --dry-run` on a sample premise (one more Claude call) to
+   confirm it produces a valid shot list. If that fails, the format is kept for you to edit.
+
+Imported formats are always 9:16 (the image and video models are called at 9:16) and use no
+app screenshots. A skill's `{{VARIABLES}}` that VidGen does not fill are written as `<VARIABLES>`.
+
 ## Run layout
 
 ```
