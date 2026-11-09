@@ -1,0 +1,125 @@
+# Retro Anime: a narrated story ad for Iro in one look.
+# Ported from the claude-animation-styles skill (skills/claude-animation-styles/, styles.md + copywriter.md).
+# That skill renders with hand-written three.js code; here the look is a style line and image
+# rules for the image model, so the format runs on VidGen's normal pipeline.
+
+name: retro_anime
+title: Retro Anime
+description: 'An 80s TV anime on film: gradient skies, a huge sun disc, speed lines and one impact frame.'
+duration_target: about 15-25 seconds
+aspect: '9:16'
+resolution:
+- 1080
+- 1920
+fps: 30
+clip_seconds: 4
+cast: locked
+beats:
+- someone wants something
+- they try
+- it takes off
+- it's working
+- it goes wrong
+- they open Iro
+- it pays off
+- the twist
+- Search Iro AI
+style: 1980s retro TV anime cel, painted gradient sky from deep blue to magenta to peach, huge striped
+  sun disc behind the subject, flat colors with one shadow tone, thin dark lines, sparkles, film grain,
+  vertical 9:16
+max_animated_shots: 3
+rules:
+  story_shots:
+  - 7
+  - 11
+  vo_words:
+  - 25
+  - 70
+  caption_max_words: 2
+  cta_caption: SEARCH IRO AI
+  narrator: true
+  app_screens:
+    max: 1
+    hint: right after the hero opens Iro
+  banned_image_prompt:
+    fix: show the back of the phone with the screen glow on their face
+    patterns:
+    - - \biro\s*ai\b
+      - the app name 'Iro AI'
+    - - \biro\s+app\b
+      - '''Iro app'''
+    - - \bapp('s)?\s+(ui|interface|screen|logo|icon|name|home ?screen|menu|dashboard)\b
+      - app UI
+    - - \buser interface\b
+      - '''user interface'''
+    - - \bui\b
+      - '''UI'''
+    - - \blogos?\b
+      - a logo
+    - - \bscreen\s+(shows|showing|displays|displaying|reads|reading)\b
+      - what a screen shows
+  banned_vo_line:
+    fix: rewrite it the way a person says it out loud
+    patterns:
+    - - —
+      - an em dash
+    - - ;
+      - a semicolon
+    - - \bnot just\b.*\bbut\b
+      - '"not just X but Y"'
+    - - \bit['’]?s not (?:about )?\w+[^.]*?, it['’]?s\b
+      - '"it''s not X, it''s Y"'
+    - - here['’]?s the thing|let that sink in|read the (?:tiny|fine) print|the truth is|in today['’]?s|buckle
+        up|imagine this|it['’]?s worth noting|at the end of the day|whether you['’]?re a
+      - filler
+    - - \b(?:spoiler|plot twist)\s*:|here['’]?s where it gets interesting|the best part\?
+      - fake suspense
+    - - \b(?:delve|unlock|unleash|harness|leverage|seamless|robust|cutting[- ]edge|game[- ]?changer|revolutionary|transformative|landscape|realm|tapestry|elevate|empower|supercharge|deep
+        dive|next level|dive in)\b
+      - an AI word
+    - - \b(?:panic button|goldmine|secret sauce)\b
+      - a metaphor punchline
+prompt:
+  app_screen_line: '  * "{{PATH}}": {{SHOWS}}'
+  app_screen_unknown: an Iro app screen
+captions:
+  font: Montserrat Black Italic
+  font_file: assets/fonts/Montserrat-BlackItalic.ttf
+  fallback_font: Arial Black
+  size: 90
+  y: 0.55
+  max_words: 1
+  fill: '&H00FFFFFF'
+  outline_color: '&H00E6C8FF'
+  outline: 5
+  blur: 6
+  pop_from: 85
+  pop_ms: 80
+  card_fade_ms: 200
+grade:
+  saturation: 1.0
+  colorbalance: ''
+timing:
+  vo_pad_seconds: 0.25
+  min_shot_seconds: 1.2
+  zoom_end: 1.08
+  card_seconds: 1.5
+  app_screen_seconds: 1.5
+  app_screen_zoom_end: 1.04
+  montage_seconds: 0.5
+  montage_zoom_end: 1.12
+app_screens:
+- path: assets/screens/learn.jpg
+  shows: the learning path map with the next lesson card and a START button (a first lesson)
+- path: assets/screens/lesson.jpg
+  shows: 'a lesson in progress: Iro asks the learner to match AI tools to what they do best'
+- path: assets/screens/progress.jpg
+  shows: 'the progress screen: Gold II rank, XP bar and the six-skill operator build'
+- path: assets/screens/create.jpg
+  shows: the create screen for building a custom learning path on any topic
+locked_characters:
+- id: iro
+  role: mentor, the Iro AI mascot, never a human
+  description: Iro, a small round robotic penguin mascot with glossy black and gold armor, big round eyes,
+    and a glowing orange core on its chest
+  image_path: assets/iro.png

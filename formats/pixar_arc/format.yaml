@@ -10,6 +10,7 @@
 #   blocks/            app_screens.md (screenshots available) / no_app_screens.md (none)
 
 name: pixar_arc
+title: "Pixar Arc"                       # shown in the UI's format gallery
 description: >-
   3D animated character arc: a dumped, fired hero locks in with Iro, grinds a counter up,
   wins far past the goal, turns down his ex, then a flex montage and the SEARCH IRO AI ending.

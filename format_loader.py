@@ -25,6 +25,7 @@ from common import ROOT, StepError
 
 FORMATS_DIR = ROOT / "formats"
 DEFAULT_FORMAT = "pixar_arc"
+COVER_EXTS = ("jpg", "jpeg", "png", "webp")
 CAST_MODES = ("locked", "none")
 _PLACEHOLDER = re.compile(r"\{\{([A-Z][A-Z0-9_]*)\}\}")
 
@@ -162,11 +163,14 @@ def load_format(name: str | None = None) -> dict:
         texts[key] = _read_text(path)
     blocks = {p.stem: _read_text(p) for p in sorted((folder / "blocks").glob("*.md"))}
     examples = sorted(p.name for p in (folder / "examples").glob("*")) if (folder / "examples").is_dir() else []
+    cover = next((folder / f"cover.{ext}" for ext in COVER_EXTS if (folder / f"cover.{ext}").is_file()), None)
+    example_video = folder / "example.mp4" if (folder / "example.mp4").is_file() else None
 
     return {
         "name": name,
         "dir": folder,
         "file": where,
+        "title": str(f.get("title") or name.replace("_", " ").title()),
         "description": " ".join(str(f.get("description") or "").split()),
         "duration_target": str(f.get("duration_target") or ""),
         "aspect": str(f.get("aspect") or ""),
@@ -182,6 +186,8 @@ def load_format(name: str | None = None) -> dict:
         "shot_rules": texts["shot_rules"],
         "blocks": blocks,
         "examples": examples,
+        "cover": cover,                        # cover.(jpg|jpeg|png|webp) in the folder, for the UI
+        "example_video": example_video,        # example.mp4 in the folder, for the UI
         "overlay": _overlay(f, where),
     }
 

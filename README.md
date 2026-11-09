@@ -125,6 +125,24 @@ placeholder is an error. `python main.py formats` lists what is installed.
 prompt bytes, validation, captions, grade and timing. To make a new format, copy
 `formats/pixar_arc`, rename the folder and `name:`, and edit.
 
+### Installed formats
+
+| format | look | story |
+|---|---|---|
+| `pixar_arc` | 3D animated feature | the dumped-and-fired hero arc, dialogue, flex montage (default) |
+| `pixel_art`, `ps2`, `comic`, `brick`, `claymation`, `paper_cutout`, `retro_anime`, `low_poly`, `risograph`, `miniature` | one look each | a narrated 15-25 s story ad: someone wants something, it goes wrong, they open Iro, it pays off, a twist, SEARCH IRO AI |
+| `style_switch` | a different look every shot, on hard cuts | the same narrated story |
+
+The ten looks and the narrated story shape come from the claude-animation-styles skill
+(`skills/claude-animation-styles/`). That skill renders with hand-written three.js code in
+Claude Code; here each look is a style line plus image rules for the image model, so it runs on
+the normal pipeline. The narrated formats set `rules.narrator: true`: the narrator speaks with
+`voices.narrator` (falling back to `voice_id`). `pixar_arc` still rejects a narrator.
+
+A format can carry `title:` (shown in the UI), `cover.jpg` (its gallery card) and `example.mp4`
+(its preview). Set the last two from any run in the UI: "Use as cover" on a shot, "Use as
+example" on a finished video.
+
 ### Importing a Claude skill as a format
 
 ```bash

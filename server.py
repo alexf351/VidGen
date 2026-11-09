@@ -29,7 +29,7 @@ import commands
 import run_status
 from common import (KEY_ENV, PROVIDERS, ROOT, STEP_ORDER, StepError, available_app_screens,
                     read_json, run_format, runs_dir, write_json)
-from format_loader import DEFAULT_FORMAT, format_summaries
+from format_loader import COVER_EXTS, DEFAULT_FORMAT, format_summaries, load_format
 from jobs import JobRunner
 
 HOST = "127.0.0.1"
@@ -58,6 +58,15 @@ class StepRequest(BaseModel):
 class RerollRequest(BaseModel):
     shot: int = Field(ge=1)
     provider: ProviderChoice = None
+
+
+class CoverRequest(BaseModel):
+    run_id: str
+    shot: int = Field(ge=1)
+
+
+class ExampleRequest(BaseModel):
+    run_id: str
 
 
 def _providers(choice: ProviderChoice) -> dict | None:
@@ -159,12 +168,68 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             if f.get("error"):
                 out.append({"name": f["name"], "error": f["error"]})
                 continue
-            out.append({"name": f["name"], "default": f["name"] == DEFAULT_FORMAT,
+            r = f["rules"]
+            out.append({"name": f["name"], "title": f["title"], "default": f["name"] == DEFAULT_FORMAT,
                         "description": f["description"], "duration_target": f["duration_target"],
                         "aspect": f["aspect"], "clip_seconds": f["clip_seconds"], "cast": f["cast"],
                         "beats": f["beats"], "examples": f["examples"],
-                        "locked_cast": [c["id"] for c in f["overlay"].get("locked_characters", [])]})
+                        "locked_cast": [c["id"] for c in f["overlay"].get("locked_characters", [])],
+                        "cover": media_url(f["name"], "cover", f["cover"]),
+                        "example_video": media_url(f["name"], "example", f["example_video"]),
+                        "limits": {"story_shots": r["story_shots"], "vo_words": r["vo_words"],
+                                   "montage": r["montage"]["count"] if r["montage"] else None,
+                                   "cards": r["cards"]["count"] if r["cards"] else None,
+                                   "max_animated_shots": f["overlay"].get("max_animated_shots"),
+                                   "narrator": r["narrator"], "cta_caption": r["cta_caption"]}})
         return out
+
+    def media_url(name: str, kind: str, path: Path | None) -> str | None:
+        return f"/format-media/{name}/{kind}?v={int(path.stat().st_mtime)}" if path else None
+
+    def format_or_404(name: str) -> dict:
+        try:
+            return load_format(name)
+        except StepError as e:
+            raise HTTPException(404, str(e)) from e
+
+    @app.get("/format-media/{name}/{kind}")
+    def format_media(name: str, kind: str):
+        f = format_or_404(name)
+        path = {"cover": f["cover"], "example": f["example_video"]}.get(kind)
+        if path is None:
+            raise HTTPException(404, "not found")
+        return FileResponse(path)
+
+    @app.post("/api/formats/{name}/cover")
+    def set_cover(name: str, body: CoverRequest) -> dict:
+        """Use a run's keyframe as the format's cover in the gallery (formats/<name>/cover.jpg)."""
+        from PIL import Image
+        from steps.images import shot_path
+        f = format_or_404(name)
+        src = shot_path(run_dir_of(body.run_id), body.shot)
+        if not src.is_file():
+            raise HTTPException(404, f"shot {body.shot} has no image yet")
+        img = Image.open(src).convert("RGB")
+        w, h = img.size                                    # crop to 9:16, then 720x1280
+        cw, ch = (w, round(w * 16 / 9)) if w * 16 / 9 <= h else (round(h * 9 / 16), h)
+        left, top = (w - cw) // 2, (h - ch) // 2
+        img = img.crop((left, top, left + cw, top + ch)).resize((720, 1280), Image.Resampling.LANCZOS)
+        folder = f["dir"]
+        for ext in COVER_EXTS:
+            (folder / f"cover.{ext}").unlink(missing_ok=True)
+        img.save(folder / "cover.jpg", quality=86)
+        return {"cover": media_url(name, "cover", folder / "cover.jpg")}
+
+    @app.post("/api/formats/{name}/example")
+    def set_example(name: str, body: ExampleRequest) -> dict:
+        """Use a run's final video as the format's example (formats/<name>/example.mp4)."""
+        import shutil
+        f = format_or_404(name)
+        final = run_dir_of(body.run_id) / "final.mp4"
+        if not final.is_file():
+            raise HTTPException(404, "this run has no final video yet")
+        shutil.copyfile(final, f["dir"] / "example.mp4")
+        return {"example_video": media_url(name, "example", f["dir"] / "example.mp4")}
 
     @app.get("/api/config")
     def config_info() -> dict:
@@ -179,6 +244,22 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             "script_model": cfg["script"]["model"],
             "video": {"clip_seconds": cfg["fal"]["video_seconds"],
                       "resolution": cfg[cfg["providers"]["video"]]["video_resolution"]},
+            "prices": prices(cfg),
+        }
+
+    def prices(cfg: dict) -> dict:
+        """USD rates from config, per provider. fal's block is re-read with fal selected, since
+        load_config points fal's cost keys at Sume's numbers when Sume is the provider."""
+        fal = cfg["fal"]
+        if "sume" in cfg["providers"].values():
+            fal = config_for(providers={"images": "fal", "video": "fal"})["fal"]
+        sume = cfg["sume"]
+        return {
+            "fal": {"image": float(fal["image_cost"]), "video_per_second": fal.get("video_cost_by_resolution")
+                    or {fal["video_resolution"]: float(fal["video_cost_per_second"])}},
+            "sume": {"image": float(sume["image_cost"]), "video_per_second": sume.get("video_cost_by_resolution")
+                     or {sume["video_resolution"]: float(sume["video_cost_per_second"])}},
+            "voice_per_1k_chars": float(cfg["elevenlabs"]["cost_per_1k_chars"]),
         }
 
     @app.get("/api/doctor")

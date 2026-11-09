@@ -37,7 +37,7 @@ BASE_PLACEHOLDERS = {"STYLE", "MAX_ANIMATED", "CAST", "SPEAKERS", "APP_SCREENS",
 CARD_PLACEHOLDERS = {"CARDS_MIN", "CARDS_MAX", "CARD_WORDS_MIN", "CARD_WORDS_MAX"}
 MONTAGE_PLACEHOLDERS = {"MONTAGE_MIN", "MONTAGE_MAX"}
 CONTRACT_MARKER = "{{VIDGEN_CONTRACT}}"
-FORMAT_KEYS = {"name", "description", "duration_target", "aspect", "resolution", "fps",
+FORMAT_KEYS = {"name", "title", "description", "duration_target", "aspect", "resolution", "fps",
                "clip_seconds", "cast", "beats", "style", "max_animated_shots", "rules", "prompt",
                "captions", "grade", "timing", "app_screens", "locked_characters"}
 

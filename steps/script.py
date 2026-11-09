@@ -216,8 +216,11 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
     montage_idx: list[int] = []
     app_paths = [e["path"] for e in (app_screens or [])]
     app_shots = 0
-    # Who may speak: the locked cast (or, with no locked cast, any character in the script).
+    # Who may speak: the locked cast (or, with no locked cast, any character in the script),
+    # plus a narrator voice when the format allows one (rules.narrator).
     speakers = set(locked_desc) or set(id_set)
+    if rules["narrator"]:
+        speakers = speakers | {"narrator"}
     normalized_shots = []
     for i, s in enumerate(shots):
         label = f"shots[{i}]"
@@ -330,7 +333,7 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             if speaker not in speakers:
                 errors.append(f"{label}.speaker must be the character who says the line, one of "
                               f"{sorted(speakers)}, got {speaker!r}")
-        elif not _is_str(speaker) or (speaker and speaker not in id_set):
+        elif not _is_str(speaker) or (speaker and speaker not in id_set and speaker not in speakers):
             errors.append(f"{label}.speaker must be \"\" for a silent shot, got {speaker!r}")
         caption = s.get("caption")
         if not _is_str(caption):
