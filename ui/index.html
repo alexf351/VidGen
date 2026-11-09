@@ -4,24 +4,37 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VidGen</title>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 48px auto; padding: 0 16px;
-         color: #1d1d1f; background: #fafafa; line-height: 1.5; }
-  code { background: #eee; padding: 1px 5px; border-radius: 4px; }
-  li { margin: 4px 0; }
-</style>
+<link rel="stylesheet" href="app.css">
 </head>
 <body>
-<h1>VidGen</h1>
-<p>The local server is running. This page is a placeholder until the frontend is built; the
-API is ready.</p>
-<ul>
-  <li><a href="/api/docs">API docs (try every endpoint)</a></li>
-  <li><a href="/api/formats"><code>GET /api/formats</code></a></li>
-  <li><a href="/api/config"><code>GET /api/config</code></a></li>
-  <li><a href="/api/runs"><code>GET /api/runs</code></a></li>
-  <li><a href="/api/jobs"><code>GET /api/jobs</code></a></li>
-  <li><a href="/api/doctor"><code>GET /api/doctor</code></a></li>
-</ul>
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand"><span class="logo">▶</span> VidGen</div>
+    <a class="btn primary block" id="new-btn" href="#/new">+ New video</a>
+    <div class="side-head">Runs <span id="run-count" class="muted"></span></div>
+    <nav id="runs" aria-label="Runs"></nav>
+    <select id="runs-select" aria-label="Open a run"></select>
+  </aside>
+
+  <main id="main" tabindex="-1"></main>
+
+  <section id="drawer" class="collapsed" aria-label="Jobs">
+    <header id="drawer-bar">
+      <button class="icon-btn" id="drawer-toggle" aria-expanded="false" title="Show jobs">▴</button>
+      <span id="drawer-summary" class="muted">No jobs yet</span>
+    </header>
+    <div id="drawer-body">
+      <div id="log-pane">
+        <div id="log-title" class="muted">Job log</div>
+        <pre id="log" aria-live="polite"></pre>
+      </div>
+      <div id="job-list"></div>
+    </div>
+  </section>
+</div>
+
+<div id="modal-root"></div>
+<div id="toasts" aria-live="assertive"></div>
+<script src="app.js"></script>
 </body>
 </html>

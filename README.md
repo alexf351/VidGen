@@ -165,8 +165,28 @@ python main.py ui --port 9000 --no-browser
 
 A FastAPI server on **127.0.0.1 only** (it holds your API keys; nothing else on the network
 can reach it). It calls the same functions as the CLI (`commands.py`), so runs made in the UI
-and in the terminal are the same runs in the same output folder. `ui/` is served at `/`
-(a placeholder page for now); interactive API docs are at `/api/docs`.
+and in the terminal are the same runs in the same output folder. Interactive API docs are at
+`/api/docs`.
+
+The editor (`ui/`: `index.html`, `app.css`, `app.js`; plain HTML/CSS/JS, no build step) has:
+
+- **Sidebar**: New video, and every run with its state (video ready, script only, in progress,
+  running, last job failed).
+- **New video**: premise, format, provider, dry run. Setup problems from `doctor` show on top.
+- **Run**: the step pipeline with per-step progress (click a step to run it), the provider for
+  actions, the estimated cost so far; the cast sheets; a 9:16 card per shot (keyframe, clip
+  plays on hover, play button for the line, Reroll / Image / Voice); select several shots to
+  redo images, video or voice for just those; the final video with Download; and the script
+  editor (dialogue, speaker, caption, time-card text) that validates on save and offers to
+  redo the voice for changed lines.
+- **Jobs drawer**: the live log of the running job, the queue, and recent jobs with the error
+  line of any that failed.
+
+Every paid action asks first with an estimate (keyframes × image price, clips × clip length ×
+price per second, voice characters × price). The prices are copied from `config.yaml` into
+`ui/app.js` (`RATES`), because the API does not expose them; update both if prices change.
+Dry runs, Assemble and Recast make no paid calls and do not ask. Buttons on a run are disabled
+while it has a queued or running job, and the run refreshes (with fresh media) when a job ends.
 
 Commands run as **jobs**, one at a time on a background thread; the rest wait in a queue. Each
 job has an id, the run it belongs to, an action (`new`, `step`, `reroll`, `recast`), a status
