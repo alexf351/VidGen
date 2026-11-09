@@ -1,0 +1,732 @@
+"""The Claude Code engine: Claude Code writes the story and codes every scene, the video renders
+on this computer. No image or video model is called; the coding runs on your Claude login.
+
+A format offers it with a code_render block (skill + styles) in its format.yaml. A run made with
+this engine keeps everything in runs/<id>/code/ (a copy of the skill's template) and has four
+steps instead of the image pipeline's five:
+
+    story    Claude Code writes story.json: one line per beat, a style for each (copywriter.md)
+    scenes   Claude Code rewrites each style file for this story and checks stills as it goes
+    voice    VidGen reads the lines with ElevenLabs and times the beats to the voice (optional)
+    render   VidGen runs `node render.cjs video` and copies out/video.mp4 to final.mp4
+
+Claude Code is started headless (`claude -p`) in the run's code folder. Its environment has no
+API keys: ANTHROPIC_API_KEY and friends are removed so it uses your subscription login, and the
+fal / Sume / ElevenLabs keys stay with VidGen. It may read and edit files in the code folder,
+read the skill and the format, and run exactly one command: `node render.cjs stills ...`.
+Anything else it tries is denied (permission mode dontAsk), never prompted.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import threading
+import time
+from datetime import datetime
+from pathlib import Path
+
+from common import KEY_ENV, ROOT, TOOLS, StepError, read_json, read_premise, write_json
+
+CODE_STEPS = ["story", "scenes", "voice", "render"]
+ENGINES = ("ai", "claude_code")
+TEMPLATE_FILES = ("index.html", "main.js", "render.cjs", "package.json", "story.json")
+TEMPLATE_DIRS = ("lib", "styles")
+NODE_CACHE = ROOT / "cache" / "code_engine"
+
+# Environment variables that would make Claude Code bill an API key or a cloud account instead
+# of the subscription you are logged in with, or that would stop it starting at all.
+AUTH_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
+            "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY",
+            "ANTHROPIC_PROFILE", "ANTHROPIC_FEDERATION_RULE_ID", "ANTHROPIC_ORGANIZATION_ID",
+            "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT")
+
+LIMIT_HINTS = ("hit your session limit", "hit your weekly limit", "hit your opus limit",
+               "hit your sonnet limit", "usage limit")
+LOGIN_HINTS = ("not logged in", "please run /login", "authentication required")
+
+
+# ------------------------------------------------------------------ settings ----
+
+def settings(config: dict) -> dict:
+    ce = dict(config.get("code_engine") or {})
+    ce.setdefault("claude_path", "")
+    ce.setdefault("node_path", "")
+    ce.setdefault("model", "")                  # empty: Claude Code's own default for your plan
+    ce.setdefault("story_max_turns", 20)
+    ce.setdefault("scenes_max_turns", 120)
+    ce.setdefault("timeout_minutes", 60)        # one Claude Code session
+    ce.setdefault("render_timeout_minutes", 90)
+    ce.setdefault("voice", True)
+    return ce
+
+
+def offered(config: dict) -> dict | None:
+    """The format's code_render block, if this format can use the Claude Code engine."""
+    return (config.get("format") or {}).get("code_render")
+
+
+def workspace(run_dir: Path) -> Path:
+    return run_dir / "code"
+
+
+def _status_path(run_dir: Path) -> Path:
+    return workspace(run_dir) / "vidgen_status.json"
+
+
+def read_status(run_dir: Path) -> dict:
+    p = _status_path(run_dir)
+    if not p.is_file():
+        return {}
+    try:
+        data = read_json(p)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _mark(run_dir: Path, step: str, value=True, clear: tuple[str, ...] = ()) -> None:
+    data = read_status(run_dir)
+    for k in clear:
+        data.pop(k, None)
+    if value is None:
+        data.pop(step, None)
+    else:
+        data[step] = {"at": datetime.now().isoformat(timespec="seconds"), "value": value}
+    write_json(_status_path(run_dir), data)
+
+
+def step_states(run_dir: Path) -> dict:
+    st = read_status(run_dir)
+    final = (run_dir / "final.mp4").is_file()
+
+    def one(name: str) -> dict:
+        done = name in st or (name == "render" and final)
+        note = st.get(name, {}).get("value") if isinstance(st.get(name), dict) else None
+        return {"status": "done" if done else "pending", "done": int(done), "total": 1,
+                "note": note if isinstance(note, str) else None}
+    return {name: one(name) for name in CODE_STEPS}
+
+
+# --------------------------------------------------------------------- tools ----
+
+def _which(configured: str, *names: str) -> str | None:
+    if configured:
+        p = Path(configured).expanduser()
+        return str(p) if p.is_file() else shutil.which(configured)
+    for n in names:
+        found = shutil.which(n)
+        if found:
+            return found
+    return None
+
+
+def claude_path(config: dict) -> str | None:
+    return _which(settings(config)["claude_path"], "claude")
+
+
+def node_path(config: dict) -> str | None:
+    return _which(settings(config)["node_path"], "node")
+
+
+def npm_path(config: dict) -> str | None:
+    node = node_path(config)
+    if node:
+        for n in ("npm.cmd", "npm"):
+            p = Path(node).with_name(n)
+            if p.is_file():
+                return str(p)
+    return shutil.which("npm")
+
+
+def claude_env() -> dict:
+    """The environment for Claude Code: VidGen's minus every API key and auth override."""
+    drop = set(AUTH_ENV) | set(KEY_ENV.values())
+    env = {k: v for k, v in os.environ.items() if k.upper() not in drop}
+    return env
+
+
+def tool_env(config: dict) -> dict:
+    """The environment for node/npm: keys removed too, ffmpeg's folder on PATH for render.cjs."""
+    env = claude_env()
+    ff = TOOLS.get("ffmpeg") or "ffmpeg"
+    extra = []
+    if os.path.isabs(ff):
+        extra.append(str(Path(ff).parent))
+    node = node_path(config)
+    if node:
+        extra.append(str(Path(node).parent))
+    if extra:
+        env["PATH"] = os.pathsep.join(extra + [env.get("PATH", "")])
+    return env
+
+
+def auth_status(config: dict) -> dict:
+    """`claude auth status` with the engine's environment (no model request, no usage)."""
+    exe = claude_path(config)
+    if not exe:
+        return {"installed": False}
+    out = {"installed": True, "path": exe}
+    try:
+        v = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=30,
+                           encoding="utf-8", errors="replace", env=claude_env())
+        out["version"] = (v.stdout or v.stderr).strip().splitlines()[0] if (v.stdout or v.stderr).strip() else ""
+        a = subprocess.run([exe, "auth", "status"], capture_output=True, text=True, timeout=30,
+                           encoding="utf-8", errors="replace", env=claude_env())
+    except (OSError, subprocess.SubprocessError) as e:
+        out["error"] = str(e)
+        return out
+    out["logged_in"] = a.returncode == 0
+    try:
+        data = json.loads(a.stdout)
+        out["auth_method"] = data.get("authMethod") or ""
+    except (ValueError, AttributeError):
+        out["auth_method"] = ""
+        out["detail"] = (a.stdout or a.stderr).strip()[:200]
+    return out
+
+
+def doctor_rows(config: dict) -> list[tuple[bool | None, str, str]]:
+    """Checks for the Claude Code engine. None = skipped (the engine is optional)."""
+    rows: list[tuple[bool | None, str, str]] = []
+    need = " (only needed for the Claude Code engine)"
+    node = node_path(config)
+    if node:
+        try:
+            ver = subprocess.run([node, "--version"], capture_output=True, text=True, timeout=30).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            ver = "version unknown"
+        rows.append((True, "node", f"{node} ({ver})"))
+    else:
+        rows.append((None, "node", "not found" + need + ". Install Node.js 20+ (Windows: winget install OpenJS.NodeJS.LTS)"))
+    npm = npm_path(config)
+    rows.append((True, "npm", npm) if npm else (None, "npm", "not found" + need))
+    st = auth_status(config)
+    if not st["installed"]:
+        rows.append((None, "claude (Claude Code)", "not found" + need + ". Install it, then run: claude auth login"))
+    elif st.get("error"):
+        rows.append((False, "claude (Claude Code)", f"{st['path']}: {st['error']}"))
+    else:
+        rows.append((True, "claude (Claude Code)", f"{st['path']} ({st.get('version') or 'version unknown'})"))
+        method = st.get("auth_method") or ""
+        if not st.get("logged_in"):
+            rows.append((False, "Claude Code login", "not logged in. Run: claude auth login"))
+        elif method in ("api_key", "api_key_helper", "third_party"):
+            rows.append((False, "Claude Code login", f"it would bill {method.replace('_', ' ')}, not your "
+                         f"subscription. Check apiKeyHelper or a cloud setting in ~/.claude/settings.json"))
+        else:
+            rows.append((True, "Claude Code login", f"logged in ({method or 'subscription'}); VidGen removes "
+                         f"ANTHROPIC_API_KEY so the engine uses this login"))
+    return rows
+
+
+# ------------------------------------------------------------------ workspace ----
+
+def _run_streamed(cmd: list[str], cwd: Path, env: dict, label: str, timeout_s: float,
+                  on_line=None, stdin_text: str | None = None) -> int:
+    """Run a command, printing its output line by line into the job log. Kills it on timeout."""
+    try:
+        proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.PIPE if stdin_text is not None
+                                else subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, encoding="utf-8", errors="replace", bufsize=1)
+    except OSError as e:
+        raise StepError(f"{label}: could not start {cmd[0]}: {e}") from e
+    timed_out = threading.Event()
+
+    def kill():
+        timed_out.set()
+        proc.kill()
+    timer = threading.Timer(timeout_s, kill)
+    timer.daemon = True
+    timer.start()
+    try:
+        if stdin_text is not None:
+            try:
+                proc.stdin.write(stdin_text)
+                proc.stdin.close()
+            except OSError:
+                pass
+        for line in proc.stdout:
+            line = line.rstrip("\r\n")
+            if on_line:
+                on_line(line)
+            elif line.strip():
+                print(f"  {line}")
+        proc.wait()
+    finally:
+        timer.cancel()
+    if timed_out.is_set():
+        raise StepError(f"{label}: stopped after {timeout_s / 60:.0f} minutes")
+    return proc.returncode
+
+
+def ensure_node_modules(config: dict, skill: dict) -> Path:
+    """npm install the template's dependencies once into cache/code_engine/<skill>/ (shared by
+    every run). The first time takes a few minutes: puppeteer downloads its own Chrome."""
+    npm = npm_path(config)
+    if not npm:
+        raise StepError("npm was not found; install Node.js 20+ (Windows: winget install OpenJS.NodeJS.LTS)")
+    folder = NODE_CACHE / skill["dir"].name
+    folder.mkdir(parents=True, exist_ok=True)
+    pkg = (skill["template"] / "package.json").read_text(encoding="utf-8")
+    stamp = folder / "package.json"
+    ready = (folder / "node_modules" / "three").is_dir() and (folder / "node_modules" / "puppeteer").is_dir()
+    if ready and stamp.is_file() and stamp.read_text(encoding="utf-8") == pkg:
+        return folder / "node_modules"
+    stamp.write_text(pkg, encoding="utf-8")
+    print(f"[code] installing the template's packages once into {folder} (three, puppeteer)...")
+    print("  the first install downloads a copy of Chrome for rendering; this can take a few minutes")
+    rc = _run_streamed([npm, "install", "--no-audit", "--no-fund"], folder, tool_env(config),
+                       "npm install", 20 * 60)
+    if rc != 0:
+        raise StepError(f"npm install failed (exit {rc}); see the log above")
+    return folder / "node_modules"
+
+
+def _link_dir(target: Path, link: Path) -> None:
+    """A directory link that needs no admin rights: a junction on Windows, a symlink elsewhere.
+    Falls back to a copy."""
+    if link.exists() or link.is_symlink():
+        return
+    try:
+        if os.name == "nt":
+            import _winapi
+            _winapi.CreateJunction(str(target), str(link))
+        else:
+            link.symlink_to(target, target_is_directory=True)
+    except OSError:
+        print("  (could not link node_modules; copying it instead)")
+        shutil.copytree(target, link)
+
+
+def prepare_workspace(run_dir: Path, config: dict) -> Path:
+    """runs/<id>/code: the skill's template (without its example voice), node_modules linked."""
+    skill = offered(config)
+    if not skill:
+        raise StepError(f"the {config['format']['name']} format has no code_render block, so it "
+                        f"cannot use the Claude Code engine")
+    if not skill["template"].is_dir():
+        raise StepError(f"skills/{skill['dir'].name}/template is missing")
+    ws = workspace(run_dir)
+    if not (ws / "render.cjs").is_file():
+        ws.mkdir(parents=True, exist_ok=True)
+        for name in TEMPLATE_FILES:
+            shutil.copy2(skill["template"] / name, ws / name)
+        for name in TEMPLATE_DIRS:
+            shutil.copytree(skill["template"] / name, ws / name, dirs_exist_ok=True)
+        print(f"[code] copied the {skill['dir'].name} template to {ws}")
+    _link_dir(ensure_node_modules(config, skill), ws / "node_modules")
+    # The instructions Claude Code reads, copied in so it never needs a folder outside this one.
+    docs = ws / "skill"
+    docs.mkdir(exist_ok=True)
+    for md in sorted(skill["dir"].glob("*.md")):
+        shutil.copyfile(md, docs / md.name)
+    brief = ws / "format"
+    brief.mkdir(exist_ok=True)
+    shutil.copyfile(config["format"]["dir"] / "script_prompt.md", brief / "script_prompt.md")
+    _copy_cast_pictures(ws, config)
+    return ws
+
+
+def _copy_cast_pictures(ws: Path, config: dict) -> None:
+    """Pictures of the cast (the format's own and your library's) in code/refs/ for Claude to look at."""
+    refs = ws / "refs"
+    for c in config.get("locked_characters", []):
+        src = None
+        if c.get("library"):
+            from characters import ref_path
+            src = ref_path(c["library"])
+        elif c.get("image_path"):
+            src = ROOT / c["image_path"]
+        if src and src.is_file():
+            refs.mkdir(exist_ok=True)
+            shutil.copyfile(src, refs / f"{c['id']}{src.suffix.lower()}")
+
+
+# -------------------------------------------------------------- Claude Code ----
+
+def _short(text: str, n: int = 220) -> str:
+    text = " ".join(str(text).split())
+    return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def _tool_summary(name: str, inp: dict) -> str:
+    for key in ("command", "file_path", "path", "pattern", "url"):
+        if isinstance(inp, dict) and inp.get(key):
+            return f"{name} {_short(inp[key], 160)}"
+    return name
+
+
+class StreamPrinter:
+    """Turns Claude Code's stream-json events into readable job-log lines."""
+
+    def __init__(self, ws: Path):
+        self.ws = ws
+        self.result: dict | None = None
+        self.session_id: str | None = None
+        self.raw_tail: list[str] = []
+
+    def __call__(self, line: str) -> None:
+        if not line.strip():
+            return
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            self.raw_tail = (self.raw_tail + [line])[-20:]
+            print(f"  {line}")
+            return
+        if not isinstance(ev, dict):
+            return
+        t = ev.get("type")
+        self.session_id = ev.get("session_id") or self.session_id
+        if t == "system" and ev.get("subtype") == "init":
+            print(f"  [claude] session started (model {ev.get('model') or 'default'})")
+        elif t == "system" and ev.get("subtype") == "api_retry":
+            print(f"  [claude] retrying ({ev.get('error') or 'error'}), attempt {ev.get('attempt')}")
+        elif t == "assistant":
+            for block in (ev.get("message") or {}).get("content") or []:
+                if block.get("type") == "text" and block.get("text", "").strip():
+                    for para in block["text"].strip().splitlines():
+                        if para.strip():
+                            print(f"  [claude] {_short(para, 400)}")
+                elif block.get("type") == "tool_use":
+                    summary = _tool_summary(block.get("name", "tool"), block.get("input") or {})
+                    print(f"  [claude] > {summary.replace(str(self.ws) + os.sep, '')}")
+        elif t == "user":
+            for block in (ev.get("message") or {}).get("content") or []:
+                if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("is_error"):
+                    content = block.get("content")
+                    if isinstance(content, list):
+                        content = " ".join(c.get("text", "") for c in content if isinstance(c, dict))
+                    print(f"  [claude]   ! {_short(content or 'tool error', 300)}")
+        elif t == "result":
+            self.result = ev
+        elif t == "permission_denied" or (t == "system" and ev.get("subtype") == "permission_denied"):
+            print(f"  [claude]   denied: {_short(json.dumps(ev.get('tool_input') or ev.get('tool') or ev), 200)}")
+
+
+def run_claude(ws: Path, config: dict, prompt: str, allowed: list[str], max_turns: int,
+               label: str, resume: str | None = None) -> StreamPrinter:
+    exe = claude_path(config)
+    if not exe:
+        raise StepError("Claude Code (the `claude` command) was not found. Install it and log in "
+                        "with `claude auth login`, or set code_engine.claude_path in config.local.yaml")
+    ce = settings(config)
+    cmd = [exe, "-p", "--output-format", "stream-json", "--verbose",
+           "--permission-mode", "dontAsk", "--allowedTools", ",".join(allowed),
+           "--max-turns", str(int(max_turns))]
+    if ce["model"]:
+        cmd += ["--model", str(ce["model"])]
+    if resume:
+        cmd += ["--resume", resume]
+    print(f"[{label}] starting Claude Code in {ws} (your Claude login; up to {max_turns} turns)")
+    printer = StreamPrinter(ws)
+    t0 = time.time()
+    rc = _run_streamed(cmd, ws, claude_env(), f"Claude Code ({label})", float(ce["timeout_minutes"]) * 60,
+                       on_line=printer, stdin_text=prompt)
+    res = printer.result or {}
+    text = str(res.get("result") or "")
+    secs = (res.get("duration_ms") or (time.time() - t0) * 1000) / 1000
+    turns = res.get("num_turns")
+    print(f"[{label}] Claude Code finished in {secs:.0f}s" + (f", {turns} turns" if turns else ""))
+    for d in res.get("permission_denials") or []:
+        print(f"  denied: {_short(json.dumps(d), 200)}")
+    low = (text + " " + " ".join(printer.raw_tail)).lower()
+    if rc != 0 or res.get("is_error"):
+        if any(h in low for h in LIMIT_HINTS):
+            raise StepError(f"Claude Code hit your plan's usage limit: {_short(text or low, 200)}. "
+                            f"Try again when it resets.")
+        if any(h in low for h in LOGIN_HINTS):
+            raise StepError("Claude Code is not logged in. Run `claude auth login` in a terminal, then retry.")
+        if res.get("subtype") == "error_max_turns":
+            raise StepError(f"Claude Code used all {max_turns} turns before finishing. Run the step "
+                            f"again to continue, or raise code_engine.{label}_max_turns")
+        detail = _short(text or " ".join(printer.raw_tail[-3:]) or f"exit code {rc}", 400)
+        raise StepError(f"Claude Code failed ({label}): {detail}")
+    return printer
+
+
+# ------------------------------------------------------------------- prompts ----
+
+def _brief(run_dir: Path, config: dict) -> str:
+    fmt = config["format"]
+    skill = offered(config)
+    styles = skill["styles"]
+    if skill["mix"]:
+        style_rule = (f"Switch style on hard cuts, using 3 to 6 of these style files, the ones that "
+                      f"suit each beat (see the table in copywriter.md): {', '.join(styles)}. "
+                      f"A style may repeat.")
+    else:
+        style_rule = f"Every beat uses the {styles[0]} style (styles/{styles[0]}.js)."
+    cast = []
+    for c in config.get("locked_characters", []):
+        pic = ""
+        for ext in (".png", ".jpg", ".jpeg", ".webp"):
+            if (workspace(run_dir) / "refs" / f"{c['id']}{ext}").is_file():
+                pic = f" Picture: refs/{c['id']}{ext} (look at it)."
+        who = f" ({c['role']})" if c.get("role") else ""
+        cast.append(f"  - {c.get('name') or c['id']}{who}: {c['description']}.{pic}")
+    rules = fmt["rules"]
+    lines = [
+        f"Premise: {read_premise(run_dir)}",
+        f"Format: {fmt['title']}. {fmt['description']}",
+        f"Length: {fmt['duration_target'] or '15 to 25 seconds'}. Vertical video for Reels and TikTok "
+        f"(story.json \"format\": \"vertical\").",
+        f"Styles: {style_rule}",
+        "Characters who must appear (keep each one the same simple shape and two or three colors "
+        "in every beat):",
+        *(cast or ["  - none fixed; invent the subject the story needs"]),
+    ]
+    if fmt["beats"]:
+        lines.append(f"Story shape for this format: {' -> '.join(fmt['beats'])}.")
+    if rules.get("cta_caption"):
+        lines.append(f"The last beat is the call to action. Its line says: {rules['cta_caption'].capitalize()}.")
+    lines.append("Background on what this ad is for and its wording rules: format/script_prompt.md "
+                 "(read it for the product, the cast rules and the banned wording; ignore its JSON "
+                 "output format, it is for VidGen's other engine).")
+    return "\n".join(lines)
+
+
+HEADLESS = (
+    "You are running unattended inside VidGen, a video tool. Nobody can answer questions or "
+    "approve anything, so never ask: make the call yourself and keep going. The current folder "
+    "is a fresh copy of the claude-animation-styles template with its packages installed; do not "
+    "run npm and do not copy the template again. The skill's instructions are in skill/ "
+    "(SKILL.md, copywriter.md, styles.md). Work only inside this folder. Run commands from the "
+    "current folder exactly as written, never chained with && or cd."
+)
+
+
+def story_prompt(run_dir: Path, config: dict) -> str:
+    return "\n\n".join([
+        HEADLESS,
+        "THE BRIEF\n" + _brief(run_dir, config),
+        "THIS STEP: WRITE THE STORY ONLY\n"
+        "1. Read skill/SKILL.md and skill/copywriter.md (and the part of styles.md for each style you use).\n"
+        "2. Write the story with copywriter.md: one line per beat, 3 to 9 words a line, 15 to 25 "
+        "seconds read aloud. Check it against copywriter.md's \"Before you show it\" list.\n"
+        "3. Write story.json: {\"format\": \"vertical\", \"beats\": [{\"style\": <style file name>, "
+        "\"seconds\": <1.2 to 4>, \"line\": <the line>}]}. Seconds are a first guess; the voice "
+        "retimes them later.\n"
+        "4. Write story.md: the lines, each with its style and one sentence on what the picture "
+        "shows (the subject, what it does, the camera).\n"
+        "Do NOT edit anything in styles/ or lib/ and do NOT render. Finish with the lines, one per "
+        "line, as your last message.",
+    ])
+
+
+def scenes_prompt(run_dir: Path, config: dict) -> str:
+    return "\n\n".join([
+        HEADLESS,
+        "THE BRIEF\n" + _brief(run_dir, config),
+        "THIS STEP: CODE THE SCENES\n"
+        "story.json and story.md are final; the user may have edited them, so read them now. Do "
+        "not change the lines, the styles or the order of the beats.\n"
+        "Follow SKILL.md steps 5 and 6 and \"Changing the subject\": for each style file the story "
+        "uses, keep the look and replace the subject with this story's. Read the part of styles.md "
+        "for each style first (skill/styles.md). Build the subject once per family (a drawX for the 2D styles in "
+        "lib/common.js, a makeX(kit) for the 3D ones in lib/three-claude.js) so it is the same in "
+        "every style. A style used for two beats draws a different scene for each (this.index).\n"
+        "After each style, check stills with `node render.cjs stills <seconds>` (seconds into the "
+        "whole video; pick moments inside that style's beats) and Read every picture it prints. Is "
+        "the subject recognizable with the sound off? Does it read as that style? Is anything cut "
+        "off? Fix it and check again. Delete nothing outside this folder.\n"
+        "Do NOT run voice.py and do NOT render the video: VidGen adds the voice and renders after "
+        "you. Finish with one short line per beat saying what it shows.",
+    ])
+
+
+# -------------------------------------------------------------------- story ----
+
+def check_story(data, styles: list[str]) -> list[str]:
+    errors = []
+    if not isinstance(data, dict):
+        return ["story.json must be an object"]
+    if data.get("format") not in ("vertical", "wide"):
+        errors.append('"format" must be "vertical" or "wide"')
+    beats = data.get("beats")
+    if not isinstance(beats, list) or not (2 <= len(beats) <= 16):
+        return errors + ['"beats" must be a list of 2 to 16 beats']
+    for i, b in enumerate(beats):
+        where = f"beat {i + 1}"
+        if not isinstance(b, dict):
+            errors.append(f"{where} must be an object")
+            continue
+        if b.get("style") not in styles:
+            errors.append(f"{where}: style must be one of {', '.join(styles)}, got {b.get('style')!r}")
+        s = b.get("seconds")
+        if not isinstance(s, (int, float)) or isinstance(s, bool) or not (0.5 <= s <= 12):
+            errors.append(f"{where}: seconds must be a number from 0.5 to 12, got {s!r}")
+        if not isinstance(b.get("line"), str) or not b["line"].strip():
+            errors.append(f"{where}: line must be a non-empty sentence")
+    return errors
+
+
+def read_story(run_dir: Path) -> dict | None:
+    p = workspace(run_dir) / "story.json"
+    if not p.is_file() or "story" not in read_status(run_dir):
+        return None
+    try:
+        return read_json(p)
+    except (OSError, ValueError):
+        return None
+
+
+def save_story(run_dir: Path, config: dict, story: dict) -> dict:
+    """The UI's story editor. Clean it, check it, save it; later steps then need a re-run."""
+    styles = offered(config)["styles"]
+    beats = [{"style": b.get("style"), "seconds": b.get("seconds"),
+              "line": " ".join(str(b.get("line") or "").split())}
+             for b in (story.get("beats") or []) if isinstance(b, dict)]
+    clean = {"format": story.get("format") or "vertical", "beats": beats}
+    errors = check_story(clean, styles)
+    if errors:
+        raise ValueError("\n".join(f"- {e}" for e in errors))
+    write_json(workspace(run_dir) / "story.json", clean)
+    _mark(run_dir, "story", "edited", clear=("scenes", "voice"))
+    return clean
+
+
+def run_story(run_dir: Path, config: dict) -> None:
+    ws = prepare_workspace(run_dir, config)
+    skill = offered(config)
+    allowed = ["Read", "Write", "Edit", "Glob", "Grep"]
+    printer = run_claude(ws, config, story_prompt(run_dir, config), allowed,
+                         settings(config)["story_max_turns"], "story")
+    try:
+        data = read_json(ws / "story.json")
+        errors = check_story(data, skill["styles"])
+    except (OSError, ValueError) as e:
+        errors = [f"story.json could not be read: {e}"]
+    if errors and printer.session_id:
+        print("[story] story.json needs fixing:\n  " + "\n  ".join(errors))
+        fix = ("story.json failed VidGen's check:\n" + "\n".join(f"- {e}" for e in errors) +
+               "\nFix story.json (and story.md to match). Do not touch anything else.")
+        run_claude(ws, config, fix, allowed, 8, "story", resume=printer.session_id)
+        try:
+            data = read_json(ws / "story.json")
+            errors = check_story(data, skill["styles"])
+        except (OSError, ValueError) as e:
+            errors = [f"story.json could not be read: {e}"]
+    if errors:
+        raise StepError("story.json is still not valid:\n" + "\n".join(f"- {e}" for e in errors))
+    _mark(run_dir, "story", "claude", clear=("scenes", "voice"))
+    print("\n[story] the story:")
+    for i, b in enumerate(data["beats"], 1):
+        print(f"  {i:>2}. [{b['style']}] {b['line']}")
+
+
+# ------------------------------------------------------------------- scenes ----
+
+def run_scenes(run_dir: Path, config: dict) -> None:
+    if read_story(run_dir) is None:
+        raise StepError("there is no story yet; run the story step first")
+    ws = prepare_workspace(run_dir, config)
+    allowed = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(node render.cjs stills *)"]
+    run_claude(ws, config, scenes_prompt(run_dir, config), allowed,
+               settings(config)["scenes_max_turns"], "scenes")
+    _mark(run_dir, "scenes", "claude", clear=("voice",))
+    stills = sorted((ws / "stills").glob("*.jpg"))
+    print(f"[scenes] done; {len(stills)} still(s) in code/stills/")
+
+
+# -------------------------------------------------------------------- voice ----
+
+def run_voice(run_dir: Path, config: dict) -> None:
+    """Read every line in one ElevenLabs call and time the beats to it (the skill's voice.py,
+    done with VidGen's ElevenLabs settings)."""
+    import base64
+    story = read_story(run_dir)
+    if story is None:
+        raise StepError("there is no story yet; run the story step first")
+    ws = workspace(run_dir)
+    if not settings(config)["voice"] or not config["format"]["rules"].get("narrator", True):
+        _mark(run_dir, "voice", "off")
+        print("[voice] this format has no narration; skipping")
+        return
+    if not os.environ.get("ELEVENLABS_API_KEY"):
+        _mark(run_dir, "voice", "no key")
+        for f in ("voice.mp3", "voice.json"):
+            (ws / f).unlink(missing_ok=True)
+        print("[voice] no ELEVENLABS_API_KEY, so the video will have no voice (the beats keep "
+              "their seconds)")
+        return
+    from steps.voice import tts_with_timestamps, voice_for
+    lines = [b["line"].strip() for b in story["beats"]]
+    text = " ".join(lines)
+    voice_id = voice_for("narrator", config)
+    print(f"[voice] reading {len(lines)} lines ({len(text)} characters) with voice {voice_id}...")
+    data = tts_with_timestamps(text, voice_id, config, "voice")
+    (ws / "voice.mp3").write_bytes(base64.b64decode(data["audio_base64"]))
+    a = data["alignment"]
+    ch, st = a["characters"], a["character_start_times_seconds"]
+    end = a["character_end_times_seconds"][-1]
+    starts, i = [], 0
+    for line in lines:
+        starts.append(st[min(i, len(st) - 1)])
+        i += len(line) + 1
+    for k, b in enumerate(story["beats"]):
+        nxt = starts[k + 1] if k + 1 < len(lines) else end + 1.2
+        b["seconds"] = round(max(0.6, nxt - starts[k]), 2)
+    story["beats"][0]["seconds"] = round(story["beats"][0]["seconds"] + starts[0], 2)
+    write_json(ws / "story.json", story)
+    words, w0 = [], None
+    for k, c in enumerate(list(ch) + [" "]):
+        if c.isspace():
+            if w0 is not None:
+                words.append({"w": "".join(ch[w0:k]).strip(".,!?").lower(), "t": round(st[w0], 3)})
+            w0 = None
+        elif w0 is None:
+            w0 = k
+    write_json(ws / "voice.json", {"words": words})
+    _mark(run_dir, "voice", "voiced")
+    print(f"[voice] beats timed to voice.mp3; the video runs {end + 1.2:.1f}s")
+
+
+# ------------------------------------------------------------------- render ----
+
+def run_render(run_dir: Path, config: dict) -> None:
+    if read_story(run_dir) is None:
+        raise StepError("there is no story yet; run the story step first")
+    if "scenes" not in read_status(run_dir):
+        print("[render] note: the scenes step has not run, so this renders the template's scenes")
+    ws = prepare_workspace(run_dir, config)
+    node = node_path(config)
+    if not node:
+        raise StepError("node was not found; install Node.js 20+ (Windows: winget install OpenJS.NodeJS.LTS)")
+    cmd = [node, "render.cjs", "video"]
+    if (ws / "voice.mp3").is_file() and read_status(run_dir).get("voice", {}).get("value") == "voiced":
+        cmd += ["--audio", "voice.mp3"]
+    print(f"[render] {' '.join(cmd[1:])}  (on Windows and Linux the 3D styles render in software; "
+          f"a 20 second video can take several minutes)")
+    out = ws / "out" / "video.mp4"
+    out.unlink(missing_ok=True)
+    rc = _run_streamed(cmd, ws, tool_env(config), "render",
+                       float(settings(config)["render_timeout_minutes"]) * 60)
+    if rc != 0 or not out.is_file():
+        raise StepError(f"render.cjs failed (exit {rc}); see the log above")
+    shutil.copyfile(out, run_dir / "final.mp4")
+    print(f"[render] saved {run_dir / 'final.mp4'}")
+
+
+STEP_FUNCS = {"story": run_story, "scenes": run_scenes, "voice": run_voice, "render": run_render}
+
+
+def run_step(name: str, run_dir: Path, config: dict) -> None:
+    if name not in STEP_FUNCS:
+        raise StepError(f"the Claude Code engine's steps are {', '.join(CODE_STEPS)}, not '{name}'")
+    print(f"\n=== step: {name} ({run_dir.name}, Claude Code engine) ===")
+    STEP_FUNCS[name](run_dir, config)
+
+
+def execute(run_dir: Path, config: dict, dry_run: bool = False) -> None:
+    if dry_run:
+        run_step("story", run_dir, config)
+        print("\nstory only: read it, edit it if you like, then run the scenes, voice and render "
+              "steps (or: python main.py step <run> scenes)")
+        return
+    for name in CODE_STEPS:
+        run_step(name, run_dir, config)
+    print(f"\nrun {run_dir.name} complete")

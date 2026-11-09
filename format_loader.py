@@ -139,6 +139,30 @@ def _overlay(f: dict, where: str) -> dict:
     return out
 
 
+SKILLS_DIR = Path(__file__).resolve().parent / "skills"
+
+
+def _code_render(raw, where: str) -> dict | None:
+    """code_render: {skill, styles, mix?} -> the Claude Code engine settings, or None."""
+    if raw in (None, {}, False):
+        return None
+    if not isinstance(raw, dict):
+        raise StepError(f"{where}: code_render must be a mapping with skill and styles")
+    skill = str(raw.get("skill") or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", skill):
+        raise StepError(f"{where}: code_render.skill must name a folder under skills/, got {skill!r}")
+    template = SKILLS_DIR / skill / "template"
+    styles = raw.get("styles") or []
+    if not isinstance(styles, list) or not styles or not all(isinstance(x, str) for x in styles):
+        raise StepError(f"{where}: code_render.styles must be a list of style names")
+    if template.is_dir():
+        missing = [x for x in styles if not (template / "styles" / f"{x}.js").is_file()]
+        if missing:
+            raise StepError(f"{where}: code_render.styles {missing} have no file in skills/{skill}/template/styles/")
+    return {"skill": skill, "dir": SKILLS_DIR / skill, "template": template,
+            "styles": [str(x) for x in styles], "mix": bool(raw.get("mix"))}
+
+
 def load_format(name: str | None = None) -> dict:
     name = (name or DEFAULT_FORMAT).strip()
     folder = FORMATS_DIR / name
@@ -189,6 +213,7 @@ def load_format(name: str | None = None) -> dict:
         "cover": cover,                        # cover.(jpg|jpeg|png|webp) in the folder, for the UI
         "example_video": example_video,        # example.mp4 in the folder, for the UI
         "overlay": _overlay(f, where),
+        "code_render": _code_render(f.get("code_render"), where),   # Claude Code engine, if offered
     }
 
 

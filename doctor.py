@@ -75,6 +75,10 @@ def doctor_checks(config: dict, key_sources: dict[str, str]) -> list[tuple[str, 
             add(present, var, f"from {source} ({STEP_KEYS[var]})" if present else
                 f"missing, needed for {STEP_KEYS[var]}; add it to .env or keys: in config.local.yaml")
 
+    from code_engine import doctor_rows
+    for ok, item, detail in doctor_rows(config):
+        add(ok, item, detail)
+
     for rel in ("assets/iro.png", "assets/app_icon.png"):
         add((ROOT / rel).is_file(), rel, "found" if (ROOT / rel).is_file() else "missing")
 

@@ -97,3 +97,16 @@ sume:
   retry_window_seconds: 600     # keep retrying over-limit / busy refusals for this long
   retry_base_seconds: 5         # first wait between retries, doubling up to 60s
   job_timeout_seconds: 900      # stop polling one job after this long
+
+# The Claude Code engine (formats with a code_render block; pick it on the create screen or with
+# `new --engine claude_code`). Claude Code codes every scene and the video renders on this
+# computer, using your Claude login (run `claude auth login` once). Needs node + npm + claude.
+code_engine:
+  claude_path: ""               # empty: find `claude` on PATH
+  node_path: ""                 # empty: find `node` on PATH
+  model: ""                     # empty: Claude Code's default for your plan; or opus / sonnet
+  story_max_turns: 20
+  scenes_max_turns: 120
+  timeout_minutes: 60           # one Claude Code session
+  render_timeout_minutes: 90    # software rendering of the 3D styles is slow off a Mac
+  voice: true                   # read the lines with ElevenLabs when ELEVENLABS_API_KEY is set

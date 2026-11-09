@@ -124,7 +124,9 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
     """Make sure runs/<id>/characters/<cid>.png exists for every needed character.
 
     Priority: config image_path -> characters_cache -> existing run sheet -> generate.
-    Generated sheets for locked characters are copied into characters_cache for later runs."""
+    Generated sheets for locked characters are copied into characters_cache for later runs.
+    Characters from your library (characters.py) get a sheet in this run's style, drawn from
+    their picture once per format and cached."""
     locked = _locked_by_id(config)
     style = config["style"]
     out: dict[str, Path] = {}
@@ -141,6 +143,16 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
             shutil.copyfile(dest, cache)
             print(f"  [{cid}] cached at {cache.relative_to(ROOT)}")
 
+    def library_sheet(c: dict, dest: Path, lock: dict) -> None:
+        import characters
+        cid = c["id"]
+
+        def generate(prompt: str, refs: list[Path], to: Path) -> None:
+            print(f"  [{cid}] drawing a reference sheet from your character's picture...")
+            _generate_image(config, prompt, SHEET_ASPECT, refs, f"sheet {cid}", to)
+
+        print(f"  [{cid}] {characters.library_sheet(config, lock, dest, generate)}")
+
     for c in script["characters"]:
         cid = c["id"]
         if needed is not None and cid not in needed:
@@ -149,7 +161,9 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
         dest.parent.mkdir(parents=True, exist_ok=True)
         lock = locked.get(cid)
 
-        if lock and lock.get("image_path"):
+        if lock and lock.get("library"):
+            runner.submit(library_sheet, c, dest, lock)
+        elif lock and lock.get("image_path"):
             src = ROOT / lock["image_path"]
             if not src.exists():
                 raise StepError(f"locked character {cid!r} image_path {src} does not exist")

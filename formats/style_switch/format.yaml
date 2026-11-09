@@ -121,3 +121,11 @@ locked_characters:
   description: Iro, a small round robotic penguin mascot with glossy black and gold armor, big round eyes,
     and a glowing orange core on its chest
   image_path: assets/iro.png
+
+# Claude Code engine (optional): instead of image and video models, Claude Code writes the
+# story and codes every scene with the skill's template, then the video renders on this
+# computer with your Claude login. Pick it on the create screen or with --engine claude_code.
+code_render:
+  skill: claude-animation-styles
+  styles: [pixel, ps2, comic, brick, clay, paper, anime, poly, riso, mini]
+  mix: true                      # switch style on a hard cut, a few per video

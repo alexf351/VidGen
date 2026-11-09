@@ -10,3 +10,7 @@ config.local.yaml
 
 # Skill sources kept for reference; large placeholder media stays out of git
 skills/**/*.m4a
+# your character library (pictures and descriptions you made in the UI)
+library/
+# shared node packages for the Claude Code engine (npm install happens once, here)
+cache/

@@ -25,10 +25,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
+import characters as lib
 import commands
 import run_status
+import code_engine
 from common import (KEY_ENV, PROVIDERS, ROOT, STEP_ORDER, StepError, available_app_screens,
-                    read_json, run_format, runs_dir, write_json)
+                    run_cast, run_engine, run_format, runs_dir, write_json)
 from format_loader import COVER_EXTS, DEFAULT_FORMAT, format_summaries, load_format
 from jobs import JobRunner
 
@@ -42,11 +44,38 @@ ProviderChoice = Union[str, dict, None]
 
 # ----------------------------------------------------------------- models ----
 
+class CastEntry(BaseModel):
+    character: str
+    replaces: str | None = None
+    role: str = ""
+
+
 class NewRun(BaseModel):
     premise: str
     format: str = DEFAULT_FORMAT
     provider: ProviderChoice = None
     dry_run: bool = False
+    cast: list[CastEntry] = []
+    engine: str = "ai"                # "ai" or "claude_code"
+
+
+class CharacterIn(BaseModel):
+    name: str
+    description: str
+    role: str = ""
+    voice_id: str = ""
+    keep_as_is: bool = False
+    image: str | None = None          # data: URL of an uploaded picture
+
+
+class DrawRequest(BaseModel):
+    format: str = DEFAULT_FORMAT
+    provider: ProviderChoice = None
+
+
+class DescribeRequest(BaseModel):
+    image: str | None = None          # data: URL, or
+    character: str | None = None      # a library character's own picture
 
 
 class StepRequest(BaseModel):
@@ -129,11 +158,21 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         return await call_next(request)
 
     # ------------------------------------------------------------ helpers --
-    def config_for(format_name: str | None = None, providers: dict | None = None) -> dict:
+    def config_for(format_name: str | None = None, providers: dict | None = None,
+                   cast: list | None = None) -> dict:
         try:
+            if cast:
+                return load_config(format_name=format_name, providers=providers, cast=cast)
             return load_config(format_name=format_name, providers=providers)
         except StepError as e:
             raise HTTPException(400, str(e)) from e
+
+    def run_config(run_dir: Path, providers: dict | None = None) -> dict:
+        """The config a job on this run uses: its format, plus its cast from your library."""
+        cast = run_cast(run_dir)
+        if cast:
+            return load_config(format_name=run_format(run_dir), providers=providers, cast=cast)
+        return load_config(format_name=run_format(run_dir), providers=providers)
 
     def run_dir_of(run_id: str) -> Path:
         root = runs_dir().resolve()
@@ -143,7 +182,10 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         return path
 
     def config_for_run(run_dir: Path, providers: dict | None = None) -> dict:
-        return config_for(run_format(run_dir), providers)
+        try:
+            return run_config(run_dir, providers)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
 
     def job_out(job, logs: bool = False) -> dict:
         return job.to_dict(logs=logs)
@@ -155,7 +197,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
 
         def fn(job):
             # Load the config when the job starts, so queued jobs see the current settings.
-            work(load_config(format_name=run_format(run_dir), providers=providers))
+            work(run_config(run_dir, providers))
 
         job = runner.submit(action, run_id, params, fn)
         return {"job_id": job.id, "run_id": run_id, "status": job.status}
@@ -174,6 +216,12 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                         "aspect": f["aspect"], "clip_seconds": f["clip_seconds"], "cast": f["cast"],
                         "beats": f["beats"], "examples": f["examples"],
                         "locked_cast": [c["id"] for c in f["overlay"].get("locked_characters", [])],
+                        "characters": [{"id": c["id"], "role": c.get("role", ""),
+                                        "description": c.get("description", ""),
+                                        "image": format_char_url(f["name"], c)}
+                                       for c in f["overlay"].get("locked_characters", [])],
+                        "engines": ["ai", "claude_code"] if f.get("code_render") else ["ai"],
+                        "code_styles": (f.get("code_render") or {}).get("styles", []),
                         "cover": media_url(f["name"], "cover", f["cover"]),
                         "example_video": media_url(f["name"], "example", f["example_video"]),
                         "limits": {"story_shots": r["story_shots"], "vo_words": r["vo_words"],
@@ -182,6 +230,32 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                                    "max_animated_shots": f["overlay"].get("max_animated_shots"),
                                    "narrator": r["narrator"], "cta_caption": r["cta_caption"]}})
         return out
+
+    def format_char_path(c: dict) -> Path | None:
+        """A format character's picture: its image_path, else the sheet cached by an earlier run."""
+        if c.get("image_path"):
+            p = ROOT / c["image_path"]
+            return p if p.is_file() else None
+        try:
+            cache_dir = load_config()["characters_cache_dir"]
+        except StepError:
+            return None
+        p = ROOT / cache_dir / f"{c['id']}.png"
+        return p if p.is_file() else None
+
+    def format_char_url(name: str, c: dict) -> str | None:
+        p = format_char_path(c)
+        return f"/format-char/{name}/{c['id']}?v={int(p.stat().st_mtime)}" if p else None
+
+    @app.get("/format-char/{name}/{cid}")
+    def format_char(name: str, cid: str):
+        f = format_or_404(name)
+        for c in f["overlay"].get("locked_characters", []):
+            if c.get("id") == cid:
+                p = format_char_path(c)
+                if p:
+                    return FileResponse(p)
+        raise HTTPException(404, "not found")
 
     def media_url(name: str, kind: str, path: Path | None) -> str | None:
         return f"/format-media/{name}/{kind}?v={int(path.stat().st_mtime)}" if path else None
@@ -240,6 +314,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             "keys_present": {var: bool(os.environ.get(var)) for var in KEY_ENV.values()},
             "locked_cast": [{"id": c["id"], "role": c.get("role", "")} for c in cfg["locked_characters"]],
             "steps": STEP_ORDER, "steps_with_only": sorted(commands.STEPS_WITH_ONLY),
+            "code_steps": code_engine.CODE_STEPS,
             "output_dir": str(runs_dir()),
             "script_model": cfg["script"]["model"],
             "video": {"clip_seconds": cfg["fal"]["video_seconds"],
@@ -277,15 +352,21 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         if not premise:
             raise HTTPException(400, "premise is empty")
         providers = _providers(body.provider)
-        cfg = config_for(body.format, providers)
+        cast = [e.model_dump() for e in body.cast]
+        cfg = config_for(body.format, providers, cast)
+        if body.engine not in code_engine.ENGINES:
+            raise HTTPException(400, f"engine must be one of {', '.join(code_engine.ENGINES)}")
+        if body.engine == "claude_code" and not code_engine.offered(cfg):
+            raise HTTPException(400, f"the {cfg['format']['name']} format does not offer the Claude Code engine")
         preface: list[str] = []
-        run_dir = commands.create_new_run(premise, cfg, log=preface.append)
+        run_dir = commands.create_new_run(premise, cfg, log=preface.append, engine=body.engine)
+        for line in lib.describe_cast(cfg):
+            preface.append(f"  cast: {line}")
         params = {"premise": premise, "format": cfg["format"]["name"], "provider": providers,
-                  "dry_run": body.dry_run}
+                  "dry_run": body.dry_run, "cast": cfg["cast"], "engine": body.engine}
 
         def fn(job):
-            commands.execute_new(run_dir, load_config(format_name=cfg["format"]["name"], providers=providers),
-                                 body.dry_run)
+            commands.execute_new(run_dir, run_config(run_dir, providers), body.dry_run)
 
         job = runner.submit("new", run_dir.name, params, fn, preface=preface)
         return {"job_id": job.id, "run_id": run_dir.name, "status": job.status}
@@ -317,10 +398,13 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
     def get_run(run_id: str) -> dict:
         run_dir = run_dir_of(run_id)
         try:
-            cfg = load_config(format_name=run_format(run_dir))
+            cfg = run_config(run_dir)
         except StepError:
             cfg = None
         out = run_status.detail(run_dir, cfg)
+        out["cast"] = [{"id": c["id"], "name": c.get("name", c["id"]), "role": c.get("role", ""),
+                        "replaced": c.get("replaced"), "image": char_url(c["id"])}
+                       for c in (cfg or {}).get("locked_characters", []) if c.get("library")]
         job = runner.latest_for_run(run_id)
         out["job"] = job_out(job) if job else None
         out["active_job"] = job_out(runner.active_for_run(run_id)) if runner.active_for_run(run_id) else None
@@ -329,8 +413,11 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
     @app.post("/api/runs/{run_id}/step", status_code=202)
     def rerun_step(run_id: str, body: StepRequest) -> dict:
         run_dir = run_dir_of(run_id)
-        if body.step not in STEP_ORDER:
-            raise HTTPException(400, f"step must be one of {', '.join(STEP_ORDER)}")
+        steps = code_engine.CODE_STEPS if run_engine(run_dir) == "claude_code" else STEP_ORDER
+        if body.step not in steps:
+            raise HTTPException(400, f"step must be one of {', '.join(steps)}")
+        if body.only and run_engine(run_dir) == "claude_code":
+            raise HTTPException(400, "a Claude Code run's steps work on the whole video; only is not supported")
         only = None
         if body.only:
             if body.step not in commands.STEPS_WITH_ONLY:
@@ -346,6 +433,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
     @app.post("/api/runs/{run_id}/reroll", status_code=202)
     def reroll(run_id: str, body: RerollRequest) -> dict:
         run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "reroll")
         script = run_status.load_script(run_dir)
         if script is None:
             raise HTTPException(409, "this run has no script.json yet; run the script step first")
@@ -359,14 +447,40 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
     @app.post("/api/runs/{run_id}/recast", status_code=202)
     def recast(run_id: str) -> dict:
         run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "recast")
         if run_status.load_script(run_dir) is None:
             raise HTTPException(409, "this run has no script.json yet; run the script step first")
         return submit_run_job("recast", run_dir, {}, lambda cfg: commands.recast(run_id, cfg), None)
+
+    def image_pipeline_only(run_dir: Path, what: str) -> None:
+        if run_engine(run_dir) == "claude_code":
+            raise HTTPException(409, f"{what} is for the image pipeline; this run uses the Claude Code engine")
+
+    @app.put("/api/runs/{run_id}/story")
+    def save_story(run_id: str, story: dict = Body(...)) -> dict:
+        """A Claude Code run's story.json, edited in the UI. Scenes and voice then need a re-run."""
+        run_dir = run_dir_of(run_id)
+        if run_engine(run_dir) != "claude_code":
+            raise HTTPException(409, "this run uses the image pipeline; edit its script instead")
+        active = runner.active_for_run(run_id)
+        if active:
+            raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
+                                     f"wait for it to finish")
+        if code_engine.read_story(run_dir) is None:
+            raise HTTPException(409, "this run has no story yet; run the story step first")
+        cfg = config_for_run(run_dir)
+        try:
+            clean = code_engine.save_story(run_dir, cfg, story)
+        except ValueError as e:
+            errors = [line[2:] if line.startswith("- ") else line for line in str(e).splitlines()]
+            raise HTTPException(422, {"message": "the story does not pass the check", "errors": errors})
+        return {"saved": True, "story": clean}
 
     @app.put("/api/runs/{run_id}/script")
     def save_script(run_id: str, script: dict = Body(...)) -> dict:
         import steps.script as S
         run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "the shot-list editor")
         active = runner.active_for_run(run_id)
         if active:
             raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
@@ -381,6 +495,118 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             raise HTTPException(422, {"message": "the script does not pass validation", "errors": errors})
         write_json(run_dir / "script.json", normalized)
         return {"saved": True, "script": normalized}
+
+    # -------------------------------------------------------- characters --
+    def char_url(cid: str) -> str | None:
+        try:
+            p = lib.ref_path(cid)
+        except StepError:
+            return None
+        return f"/character-media/{cid}?v={p.stat().st_mtime_ns}" if p.is_file() else None
+
+    def char_out(c: dict) -> dict:
+        return {"id": c["id"], "name": c.get("name", c["id"]), "description": c.get("description", ""),
+                "role": c.get("role", ""), "voice_id": c.get("voice_id", ""),
+                "keep_as_is": bool(c.get("keep_as_is")), "source": c.get("source", ""),
+                "drawn_in": c.get("drawn_in", ""), "created_at": c.get("created_at"),
+                "image": char_url(c["id"])}
+
+    def char_or_404(cid: str) -> dict:
+        try:
+            return lib.get(cid)
+        except StepError as e:
+            raise HTTPException(404, str(e)) from e
+
+    def bad_request(fn, *a, **kw):
+        try:
+            return fn(*a, **kw)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.get("/api/characters")
+    def list_characters() -> list[dict]:
+        return [char_out(c) for c in lib.list_all()]
+
+    @app.get("/api/characters/{cid}")
+    def get_character(cid: str) -> dict:
+        return char_out(char_or_404(cid))
+
+    def save_character(cid: str | None, body: CharacterIn) -> dict:
+        data = lib.decode_image(body.image) if body.image else None
+        c = bad_request(lib.save, cid, name=body.name, description=body.description, role=body.role,
+                        voice_id=body.voice_id, keep_as_is=body.keep_as_is,
+                        source="upload" if data else None)
+        if data is not None:
+            try:
+                lib.store_image(c["id"], data)
+            except StepError as e:
+                if cid is None:
+                    lib.delete(c["id"])
+                raise HTTPException(400, str(e)) from e
+        return char_out(lib.get(c["id"]))
+
+    @app.post("/api/characters", status_code=201)
+    def create_character(body: CharacterIn) -> dict:
+        if body.image:
+            bad_request(lib.decode_image, body.image)
+        return save_character(None, body)
+
+    @app.put("/api/characters/{cid}")
+    def update_character(cid: str, body: CharacterIn) -> dict:
+        char_or_404(cid)
+        return save_character(cid, body)
+
+    @app.delete("/api/characters/{cid}")
+    def delete_character(cid: str) -> dict:
+        char_or_404(cid)
+        lib.delete(cid)
+        return {"deleted": cid}
+
+    @app.get("/character-media/{cid}")
+    def character_media(cid: str):
+        try:
+            p = lib.ref_path(cid)
+        except StepError:
+            raise HTTPException(404, "not found")
+        if not p.is_file():
+            raise HTTPException(404, "not found")
+        return FileResponse(p)
+
+    @app.post("/api/characters/{cid}/draw", status_code=202)
+    def draw_character(cid: str, body: DrawRequest) -> dict:
+        """Draw the character from its description in a format's style (one image model call)."""
+        char_or_404(cid)
+        providers = _providers(body.provider)
+        cfg = config_for(body.format, providers)
+        params = {"character": cid, "format": cfg["format"]["name"], "provider": providers}
+
+        def fn(job):
+            lib.generate_reference(cid, load_config(format_name=cfg["format"]["name"], providers=providers))
+
+        job = runner.submit("draw_character", None, params, fn)
+        return {"job_id": job.id, "status": job.status}
+
+    @app.post("/api/characters/describe")
+    def describe_character(body: DescribeRequest) -> dict:
+        """Write an identity-only description of a picture (one short Claude call)."""
+        import tempfile
+        if body.character:
+            c = char_or_404(body.character)
+            if not c["image"]:
+                raise HTTPException(400, "that character has no picture yet")
+            return {"description": bad_request(lib.describe_image, c["image"], config_for())}
+        if not body.image:
+            raise HTTPException(400, "send an image or a character id")
+        data = bad_request(lib.decode_image, body.image)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "upload"
+            path.write_bytes(data)
+            try:
+                from PIL import Image, UnidentifiedImageError
+                Image.open(path).verify()
+            except (UnidentifiedImageError, OSError):
+                raise HTTPException(400, "that file is not an image VidGen can read") from None
+            return {"description": bad_request(lib.describe_image, path, config_for())}
 
     # -------------------------------------------------------------- jobs --
     @app.get("/api/jobs")

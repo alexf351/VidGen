@@ -19,7 +19,9 @@ const S = {
   draft: null, draftFor: null, saveErrors: null, afterSave: null,
   provider: "", viewJob: null, viewPinned: false, es: null,
   jobStatus: new Map(), jobsLoaded: false, doctor: null,
+  chars: [], charsLoaded: false, storyDraft: null, storyFor: null, storyErrors: null,
 };
+const CODE_STEPS = ["story", "scenes", "voice", "render"];
 
 // ------------------------------------------------------------------ helpers
 function h(tag, props, ...kids) {
@@ -278,6 +280,12 @@ async function recast(run) {
 async function loadBasics() {
   const [config, formats] = await Promise.all([api("GET", "/api/config"), api("GET", "/api/formats")]);
   S.config = config; S.formats = formats;
+  await loadChars();
+}
+
+async function loadChars() {
+  try { S.chars = await api("GET", "/api/characters"); S.charsLoaded = true; } catch { S.chars = S.chars || []; }
+  const c = $("#char-count"); if (c) c.textContent = S.chars.length ? S.chars.length : "";
 }
 
 async function refreshRuns() {
@@ -294,6 +302,10 @@ async function loadRun(runId, { keepDraft = true } = {}) {
     if (!keepDraft || !dirty || S.draftFor !== runId) {
       S.draft = run.script ? structuredClone(run.script) : null;
       S.draftFor = runId;
+    }
+    if (!keepDraft || S.storyFor !== runId || !storyChanged()) {
+      S.storyDraft = run.story ? structuredClone(run.story) : null;
+      S.storyFor = runId;
     }
     renderMain();
   } catch (e) {
@@ -334,6 +346,9 @@ function onJobFinished(job) {
   toast(`${job.action}${job.params && job.params.step ? ` ${job.params.step}` : ""} ${job.status === "done" ? "finished" : "failed"}${job.error ? `: ${job.error}` : ""}`,
     job.status === "done" ? "ok" : "bad");
   if (job.run_id && job.run_id === S.runId) loadRun(S.runId);
+  if (job.action === "draw_character") {
+    loadChars().then(() => { if (location.hash.startsWith("#/characters")) route(); });
+  }
 }
 
 let pollTimer = null;
@@ -366,8 +381,10 @@ async function refreshOpenRun() {
 function runState(r) {
   if (r.job && ACTIVE.has(r.job.status)) return r.job.status;
   if (r.job && r.job.status === "failed") return "failed";
-  if (r.steps.assemble.status === "done") return "done";
-  if (r.steps.script.status === "done" && Object.entries(r.steps).every(([k, v]) => k === "script" || v.status !== "done" && v.status !== "partial")) return "script";
+  const last = r.engine === "claude_code" ? "render" : "assemble";
+  const first = r.engine === "claude_code" ? "story" : "script";
+  if (r.steps[last].status === "done") return "done";
+  if (r.steps[first].status === "done" && Object.entries(r.steps).every(([k, v]) => k === first || v.status !== "done" && v.status !== "partial")) return "script";
   if (Object.values(r.steps).some((v) => v.status === "done" || v.status === "partial")) return "partial";
   return "pending";
 }
@@ -380,13 +397,15 @@ function renderSidebar() {
   const pick = $("#runs-select");
   pick.replaceChildren(h("option", { value: "", selected: !S.runId }, S.runs.length ? "Open a run…" : "No runs yet"),
     ...S.runs.map((r) => h("option", { value: r.run_id, selected: r.run_id === S.runId }, `${r.premise.slice(0, 60)} · ${STATE_LABEL[runState(r)]}`)));
+  const cl = $("#chars-link"); if (cl) cl.classList.toggle("active", location.hash.startsWith("#/characters"));
   if (!S.runs.length) { nav.replaceChildren(h("div", { class: "empty-side" }, "No runs yet. Make your first video.")); return; }
   nav.replaceChildren(...S.runs.map((r) => {
     const st = runState(r);
     return h("a", { class: `run-item${r.run_id === S.runId ? " active" : ""}`, href: `#/run/${encodeURIComponent(r.run_id)}`,
       title: `${r.premise}\n${STATE_LABEL[st]}` },
       h("div", { class: "premise" }, h("span", { class: `dot ${st}`, "aria-label": STATE_LABEL[st] }), h("span", {}, r.premise || r.run_id)),
-      h("div", { class: "meta" }, h("span", {}, r.format), h("span", {}, "·"), h("span", {}, when(r.created_at))));
+      h("div", { class: "meta" }, h("span", {}, r.format), r.engine === "claude_code" ? h("span", { class: "eng" }, "Claude Code") : null,
+        h("span", {}, "·"), h("span", {}, when(r.created_at))));
   }));
 }
 
@@ -443,7 +462,8 @@ function chips(options, value, onChange, label) {
 function renderCreate(formatName) {
   const f = S.formats.find((x) => x.name === formatName && !x.error);
   if (!f) { $("#main").replaceChildren(h("div", { class: "empty" }, `No format called "${formatName}". `, h("a", { href: "#/new", class: "muted" }, "Back to Studio"))); return; }
-  const st = { provider: "", dry: false };
+  const st = { provider: "", dry: false, engine: "ai", cast: [] };
+  const hasCode = (f.engines || []).includes("claude_code");
   const d = S.config.providers.default;
   const premise = h("textarea", { class: "premise-box", id: "f-premise", rows: "6", maxlength: "600",
     placeholder: f.limits && f.limits.narrator ? "A baker's oven dies the day her cake goes viral…"
@@ -452,12 +472,23 @@ function renderCreate(formatName) {
   const costLine = h("div", { class: "cost-big" }); const costSub = h("div", { class: "cost-sub" });
   const keyWarn = h("div", { class: "field-note warn" });
   const go = h("button", { class: "btn primary go", type: "submit" }, "Generate video");
+  const codeWarn = h("div", { class: "field-note warn" });
   const update = () => {
     const words = premise.value.trim() ? premise.value.trim().split(/\s+/).length : 0;
     count.textContent = words ? `${words} words` : "One or two sentences is plenty";
     const kinds = new Set([providerFor("images", st.provider), providerFor("video", st.provider)]);
     const missing = [...kinds].filter((p) => !S.config.keys_present[p === "fal" ? "FAL_KEY" : "SUME_API_KEY"]);
     keyWarn.textContent = missing.length ? `No API key set for ${missing.join(", ")}.` : "";
+    provSec.classList.toggle("hidden", st.engine === "claude_code");
+    codeWarn.textContent = st.engine === "claude_code" ? codeEngineProblem() : "";
+    if (st.engine === "claude_code") {
+      const est = estimateCode(f.name);
+      costLine.textContent = st.dry ? "free" : `about ${usd(est.total)}`;
+      costSub.textContent = st.dry ? "Claude Code writes the story on your Claude plan. Nothing else runs."
+        : "Claude Code writes and codes it on your Claude plan · voice by ElevenLabs · renders on this computer";
+      go.textContent = st.dry ? "Write the story" : "Make video";
+      return;
+    }
     if (st.dry) {
       costLine.textContent = "a few cents"; costSub.textContent = "Script only. Nothing goes to the image, video or voice providers.";
       go.textContent = "Write the script";
@@ -482,11 +513,27 @@ function renderCreate(formatName) {
       L.cta_caption ? [h("dt", {}, "Ends on"), h("dd", {}, L.cta_caption)] : null),
     f.beats.length ? h("ol", { class: "beat-list" }, f.beats.map((b) => h("li", {}, b))) : null);
 
+  const outputBox = h("div");
+  const drawOutput = () => outputBox.replaceChildren(chips(
+    [[false, "Full video"], [true, st.engine === "claude_code" ? "Story only" : "Script only", st.engine === "claude_code" ? "free" : "a few cents"]],
+    st.dry, (v) => { st.dry = v; update(); }, "Output"));
+  drawOutput();
+  const provSec = h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Provider")),
+    chips([["", "Default", `${d.images} / ${d.video}`], ["fal", "fal"], ["sume", "Sume"]], st.provider, (v) => { st.provider = v; update(); }, "Provider"),
+    keyWarn);
+  S.onDoctor = update;
   const form = h("form", { class: "create-left", onsubmit: async (e) => {
     e.preventDefault();
     const text = premise.value.trim();
     if (!text) { premise.focus(); toast("Write a premise first.", "bad"); return; }
-    if (!st.dry) {
+    if (st.engine === "claude_code" && !st.dry) {
+      const est = estimateCode(f.name);
+      const ok = await confirmDialog({ title: `Make a ${formatTitle(f)} video with Claude Code?`, rows: est.rows, total: est.total,
+        text: "Claude Code writes the story, codes every scene and checks stills; then VidGen adds the voice and renders.",
+        ok: "Make video",
+        note: "Claude Code runs on your Claude plan and counts toward its usage limits. Rendering happens on this computer and can take several minutes. Choose Story only to read the story first." });
+      if (!ok) return;
+    } else if (!st.dry) {
       const est = estimateNew(f.name, st.provider);
       const ok = await confirmDialog({ title: `Generate a ${formatTitle(f)} video?`, rows: est.rows, total: est.total,
         text: "Runs script, images, video, voice and assemble.", ok: "Generate",
@@ -494,17 +541,21 @@ function renderCreate(formatName) {
       if (!ok) return;
     }
     go.disabled = true;
-    const r = await submit(api("POST", "/api/runs", { premise: text, format: f.name, provider: st.provider || null, dry_run: st.dry }),
-      st.dry ? "script" : `${formatTitle(f)} video`);
+    const r = await submit(api("POST", "/api/runs", { premise: text, format: f.name, provider: st.engine === "ai" ? (st.provider || null) : null,
+      dry_run: st.dry, engine: st.engine, cast: st.cast }),
+      st.dry ? (st.engine === "claude_code" ? "story" : "script") : `${formatTitle(f)} video`);
     go.disabled = false;
     if (r) { await refreshRuns(); location.hash = `#/run/${encodeURIComponent(r.run_id)}`; }
   } },
     h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Premise"), count), premise),
-    h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Output")),
-      chips([[false, "Full video"], [true, "Script only", "a few cents"]], st.dry, (v) => { st.dry = v; update(); }, "Output")),
-    h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Provider")),
-      chips([["", "Default", `${d.images} / ${d.video}`], ["fal", "fal"], ["sume", "Sume"]], st.provider, (v) => { st.provider = v; update(); }, "Provider"),
-      keyWarn),
+    hasCode ? h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Engine")),
+      chips([["ai", "Image models", "fal / Sume"], ["claude_code", "Claude Code", "your Claude plan"]], st.engine,
+        (v) => { st.engine = v; drawOutput(); update(); }, "Engine"),
+      h("div", { class: "field-note" }, "Claude Code codes every scene in this style and renders it here, with no image or video model."),
+      codeWarn) : null,
+    h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Output")), outputBox),
+    provSec,
+    castSection(f, st, update),
     details,
     h("section", { class: "card-sec cost-card" }, h("div", {}, costLine, costSub), go));
   premise.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) form.requestSubmit(); });
@@ -579,10 +630,83 @@ function fillDoctor(box) {
 async function loadDoctor() {
   try { S.doctor = await api("GET", "/api/doctor"); } catch (e) { S.doctor = { error: e.message }; }
   fillDoctor($("#doctor-box"));
+  if (S.onDoctor) S.onDoctor();
+}
+
+// Why the Claude Code engine cannot run on this computer, from the setup check ("" if it can).
+const CODE_CHECKS = ["node", "npm", "claude (Claude Code)", "Claude Code login"];
+function codeEngineProblem() {
+  if (!S.doctor || !S.doctor.checks) return "";
+  const bad = S.doctor.checks.filter((c) => CODE_CHECKS.includes(c.item) && c.status !== "PASS");
+  return bad.length ? `Not ready on this computer: ${bad.map((c) => `${c.item}: ${c.detail}`).join(" · ")}` : "";
+}
+
+function estimateCode(formatName) {
+  const f = S.formats.find((x) => x.name === formatName);
+  const chars = f && f.limits && f.limits.vo_words ? f.limits.vo_words[1] * 6 : 400;
+  const rows = [["Story + scenes (Claude Code)", "your Claude plan"],
+    [`up to ~${chars} characters of voice`, voiceCost(chars)], ["Rendering", "on this computer"]];
+  return { rows, total: voiceCost(chars) };
+}
+
+// ------------------------------------------------------------- cast picker
+function charFace(src, name, size = "") {
+  return src ? h("img", { class: `face-img ${size}`, src, alt: "" })
+    : h("span", { class: `face-img ${size} none` }, (name || "?").slice(0, 1).toUpperCase());
+}
+
+function castSection(f, st, onChange) {
+  const box = h("section", { class: "card-sec cast-sec" });
+  const swaps = {};        // format character id -> library id
+  const adds = [];         // [{character, role}]
+  const sync = () => {
+    st.cast = [...Object.entries(swaps).filter(([, v]) => v).map(([rep, c]) => ({ character: c, replaces: rep, role: "" })),
+      ...adds.filter((a) => a.character).map((a) => ({ character: a.character, replaces: null, role: a.role }))];
+    onChange();
+  };
+  const used = () => new Set([...Object.values(swaps), ...adds.map((a) => a.character)].filter(Boolean));
+  const libOptions = (current) => S.chars.map((c) => h("option", { value: c.id, selected: c.id === current,
+    disabled: c.id !== current && used().has(c.id) }, c.name));
+  const draw = () => {
+    const chars = f.characters || [];
+    const rows = chars.map((c) => {
+      const lib = swaps[c.id] && S.chars.find((x) => x.id === swaps[c.id]);
+      return h("div", { class: `cast-row${lib ? " swapped" : ""}` },
+        charFace(lib ? lib.image : c.image, lib ? lib.name : c.id),
+        h("div", { class: "cast-who" }, h("b", {}, lib ? lib.name : c.id), h("span", {}, lib ? `as ${c.role || c.id}` : c.role)),
+        S.chars.length ? h("select", { "aria-label": `Who plays ${c.id}`, onchange: (e) => { swaps[c.id] = e.target.value; sync(); draw(); } },
+          h("option", { value: "", selected: !swaps[c.id] }, `${c.id} (format)`), libOptions(swaps[c.id])) : null);
+    });
+    const added = adds.map((a, i) => {
+      const lib = S.chars.find((x) => x.id === a.character);
+      return h("div", { class: "cast-row added" },
+        charFace(lib && lib.image, lib && lib.name),
+        h("div", { class: "cast-who" },
+          h("select", { "aria-label": "Character to add", onchange: (e) => { a.character = e.target.value; sync(); draw(); } }, libOptions(a.character)),
+          h("input", { type: "text", value: a.role, placeholder: lib && lib.role ? lib.role : "role in the story (optional)", "aria-label": "Role",
+            oninput: (e) => { a.role = e.target.value; sync(); } })),
+        h("button", { type: "button", class: "icon-btn", title: "Remove", "aria-label": "Remove", onclick: () => { adds.splice(i, 1); sync(); draw(); } }, "✕"));
+    });
+    const free = S.chars.filter((c) => !used().has(c.id));
+    box.replaceChildren(...[
+      h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Cast"),
+        h("a", { class: "muted small-link", href: "#/characters" }, S.chars.length ? "Your characters ›" : "")),
+      rows.length ? h("div", { class: "cast-list" }, rows) : h("div", { class: "field-note" }, "This format invents its cast for each story."),
+      added.length ? h("div", { class: "cast-list" }, added) : null,
+      S.chars.length
+        ? (free.length ? h("button", { type: "button", class: "btn small", onclick: () => { adds.push({ character: free[0].id, role: "" }); sync(); draw(); } },
+            "+ Add one of your characters") : null)
+        : h("div", { class: "field-note" }, "Put yourself or your own characters in the story: ",
+            h("a", { href: "#/characters/new", class: "link" }, "make a character"), "."),
+    ].filter(Boolean));
+  };
+  draw();
+  return box;
 }
 
 // -------------------------------------------------------------- run view
 function renderRun() {
+  if (S.run.engine === "claude_code") { renderCodeRun(); return; }
   const run = S.run;
   const busy = runBusy(run.run_id);
   const active = S.jobs.find((j) => j.run_id === run.run_id && ACTIVE.has(j.status));
@@ -839,6 +963,289 @@ async function saveScript(run) {
   }
 }
 
+// ------------------------------------------------------------ characters
+function renderChars() {
+  const cards = S.chars.map((c) => h("a", { class: "ccard", href: `#/characters/${encodeURIComponent(c.id)}`, title: c.description },
+    h("div", { class: "ccard-img" }, c.image ? h("img", { src: c.image, alt: "", loading: "lazy" })
+      : h("span", { class: "ccard-none" }, c.name.slice(0, 1).toUpperCase()),
+      c.keep_as_is ? h("span", { class: "fcard-tag" }, "As is") : null),
+    h("div", { class: "ccard-body" }, h("div", { class: "fcard-title" }, c.name),
+      c.role ? h("div", { class: "ccard-role" }, c.role) : null,
+      h("div", { class: "fcard-desc" }, c.description))));
+  $("#main").replaceChildren(h("div", { class: "view studio" },
+    h("div", { class: "studio-head" },
+      h("div", {}, h("h1", {}, "Characters"),
+        h("p", { class: "lede" }, "Make a character once, then cast it in any format: it can take over a format's role or join the story.")),
+      h("span", { class: "muted", style: "font-size:12px" }, plural(S.chars.length, "character"))),
+    h("div", { class: "cgrid" },
+      h("a", { class: "ccard new", href: "#/characters/new" },
+        h("div", { class: "ccard-img" }, h("span", { class: "ccard-plus" }, "+")),
+        h("div", { class: "ccard-body" }, h("div", { class: "fcard-title" }, "New character"),
+          h("div", { class: "fcard-desc" }, "Describe one and draw it, or upload a picture."))),
+      cards)));
+}
+
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result); r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
+function renderCharEditor(cid) {
+  const isNew = cid === "new";
+  const c = isNew ? null : S.chars.find((x) => x.id === cid);
+  if (!isNew && !c) {
+    $("#main").replaceChildren(h("div", { class: "empty" }, S.charsLoaded ? `No character "${cid}". ` : "Loading…",
+      h("a", { href: "#/characters", class: "muted" }, "Back to Characters")));
+    return;
+  }
+  const st = { upload: null, uploadName: "", drawFormat: (c && c.drawn_in) || (S.formats.find((f) => f.default) || {}).name || "pixar_arc" };
+  const name = h("input", { type: "text", maxlength: "60", value: c ? c.name : "", placeholder: "Dana", id: "c-name" });
+  const desc = h("textarea", { rows: "4", maxlength: "400", id: "c-desc",
+    placeholder: "a 30 year old woman with short black hair, warm brown skin, freckles, a slim build" }, c ? c.description : "");
+  const role = h("input", { type: "text", maxlength: "80", value: c ? c.role : "", placeholder: "the hero (optional)" });
+  const voice = h("input", { type: "text", maxlength: "64", value: c ? c.voice_id : "", placeholder: "ElevenLabs voice id (optional)" });
+  const asIs = h("input", { type: "checkbox", checked: !!(c && c.keep_as_is) });
+  const errBox = h("div");
+  const preview = h("div", { class: "char-preview" });
+  const drawPreview = () => {
+    const src = st.upload || (c && c.image);
+    preview.replaceChildren(src ? h("img", { src, alt: "" }) : h("div", { class: "char-preview-none" },
+      h("span", {}, (name.value || "?").slice(0, 1).toUpperCase()), h("p", {}, "No picture yet. Upload one, or draw it from the description.")));
+    if (st.upload) preview.append(h("span", { class: "example-tag" }, "Not saved yet"));
+  };
+  name.addEventListener("input", () => { if (!st.upload && !(c && c.image)) drawPreview(); });
+
+  const file = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp", class: "hidden",
+    onchange: async (e) => {
+      const fl = e.target.files[0]; if (!fl) return;
+      if (fl.size > 15 * 1024 * 1024) { toast("That picture is over 15 MB.", "bad"); return; }
+      st.upload = await readFile(fl); st.uploadName = fl.name; drawPreview();
+    } });
+  const body = () => ({ name: name.value, description: desc.value, role: role.value, voice_id: voice.value,
+    keep_as_is: asIs.checked, image: st.upload });
+
+  async function save(quiet) {
+    try {
+      const saved = isNew ? await api("POST", "/api/characters", body())
+        : await api("PUT", `/api/characters/${encodeURIComponent(cid)}`, body());
+      await loadChars();
+      if (!quiet) toast(`Saved ${saved.name}`, "ok");
+      st.upload = null;
+      if (isNew) location.hash = `#/characters/${encodeURIComponent(saved.id)}`; else renderCharEditor(cid);
+      return saved;
+    } catch (e) {
+      errBox.replaceChildren(h("div", { class: "notice bad" }, e.message));
+      return null;
+    }
+  }
+  const saveBtn = h("button", { class: "btn primary", type: "button", onclick: () => save(false) }, isNew ? "Create character" : "Save");
+
+  const describeBtn = h("button", { class: "btn small", type: "button", onclick: async () => {
+    if (!st.upload && !(c && c.image)) { toast("Upload a picture first.", "bad"); return; }
+    const ok = await confirmDialog({ title: "Describe this picture?", ok: "Describe",
+      text: "Claude looks at the picture and writes a one-sentence description of who it is (face, hair, skin, build). One short API call, about a cent." });
+    if (!ok) return;
+    describeBtn.disabled = true; describeBtn.textContent = "Looking…";
+    try {
+      const r = await api("POST", "/api/characters/describe", st.upload ? { image: st.upload } : { character: cid });
+      desc.value = r.description; toast("Description written. Edit it if anything is off.", "ok");
+    } catch (e) { toast(e.message, "bad"); }
+    describeBtn.disabled = false; describeBtn.textContent = "Describe from picture";
+  } }, "Describe from picture");
+
+  const fmtSel = h("select", { "aria-label": "Style to draw in", onchange: (e) => { st.drawFormat = e.target.value; } },
+    S.formats.filter((f) => !f.error).map((f) => h("option", { value: f.name, selected: f.name === st.drawFormat }, formatTitle(f))));
+  const drawBtn = h("button", { class: "btn small", type: "button", onclick: async () => {
+    if (!desc.value.trim() || !name.value.trim()) { toast("Give the character a name and a description first.", "bad"); return; }
+    const f = S.formats.find((x) => x.name === st.drawFormat);
+    const ok = await confirmDialog({ title: `Draw ${name.value.trim()}?`, ok: "Draw",
+      rows: [[`1 image in the ${formatTitle(f)} style (${providerFor("images", "")})`, imageCost(1, "")]], total: imageCost(1, ""),
+      text: "Draws a reference sheet from the description. It replaces the current picture. In other formats VidGen redraws it in that format's style." });
+    if (!ok) return;
+    const saved = await save(true);
+    if (!saved) return;
+    await submit(api("POST", `/api/characters/${encodeURIComponent(saved.id)}/draw`, { format: st.drawFormat }), `draw ${saved.name}`);
+  } }, "Draw it");
+
+  const del = !isNew ? h("button", { class: "btn ghost small danger", type: "button", onclick: async () => {
+    const ok = await confirmDialog({ title: `Delete ${c.name}?`, ok: "Delete",
+      text: "Removes the character and its picture from your library. Runs that already used it keep their copies." });
+    if (!ok) return;
+    try { await api("DELETE", `/api/characters/${encodeURIComponent(cid)}`); await loadChars(); toast(`Deleted ${c.name}`, "ok"); location.hash = "#/characters"; }
+    catch (e) { toast(e.message, "bad"); }
+  } }, "Delete") : null;
+
+  const field = (label, el, note) => h("label", { class: "field" }, h("span", {}, label), el, note ? h("div", { class: "field-note" }, note) : null);
+  const drawing = S.jobs.some((j) => j.action === "draw_character" && ACTIVE.has(j.status) && j.params.character === cid);
+  $("#main").replaceChildren(h("div", { class: "view create" },
+    h("a", { class: "back-link", href: "#/characters" }, "‹ Characters"),
+    h("h1", {}, isNew ? "New character" : c.name),
+    h("p", { class: "lede" }, "The description is what every shot's prompt says about them, word for word. The picture keeps their look the same from shot to shot."),
+    h("div", { class: "create-grid" },
+      h("div", { class: "create-left" },
+        h("section", { class: "card-sec stack" },
+          field("Name", name),
+          h("div", { class: "field" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Description"), describeBtn), desc,
+            h("div", { class: "field-note" }, "Who they are, not what they wear: age, face, hair, skin, build, one distinctive feature.")),
+          field("Usual role", role, "Used when you add them to a story. When they replace a format's character they take that role."),
+          field("Voice", voice, "Speaks their lines. Empty: the voice of the character they replace, or the default.")),
+        h("section", { class: "card-sec" },
+          h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Picture")),
+          h("div", { class: "pic-actions" },
+            h("button", { class: "btn small", type: "button", onclick: () => file.click() }, (c && c.image) || st.upload ? "Upload a different picture" : "Upload a picture"), file),
+          h("div", { class: "pic-actions" }, h("span", { class: "muted" }, "or draw it in"), fmtSel, drawBtn),
+          h("label", { class: "check", style: "margin-top:10px" }, asIs, "Use my picture exactly as it is"),
+          h("div", { class: "field-note" }, "Off: VidGen redraws the picture as a reference sheet in each format's style the first time it is used there (one image each). On: the picture itself is the reference, e.g. a sheet you already made.")),
+        errBox,
+        h("div", { class: "form-actions" }, saveBtn, del)),
+      h("section", { class: "create-right" }, h("div", { class: "sec-label" }, "Picture"),
+        h("div", { class: "example-wrap" }, preview,
+          drawing ? h("p", { class: "example-note" }, h("span", { class: "spin" }), "  Drawing… this takes about half a minute.") : null,
+          c && c.source ? h("p", { class: "example-note" }, c.source === "generated" ? `Drawn in the ${c.drawn_in || ""} style.` : "Uploaded picture.") : null)))));
+  drawPreview();
+  if (isNew) name.focus();
+}
+
+// ------------------------------------------------- Claude Code engine run
+function storyChanged() {
+  if (!S.run || !S.run.story || !S.storyDraft || S.storyFor !== S.run.run_id) return false;
+  return JSON.stringify(S.storyDraft.beats) !== JSON.stringify(S.run.story.beats);
+}
+
+function renderCodeRun() {
+  const run = S.run;
+  const busy = runBusy(run.run_id);
+  const active = S.jobs.find((j) => j.run_id === run.run_id && ACTIVE.has(j.status));
+  const has = (k) => run.steps[k].status === "done";
+  const stepBtns = [];
+  CODE_STEPS.forEach((step, i) => {
+    const st = run.steps[step];
+    if (i) stepBtns.push(h("span", { class: "step-arrow" }, "›"));
+    stepBtns.push(h("button", { class: "step-btn", disabled: busy || (step !== "story" && !run.story),
+      title: CODE_STEP_HELP[step], onclick: () => runCodeStep(run, step) },
+      h("span", { class: `dot ${st.status}` }), step, st.note && st.note !== "claude" && st.note !== "voiced" ? h("span", { class: "count" }, st.note) : null));
+  });
+  const next = !run.story ? null : !has("scenes") ? "scenes" : !has("voice") ? "voice" : !has("render") ? "render" : null;
+  const head = h("header", { class: "run-head" },
+    h("h1", { class: "run-title" }, run.premise || run.run_id),
+    h("div", { class: "run-sub" },
+      h("span", {}, "format ", h("b", {}, run.format)),
+      h("span", { class: "eng-pill" }, "Claude Code engine"),
+      h("span", { class: "cost", title: run.cost.rows.map((r) => `${r.item}: ${usd(r.usd)}`).join("\n") }, `est. ${usd(run.cost.total)}`),
+      h("span", { class: "dim" }, when(run.created_at)),
+      busy ? h("span", { class: "busy-note" }, h("span", { class: `dot ${active.status}` }),
+        `${active.action}${active.params.step ? ` ${active.params.step}` : ""} ${active.status}…`) : null),
+    h("div", { class: "steps" }, stepBtns, h("span", { style: "flex:1" }),
+      next && !busy ? h("button", { class: "btn small primary", onclick: () => runCodeRest(run, next) },
+        next === "scenes" ? "Code the scenes and render" : `Continue from ${next}`) : null));
+
+  const left = h("div", { class: "shots-col" });
+  if (run.cast && run.cast.length) {
+    left.append(h("div", { class: "panel-title" }, "Your characters in this run"),
+      h("div", { class: "chars" }, run.cast.map((c) => h("div", { class: "char" },
+        h("div", { class: "face", style: c.image ? `background-image:url("${c.image}")` : "" }, c.image ? "" : c.name.slice(0, 1)),
+        c.name, c.replaced ? h("div", { class: "dim" }, `as ${c.replaced}`) : null))));
+  }
+  left.append(h("div", { class: "panel-title" }, `Stills${run.stills.length ? ` · ${run.stills.length}` : ""}`));
+  left.append(run.stills.length ? h("div", { class: "grid" }, run.stills.map((p) =>
+    h("a", { class: "shot", href: bust(p.url, run.run_id), target: "_blank", rel: "noopener", title: p.name },
+      h("div", { class: "thumb" }, h("img", { src: bust(p.url, run.run_id), alt: p.name, loading: "lazy" }),
+        h("div", { class: "badges" }, h("span", { class: "badge n" }, p.name.replace(/^t0*/, "").replace(/\.jpg$/, "s")))))))
+    : h("div", { class: "player-empty wide" }, run.story ? "Claude Code saves stills here while it codes the scenes." : "Write the story first."));
+  if (run.story_notes) {
+    left.append(h("details", { class: "card-sec notes" }, h("summary", {}, h("span", { class: "sec-label" }, "Claude's notes (story.md)"), h("span", { class: "muted" }, "Show")),
+      h("pre", {}, run.story_notes)));
+  }
+
+  const side = h("aside", { class: "side-col" }, h("div", { class: "panel-title" }, "Final video"));
+  if (run.final_video) {
+    const src = bust(run.final_video, run.run_id);
+    side.append(h("video", { class: "player", controls: true, playsinline: true, preload: "metadata", src }),
+      h("div", { class: "final-actions" },
+        h("a", { class: "btn small", href: src, download: `${run.run_id}.mp4` }, "Download mp4"),
+        h("button", { class: "btn small ghost", onclick: () => setFormatMedia(run, "example") }, "Use as example")));
+  } else {
+    side.append(h("div", { class: "player-empty" }, run.story ? "Not rendered yet." : "No video yet."));
+  }
+  if (run.voice) side.append(h("audio", { class: "voice-player", controls: true, preload: "none", src: bust(run.voice, run.run_id) }));
+  side.append(h("div", { class: "cost-rows" }, run.cost.rows.map((r) => h("div", {}, h("span", {}, r.item), h("span", {}, usd(r.usd))))));
+  if (run.story) side.append(storyPanel(run, busy));
+  const main = $("#main");
+  const scroll = main.scrollTop;
+  main.replaceChildren(head, h("div", { class: "run-body" }, left, side));
+  main.scrollTop = scroll;
+}
+
+const CODE_STEP_HELP = {
+  story: "Claude Code writes the story (one line per beat)",
+  scenes: "Claude Code codes every scene for this story and checks stills",
+  voice: "Read the lines with ElevenLabs and time the beats to the voice",
+  render: "Render the video on this computer (node render.cjs video)",
+};
+
+async function runCodeStep(run, step) {
+  if (storyChanged() && step !== "story") { toast("Save or discard your story edits first.", "bad"); return; }
+  const texts = {
+    story: ["Rewrite the story?", "Claude Code writes a new story.json (your Claude plan). The scenes, voice and render then need to run again."],
+    scenes: ["Code the scenes?", "Claude Code rewrites each style file for this story and checks stills. It runs on your Claude plan and can take 10-30 minutes."],
+    voice: ["Redo the voice?", `Reads every line with ElevenLabs (about ${usd(voiceCost(run.story ? run.story.beats.map((b) => b.line).join(" ").length : 300))}) and retimes the beats.`],
+    render: ["Render the video?", "Runs on this computer. The 3D styles render in software on Windows, so a 20 second video can take several minutes."],
+  };
+  const [title, text] = texts[step];
+  if (!(await confirmDialog({ title, text, ok: "Run" }))) return;
+  await submit(api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/step`, { step }), `step ${step}`);
+}
+
+async function runCodeRest(run, from) {
+  if (storyChanged()) { toast("Save or discard your story edits first.", "bad"); return; }
+  const steps = CODE_STEPS.slice(CODE_STEPS.indexOf(from));
+  const ok = await confirmDialog({ title: `Run ${steps.join(", ")}?`, ok: "Run",
+    text: "Claude Code codes the scenes on your Claude plan, VidGen adds the voice (ElevenLabs) and renders on this computer. Each step is a job in the queue." });
+  if (!ok) return;
+  for (const step of steps) {
+    const r = await submit(api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/step`, { step }), `step ${step}`);
+    if (!r) break;
+  }
+}
+
+function storyPanel(run, busy) {
+  const styles = run.styles && run.styles.length ? run.styles : [...new Set(run.story.beats.map((b) => b.style))];
+  const changed = storyChanged();
+  const total = S.storyDraft.beats.reduce((a, b) => a + (Number(b.seconds) || 0), 0);
+  const refresh = () => { const ch = storyChanged(); save.disabled = busy || !ch; discard.disabled = !ch;
+    secs.textContent = `${S.storyDraft.beats.reduce((a, b) => a + (Number(b.seconds) || 0), 0).toFixed(1)}s`; };
+  const rows = S.storyDraft.beats.map((b, i) => h("div", { class: "srow" },
+    h("span", { class: "num" }, `${i + 1}`),
+    h("div", { class: "fields" },
+      h("div", { class: "pair" },
+        h("select", { "aria-label": `Beat ${i + 1} style`, disabled: styles.length < 2, onchange: (e) => { b.style = e.target.value; refresh(); } },
+          styles.map((x) => h("option", { value: x, selected: x === b.style }, x))),
+        h("input", { type: "text", inputmode: "decimal", value: String(b.seconds), "aria-label": `Beat ${i + 1} seconds`,
+          oninput: (e) => { b.seconds = Number(e.target.value); refresh(); } })),
+      h("textarea", { rows: "2", "aria-label": `Beat ${i + 1} line`, oninput: (e) => { b.line = e.target.value; refresh(); } }, b.line))));
+  const save = h("button", { class: "btn primary small", disabled: busy || !changed, onclick: async () => {
+    try {
+      await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/story`, S.storyDraft);
+      S.storyErrors = null; toast("Story saved. Run Scenes (or Voice, if only words changed) and Render.", "ok");
+      await loadRun(run.run_id, { keepDraft: false });
+    } catch (e) {
+      S.storyErrors = e.detail && e.detail.errors ? e.detail.errors : [e.message]; renderMain();
+    }
+  } }, "Save story");
+  const discard = h("button", { class: "btn ghost small", disabled: !changed,
+    onclick: () => { S.storyDraft = structuredClone(run.story); S.storyErrors = null; renderMain(); } }, "Discard");
+  const secs = h("span", { class: "word-count" }, `${total.toFixed(1)}s`);
+  return h("section", { "aria-label": "Story" },
+    h("div", { class: "panel-title" }, h("span", {}, "Story"), h("span", { class: "dim" }, "one line per beat")),
+    h("div", { class: "notice info" }, "Edit before the scenes are coded. The voice retimes the seconds to the reading."),
+    S.storyErrors ? h("div", { class: "notice bad errors" }, h("b", {}, "Not saved"), h("ul", {}, S.storyErrors.map((e) => h("li", {}, e)))) : null,
+    h("div", { class: "script-list" }, rows),
+    h("div", { class: "script-actions" }, save, discard, secs));
+}
+
 // ---------------------------------------------------------------- drawer
 function openDrawer(open) {
   const d = $("#drawer");
@@ -852,10 +1259,12 @@ function openDrawer(open) {
 function jobLabel(j) {
   const what = j.action === "step" ? `step ${j.params.step}${j.params.only ? ` (${j.params.only})` : ""}`
     : j.action === "reroll" ? `reroll shot ${j.params.shot}`
-    : j.action === "new" ? (j.params.dry_run ? "new (dry run)" : "new video") : j.action;
+    : j.action === "new" ? (j.params.dry_run ? (j.params.engine === "claude_code" ? "new (story only)" : "new (dry run)") : "new video")
+    : j.action === "draw_character" ? `draw ${j.params.character}` : j.action;
   return what;
 }
 function runPremise(runId) {
+  if (!runId) return "characters";
   const r = S.runs.find((x) => x.run_id === runId);
   return r ? r.premise : runId;
 }
@@ -866,9 +1275,9 @@ function renderDrawer() {
   const recent = S.jobs.filter((j) => !ACTIVE.has(j.status)).slice(0, 12);
   const sum = $("#drawer-summary");
   if (running.length) {
-    sum.replaceChildren(h("span", { class: "dot running" }), h("b", {}, jobLabel(running[0])),
+    sum.replaceChildren(...[h("span", { class: "dot running" }), h("b", {}, jobLabel(running[0])),
       h("span", { class: "muted" }, `· ${runPremise(running[0].run_id)}`),
-      queued.length ? h("span", { class: "muted" }, `· ${queued.length} queued`) : null);
+      queued.length ? h("span", { class: "muted" }, `· ${queued.length} queued`) : null].filter(Boolean));
   } else if (S.jobs.length) {
     const last = S.jobs[0];
     sum.replaceChildren(h("span", { class: `dot ${last.status === "done" ? "done" : "failed"}` }),
@@ -905,9 +1314,11 @@ async function watchJob(id, pinned) {
   log.replaceChildren();
   const j = S.jobs.find((x) => x.id === id);
   const title = $("#log-title");
-  const setTitle = (job) => title.replaceChildren(h("span", { class: `dot ${job.status === "done" ? "done" : job.status}` }),
+  const setTitle = (job) => title.replaceChildren(...[h("span", { class: `dot ${job.status === "done" ? "done" : job.status}` }),
     h("b", {}, jobLabel(job)), h("span", {}, `· ${runPremise(job.run_id)} · ${job.status}`),
-    job.run_id ? h("a", { href: `#/run/${encodeURIComponent(job.run_id)}`, class: "muted", style: "margin-left:auto" }, "open run ›") : null);
+    job.run_id ? h("a", { href: `#/run/${encodeURIComponent(job.run_id)}`, class: "muted", style: "margin-left:auto" }, "open run ›")
+      : job.action === "draw_character" ? h("a", { href: `#/characters/${encodeURIComponent(job.params.character)}`, class: "muted", style: "margin-left:auto" }, "open character ›") : null,
+  ].filter(Boolean));
   if (j) setTitle(j);
   renderDrawer();
   if (j && !ACTIVE.has(j.status)) {
@@ -946,15 +1357,19 @@ async function watchJob(id, pinned) {
 function route() {
   const m = location.hash.match(/^#\/run\/(.+)$/);
   const runId = m ? decodeURIComponent(m[1]) : null;
-  if (runId !== S.runId) { S.selected.clear(); S.saveErrors = null; S.afterSave = null; S.draft = null; S.draftFor = null; S.run = null; }
+  if (runId !== S.runId) { S.selected.clear(); S.saveErrors = null; S.afterSave = null; S.draft = null; S.draftFor = null; S.run = null;
+    S.storyDraft = null; S.storyFor = null; S.storyErrors = null; }
   S.runId = runId;
   renderSidebar();
   const nf = location.hash.match(/^#\/new\/(.+)$/);
+  const ch = location.hash.match(/^#\/characters(?:\/(.+))?$/);
   if (runId) {
     if (!S.run) $("#main").replaceChildren(h("div", { class: "empty" }, h("span", { class: "spin" }), "  Loading…"));
     loadRun(runId);
   } else if (nf) {
     renderCreate(decodeURIComponent(nf[1]));
+  } else if (ch) {
+    if (ch[1]) renderCharEditor(decodeURIComponent(ch[1])); else renderChars();
   } else {
     renderStudio();
   }
@@ -966,7 +1381,7 @@ function renderMain() {
 }
 
 window.addEventListener("beforeunload", (e) => {
-  if (draftChanged().size) { e.preventDefault(); e.returnValue = ""; }
+  if (draftChanged().size || storyChanged()) { e.preventDefault(); e.returnValue = ""; }
 });
 window.addEventListener("hashchange", () => {
   route();

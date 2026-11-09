@@ -138,12 +138,14 @@ def _resolve_tools_and_dirs(cfg: dict) -> None:
 
 
 def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG_PATH,
-                format_name: str | None = None, providers: dict | None = None) -> dict:
+                format_name: str | None = None, providers: dict | None = None,
+                cast: list | None = None) -> dict:
     """config.yaml, then the video format's format.yaml, then config.local.yaml (if present),
     each deep-merged over the last, then env vars. cfg['format'] is the loaded format
     (default pixar_arc); cfg['_sources'] says which layers were used (names only, never
     secret values). `providers` ({"images": .., "video": ..}) overrides every layer for this
-    load only; the local server uses it for a per-job provider choice."""
+    load only; the local server uses it for a per-job provider choice. `cast` (a run's cast,
+    see characters.py) swaps or adds characters from your library into locked_characters."""
     from format_loader import load_format
     fmt = load_format(format_name)
     cfg = deep_merge(_read_yaml(path), fmt["overlay"])
@@ -170,6 +172,7 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
     cfg["locked_characters"] = _check_locked_characters(cfg.get("locked_characters") or [], fmt["file"])
     cfg["app_screens"] = _check_app_screens(cfg.get("app_screens") or [], fmt["file"])
     cfg.setdefault("characters_cache_dir", "characters_cache")
+    cfg["cast"] = []
     fal = cfg.setdefault("fal", {})
     fal.setdefault("image_model", "fal-ai/nano-banana")
     fal.setdefault("image_edit_model", "fal-ai/nano-banana/edit")
@@ -182,6 +185,9 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
     _resolve_video_rate(fal)
     _apply_providers(cfg)
     cfg["voices"] = {str(k): (v or "") for k, v in (cfg.get("voices") or {}).items()}
+    if cast:
+        from characters import apply_cast
+        apply_cast(cfg, cast)
     el = cfg.setdefault("elevenlabs", {})
     el.setdefault("model_id", "eleven_multilingual_v2")
     el.setdefault("output_format", "mp3_44100_128")
@@ -359,17 +365,23 @@ def run_dir_for(run_id: str, must_exist: bool = True) -> Path:
     return run_dir
 
 
-def create_run(premise: str, format_name: str) -> Path:
+def create_run(premise: str, format_name: str, cast: list | None = None,
+               engine: str | None = None) -> Path:
     run_id = new_run_id(premise)
     run_dir = RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     (run_dir / "premise.txt").write_text(premise.strip() + "\n", encoding="utf-8")
-    write_json(run_dir / "run.json", {
+    meta = {
         "run_id": run_id,
         "premise": premise.strip(),
         "format": format_name,
         "created_at": datetime.now().isoformat(timespec="seconds"),
-    })
+    }
+    if cast:
+        meta["cast"] = cast
+    if engine and engine != "ai":
+        meta["engine"] = engine
+    write_json(run_dir / "run.json", meta)
     return run_dir
 
 
@@ -397,6 +409,27 @@ def run_format(run_dir: Path) -> str | None:
         return str(read_json(path).get("format") or "pixar_arc")
     except (OSError, ValueError) as e:
         raise StepError(f"{path} is not valid JSON: {e}") from e
+
+
+def _run_meta(run_dir: Path) -> dict:
+    path = Path(run_dir) / "run.json"
+    if not path.is_file():
+        return {}
+    try:
+        data = read_json(path)
+    except (OSError, ValueError) as e:
+        raise StepError(f"{path} is not valid JSON: {e}") from e
+    return data if isinstance(data, dict) else {}
+
+
+def run_cast(run_dir: Path) -> list:
+    """The library characters a run was cast with (run.json "cast"), [] if none."""
+    return list(_run_meta(run_dir).get("cast") or [])
+
+
+def run_engine(run_dir: Path) -> str:
+    """"ai" (the image/video/voice pipeline) or "claude_code" (Claude Code writes and renders)."""
+    return str(_run_meta(run_dir).get("engine") or "ai")
 
 
 def read_premise(run_dir: Path) -> str:

@@ -133,6 +133,8 @@ prompt bytes, validation, captions, grade and timing. To make a new format, copy
 | `pixel_art`, `ps2`, `comic`, `brick`, `claymation`, `paper_cutout`, `retro_anime`, `low_poly`, `risograph`, `miniature` | one look each | a narrated 15-25 s story ad: someone wants something, it goes wrong, they open Iro, it pays off, a twist, SEARCH IRO AI |
 | `style_switch` | a different look every shot, on hard cuts | the same narrated story |
 
+Every format except `pixar_arc` can also use the Claude Code engine (below).
+
 The ten looks and the narrated story shape come from the claude-animation-styles skill
 (`skills/claude-animation-styles/`). That skill renders with hand-written three.js code in
 Claude Code; here each look is a style line plus image rules for the image model, so it runs on
@@ -142,6 +144,61 @@ the normal pipeline. The narrated formats set `rules.narrator: true`: the narrat
 A format can carry `title:` (shown in the UI), `cover.jpg` (its gallery card) and `example.mp4`
 (its preview). Set the last two from any run in the UI: "Use as cover" on a shot, "Use as
 example" on a finished video.
+
+### Your characters
+
+Make a character once and cast it in any format: on the **Characters** page of the UI (or by
+hand in `library/characters/<id>/`, which git ignores). A character has a name, a one-sentence
+description (identity only: age, face, hair, skin, build), an optional usual role and ElevenLabs
+voice id, and a picture. Get the picture by uploading one or by drawing it from the description
+in any format's style (one image call). "Describe from picture" asks Claude for the description.
+
+On the create screen, the **Cast** section lets you swap any of the format's characters for one
+of yours (yours takes over their role, and their voice if you set none) or add one of yours to
+the story. From the CLI:
+
+```bash
+python main.py new "<premise>" --cast dana=marcus           # dana plays marcus's role
+python main.py new "<premise>" --format claymation --cast rex   # rex joins the story
+```
+
+The cast is saved in the run's `run.json`, so step, reroll and recast keep using it. In the
+images step a library character's sheet is drawn from its picture in the run's style the first
+time it is used in that format (cached in `characters_cache/` as `lib-<id>@<format>-<hash>.png`;
+editing the picture or description draws a fresh one). Tick "Use my picture exactly as it is"
+to skip that and use the picture itself as the reference.
+
+### The Claude Code engine
+
+The ten looks from claude-animation-styles (and `style_switch`) can also run on the skill's
+own engine: Claude Code writes the story, codes every scene in three.js/canvas and the video
+renders on your computer. No image or video model is called; the coding runs on your Claude
+login. Pick **Engine: Claude Code** on the create screen, or `--engine claude_code`.
+
+Set it up once: Node.js 20+ (Windows: `winget install OpenJS.NodeJS.LTS`), Claude Code, and
+`claude auth login`. `python main.py doctor` checks all three. The first run installs the
+template's packages into `cache/code_engine/` (puppeteer downloads its own Chrome, a few
+minutes); every run after shares them.
+
+A Claude Code run keeps its work in `runs/<id>/code/` and has four steps:
+
+| step | what happens |
+|---|---|
+| `story` | Claude Code writes `story.json` (one line per beat, a style each) and `story.md` with `copywriter.md` |
+| `scenes` | Claude Code rewrites each style file for the story and checks stills (`node render.cjs stills`) |
+| `voice` | VidGen reads the lines with ElevenLabs and times the beats to the voice (skipped without a key) |
+| `render` | VidGen runs `node render.cjs video` and copies `out/video.mp4` to `final.mp4` |
+
+"Story only" stops after the story so you can edit the lines in the UI before the scenes are
+coded. How Claude Code is run: headless (`claude -p`) in the run's `code/` folder, with the
+skill's instructions and the format's prompt copied in so it never needs another folder. Its
+environment has no API keys (VidGen removes `ANTHROPIC_API_KEY`, so Claude Code uses your
+subscription login, and the fal / Sume / ElevenLabs keys stay with VidGen). It may read and edit
+files in that folder and run exactly one command, `node render.cjs stills ...`; anything else
+is denied, never prompted. Settings live under `code_engine:` in `config.yaml` (model, turn
+limits, timeouts). It counts toward your Claude plan's usage limits; a run that hits one stops
+with a message saying so. On Windows and Linux the 3D styles render in software, so a 20 second
+video can take several minutes.
 
 ### Importing a Claude skill as a format
 

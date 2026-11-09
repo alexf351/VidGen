@@ -31,12 +31,15 @@ def is_run_dir(path: Path) -> bool:
 
 
 def run_meta(run_dir: Path) -> dict:
-    meta = {"run_id": run_dir.name, "premise": "", "format": "pixar_arc", "created_at": None}
+    meta = {"run_id": run_dir.name, "premise": "", "format": "pixar_arc", "created_at": None,
+            "engine": "ai", "cast": []}
     try:
         if (run_dir / "run.json").is_file():
             data = read_json(run_dir / "run.json")
             meta.update({k: data.get(k) for k in ("premise", "created_at") if data.get(k)})
             meta["format"] = data.get("format") or "pixar_arc"
+            meta["engine"] = data.get("engine") or "ai"
+            meta["cast"] = data.get("cast") or []
         elif (run_dir / "premise.txt").is_file():
             meta["premise"] = (run_dir / "premise.txt").read_text(encoding="utf-8").strip()
     except (OSError, ValueError):
@@ -100,8 +103,52 @@ def cost(run_dir: Path, script: dict | None, config: dict | None) -> dict:
             "total": round(sum(u for _, u in rows), 4)}
 
 
+# ------------------------------------------------------- Claude Code engine ----
+
+def _code_cost(run_dir: Path, story: dict | None, config: dict | None) -> dict:
+    import code_engine
+    st = code_engine.read_status(run_dir)
+    rows = [{"item": "Claude Code (your Claude plan, no per-video charge)", "usd": 0.0}]
+    voiced = (st.get("voice") or {}).get("value") == "voiced"
+    if voiced and story and config:
+        chars = len(" ".join(b.get("line", "") for b in story.get("beats", [])))
+        rows.append({"item": f"voice ({chars} chars)",
+                     "usd": round(chars / 1000 * float(config["elevenlabs"]["cost_per_1k_chars"]), 4)})
+    return {"rows": rows, "total": round(sum(r["usd"] for r in rows), 4)}
+
+
+def code_summary(run_dir: Path, meta: dict, config: dict | None) -> dict:
+    import code_engine
+    story = code_engine.read_story(run_dir)
+    return {**meta, "steps": code_engine.step_states(run_dir),
+            "shots": len(story["beats"]) if story else 0,
+            "final_video": file_url(run_dir / "final.mp4"),
+            "est_cost": _code_cost(run_dir, story, config)["total"]}
+
+
+def code_detail(run_dir: Path, meta: dict, config: dict | None) -> dict:
+    import code_engine
+    ws = code_engine.workspace(run_dir)
+    story = code_engine.read_story(run_dir)
+    notes = None
+    if (ws / "story.md").is_file() and story is not None:
+        try:
+            notes = (ws / "story.md").read_text(encoding="utf-8")[:20000]
+        except OSError:
+            notes = None
+    stills = [{"name": p.name, "url": file_url(p)} for p in sorted((ws / "stills").glob("*.jpg"))]
+    styles = (((config or {}).get("format") or {}).get("code_render") or {}).get("styles") or []
+    return {**meta, "steps": code_engine.step_states(run_dir), "story": story, "story_notes": notes,
+            "styles": styles, "stills": stills, "voice": file_url(ws / "voice.mp3"),
+            "script": None, "characters": [], "shots": [],
+            "final_video": file_url(run_dir / "final.mp4"), "captions": None,
+            "cost": _code_cost(run_dir, story, config)}
+
+
 def summary(run_dir: Path, config: dict | None) -> dict:
     meta = run_meta(run_dir)
+    if meta["engine"] == "claude_code":
+        return code_summary(run_dir, meta, config)
     script = load_script(run_dir)
     c = cost(run_dir, script, config)
     return {**meta, "steps": step_status(run_dir, script),
@@ -111,6 +158,8 @@ def summary(run_dir: Path, config: dict | None) -> dict:
 
 def detail(run_dir: Path, config: dict | None) -> dict:
     meta = run_meta(run_dir)
+    if meta["engine"] == "claude_code":
+        return code_detail(run_dir, meta, config)
     script = load_script(run_dir)
     shots = []
     for s in (script or {}).get("shots", []):

@@ -4,7 +4,9 @@
 Commands:
   python main.py new "<premise>"            create a run and execute every step in order
       ... --format <name>                   video format to use (default pixar_arc)
+      ... --cast dana=marcus                cast a character from your library (repeatable)
   python main.py new "<premise>" --dry-run  script step only: print the shot list, nothing else
+      ... --engine claude_code              Claude Code codes the scenes and renders locally
   python main.py formats                    list the installed video formats
   python main.py ui [--port 8765]           local web UI + HTTP API on 127.0.0.1 (opens the browser)
   python main.py import-skill <skill>       turn a Claude skill folder (or its SKILL.md) into a format
@@ -28,7 +30,9 @@ import sys
 from dotenv import load_dotenv
 
 import commands
-from common import KEY_ENV, STEP_ORDER, StepError, load_config, peek_runs_dir, run_format
+from code_engine import CODE_STEPS
+from common import (KEY_ENV, STEP_ORDER, StepError, load_config, peek_runs_dir, run_cast,
+                    run_format)
 from format_loader import DEFAULT_FORMAT, format_summaries
 
 
@@ -39,7 +43,7 @@ run_step = commands.run_step
 
 
 def cmd_new(args, config) -> None:
-    run_dir = commands.create_new_run(args.premise, config)
+    run_dir = commands.create_new_run(args.premise, config, engine=getattr(args, "engine", None))
     commands.execute_new(run_dir, config, args.dry_run)
 
 
@@ -67,11 +71,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument("--format", default=DEFAULT_FORMAT, metavar="NAME",
                        help=f"video format, a folder under formats/ (default {DEFAULT_FORMAT}); "
                             f"see: python main.py formats")
+    p_new.add_argument("--cast", action="append", default=[], metavar="ID[=REPLACES]",
+                       help="put a character from your library (library/characters/) in the story: "
+                            "--cast dana=marcus plays marcus's role, --cast rex adds rex; repeatable")
+    p_new.add_argument("--engine", choices=["ai", "claude_code"], default="ai",
+                       help="ai: image + video models (default). claude_code: Claude Code codes every "
+                            "scene and renders on this computer with your Claude login (formats with "
+                            "a code_render block)")
     p_new.set_defaults(func=cmd_new)
 
     p_step = sub.add_parser("step", help="re-run one step on an existing run")
     p_step.add_argument("run_id")
-    p_step.add_argument("step_name", choices=STEP_ORDER)
+    p_step.add_argument("step_name", choices=STEP_ORDER + CODE_STEPS,
+                        help=f"image pipeline: {', '.join(STEP_ORDER)}; Claude Code engine: {', '.join(CODE_STEPS)}")
     p_step.add_argument("--only", metavar="N,N", default=None,
                         help="comma-separated shot numbers to (re)generate; images, video and voice only")
     p_step.set_defaults(func=cmd_step)
@@ -167,6 +179,20 @@ def list_formats() -> int:
     return 0
 
 
+def cast_for(args) -> list:
+    """new: --cast ID[=REPLACES]. step / reroll / recast: the cast saved with the run."""
+    if args.command == "new":
+        out = []
+        for item in args.cast:
+            cid, _, rep = item.partition("=")
+            out.append({"character": cid.strip(), "replaces": rep.strip() or None})
+        return out
+    run_id = getattr(args, "run_id", None)
+    if run_id:
+        return run_cast(peek_runs_dir() / run_id)
+    return []
+
+
 def format_for(args) -> str:
     """new: --format. step / reroll / recast: the format saved with the run."""
     if args.command == "new":
@@ -203,6 +229,10 @@ def print_config_sources(config: dict, key_sources: dict[str, str]) -> None:
     keys = ", ".join(f"{var}: {where}" for var, where in key_sources.items())
     print(f"[config] {line}")
     print(f"[config] format: {config['format']['name']}")
+    if config.get("cast"):
+        from characters import describe_cast
+        for line in describe_cast(config):
+            print(f"[config] cast: {line}")
     print(f"[config] keys: {keys}")
     print(f"[config] providers: images={config['providers']['images']}, video={config['providers']['video']}; "
           f"output: {config['output_dir']}")
@@ -217,7 +247,7 @@ def main(argv=None) -> int:
     try:
         if args.command == "formats":
             return list_formats()
-        config = load_config(format_name=format_for(args))
+        config = load_config(format_name=format_for(args), cast=cast_for(args))
         key_sources = _key_sources(config, from_dotenv)
         print_config_sources(config, key_sources)
         if args.command == "doctor":
