@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import shutil
+import struct
 import subprocess
 from pathlib import Path
 
@@ -198,10 +199,48 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
 
 # --------------------------------------------------------------- captions ----
 
+FONTS_SUBDIR = "fonts"   # inside the build dir; libass loads caption fonts from here
+
+
+def caption_font_file(asm: dict) -> Path | None:
+    """The bundled caption font (assemble.caption_font_file), or None if it is not there."""
+    rel = str(asm.get("caption_font_file") or "").strip()
+    if not rel:
+        return None
+    path = Path(rel) if Path(rel).is_absolute() else ROOT / rel
+    return path if path.is_file() else None
+
+
+def font_names(path: Path) -> dict[int, str]:
+    """Strings from a TrueType/OpenType 'name' table (1 = family, 4 = full name)."""
+    data = path.read_bytes()
+    try:
+        num_tables = struct.unpack(">H", data[4:6])[0]
+        for i in range(num_tables):
+            tag, _, offset, _ = struct.unpack(">4sIII", data[12 + 16 * i: 28 + 16 * i])
+            if tag != b"name":
+                continue
+            _, count, str_off = struct.unpack(">HHH", data[offset:offset + 6])
+            names: dict[int, str] = {}
+            for j in range(count):
+                pid, _, lid, nid, length, off = struct.unpack(
+                    ">HHHHHH", data[offset + 6 + 12 * j: offset + 18 + 12 * j])
+                raw = data[offset + str_off + off: offset + str_off + off + length]
+                if pid == 3 and lid == 0x409:          # Windows, English (preferred)
+                    names[nid] = raw.decode("utf-16-be", "replace")
+                elif pid == 1 and nid not in names:    # Macintosh, as a fallback
+                    names[nid] = raw.decode("mac_roman", "replace")
+            return names
+    except struct.error:
+        pass
+    return {}
+
+
 def _fc_families() -> set[str]:
     if shutil.which("fc-list") is None:
         return set()
-    proc = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True)
+    proc = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
     fams: set[str] = set()
     for line in proc.stdout.splitlines():
         for fam in line.split(","):
@@ -209,8 +248,22 @@ def _fc_families() -> set[str]:
     return fams
 
 
-def pick_caption_font(asm: dict) -> str:
-    """Return the font family to name in the .ass style. Warns when falling back."""
+def pick_caption_font(asm: dict, build: Path | None = None) -> str:
+    """The font name for the .ass style. With the bundled font file (the normal case, and the
+    only one that works on Windows) the file is copied into build/fonts for libass and its own
+    full name is used. Otherwise fall back to a system font by name."""
+    bundled = caption_font_file(asm)
+    if bundled is not None:
+        names = font_names(bundled)
+        name = names.get(4) or names.get(1)
+        if name:
+            if build is not None:
+                (build / FONTS_SUBDIR).mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(bundled, build / FONTS_SUBDIR / bundled.name)
+            return name
+        print(f"  captions: could not read the font name in {bundled.name}; using a system font")
+    elif asm.get("caption_font_file"):
+        print(f"  captions: {asm['caption_font_file']} not found; using a system font")
     wanted = str(asm["caption_font"])
     fallback = str(asm["caption_fallback_font"])
     fams = _fc_families()
@@ -334,7 +387,7 @@ def _ass_escape(text: str) -> str:
 
 def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> tuple[Path, int]:
     w, h = int(asm["width"]), int(asm["height"])
-    font = pick_caption_font(asm)
+    font = pick_caption_font(asm, build)
     size = int(asm["caption_size"])
     cy = int(round(h * float(asm["caption_y"])))
     lines = [
@@ -400,7 +453,10 @@ def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total:
 
     # Video: burn captions, then a light grade (desaturate + a slight cool tint).
     sat = float(asm["saturation"])
-    vchain = (f"[0:v]ass=captions.ass,eq=saturation={sat:.3f},"
+    # Relative paths only (cwd is the build dir), so no Windows drive-letter colon ever
+    # reaches the filter graph.
+    fonts = f":fontsdir={FONTS_SUBDIR}" if (build / FONTS_SUBDIR).is_dir() else ""
+    vchain = (f"[0:v]ass=captions.ass{fonts},eq=saturation={sat:.3f},"
               f"colorbalance=rs=-0.03:bs=0.04:rm=-0.02:bm=0.03:rh=-0.01:bh=0.02,"
               f"format=yuv420p[v]")
 

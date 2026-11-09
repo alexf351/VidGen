@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -10,8 +11,20 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parent
-RUNS_DIR = ROOT / "runs"
+RUNS_DIR = ROOT / "runs"                 # replaced by output_dir when the config loads
 CONFIG_PATH = ROOT / "config.yaml"
+LOCAL_CONFIG_PATH = ROOT / "config.local.yaml"
+
+# API keys: env var name for each `keys:` entry in config.local.yaml.
+KEY_ENV = {"anthropic": "ANTHROPIC_API_KEY", "fal": "FAL_KEY",
+           "elevenlabs": "ELEVENLABS_API_KEY", "sume": "SUME_API_KEY"}
+# Non-secret settings that an environment variable can override (env wins over both files).
+ENV_OVERRIDES = {"VIDGEN_FFMPEG_PATH": ("ffmpeg_path",), "VIDGEN_FFPROBE_PATH": ("ffprobe_path",),
+                 "VIDGEN_OUTPUT_DIR": ("output_dir",),
+                 "VIDGEN_IMAGE_PROVIDER": ("providers", "images"),
+                 "VIDGEN_VIDEO_PROVIDER": ("providers", "video")}
+# ffmpeg / ffprobe executables, filled in by load_config (media.py reads them at call time).
+TOOLS = {"ffmpeg": "ffmpeg", "ffprobe": "ffprobe"}
 
 # Pipeline order. Every step module exposes run(run_dir, config).
 STEP_ORDER = ["script", "images", "video", "voice", "assemble"]
@@ -21,9 +34,119 @@ class StepError(Exception):
     """A step failed in a way the user needs to see, without a traceback."""
 
 
-def load_config(path: Path = CONFIG_PATH) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f) or {}
+def deep_merge(base: dict, over: dict) -> dict:
+    """Return base with `over` merged in: nested dicts merge key by key, anything else
+    (scalars, lists) in `over` replaces the base value."""
+    out = dict(base)
+    for k, v in over.items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def _is_placeholder(value) -> bool:
+    text = str(value or "").strip()
+    return (not text or "..." in text or text.startswith("<") or text.upper().startswith("YOUR")
+            or text.lower() in ("changeme", "todo", "xxx"))
+
+
+def _read_yaml(path: Path) -> dict:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except yaml.YAMLError as e:
+        raise StepError(f"{path.name} is not valid YAML: {e}") from e
+    if not isinstance(data, dict):
+        raise StepError(f"{path.name} must be a mapping of settings")
+    return data
+
+
+def _apply_local_layers(cfg: dict, local: dict, local_name: str) -> dict:
+    """Merge config.local.yaml over config.yaml, then let environment variables win.
+
+    Records where each setting came from in cfg['_sources'] (names only, never values)."""
+    sources = cfg.setdefault("_sources", {"files": [CONFIG_PATH.name], "keys": {}, "env": []})
+    local = dict(local)
+    keys = local.pop("keys", None) or {}
+    if not isinstance(keys, dict):
+        raise StepError(f"{local_name}: keys must be a mapping like  fal: \"...\"")
+    # Shorthands from config.local.example.yaml
+    for short, kind in (("default_video_provider", "video"), ("default_image_provider", "images")):
+        if short in local:
+            value = local.pop(short)
+            if not _is_placeholder(value):
+                local.setdefault("providers", {})
+                local["providers"] = {**(local["providers"] or {}), kind: value}
+    if local or keys:
+        cfg = deep_merge(cfg, local)
+        cfg["_sources"] = sources
+        if local_name not in sources["files"]:
+            sources["files"].append(local_name)
+
+    # API keys: a real environment variable (or .env) wins; otherwise export the local value so
+    # the SDKs, which read the environment, see it.
+    unknown = sorted(set(keys) - set(KEY_ENV))
+    if unknown:
+        raise StepError(f"{local_name}: unknown keys {unknown}; use {sorted(KEY_ENV)}")
+    for name, var in KEY_ENV.items():
+        if os.environ.get(var):
+            sources["keys"][var] = "environment"
+        elif not _is_placeholder(keys.get(name)):
+            os.environ[var] = str(keys[name]).strip()
+            sources["keys"][var] = local_name
+        else:
+            sources["keys"][var] = "missing"
+
+    for var, path in ENV_OVERRIDES.items():
+        value = os.environ.get(var, "").strip()
+        if not value:
+            continue
+        node = cfg
+        for part in path[:-1]:
+            node = node.setdefault(part, {}) or {}
+        node[path[-1]] = value
+        sources["env"].append(var)
+    return cfg
+
+
+def sibling_ffprobe(ffmpeg: str) -> str:
+    """ffprobe ships next to ffmpeg: same folder, same extension (.exe on Windows). Windows-style
+    paths are handled with Windows rules whatever the OS, so this behaves the same everywhere."""
+    from pathlib import PurePosixPath, PureWindowsPath
+    windows = "\\" in ffmpeg or re.match(r"^[A-Za-z]:", ffmpeg) is not None
+    p = (PureWindowsPath if windows else PurePosixPath)(ffmpeg)
+    if str(p.parent) in ("", "."):
+        return "ffprobe"                      # a bare command name: look it up on PATH too
+    return str(p.with_name(re.sub("ffmpeg", "ffprobe", p.name, flags=re.IGNORECASE)))
+
+
+def _resolve_tools_and_dirs(cfg: dict) -> None:
+    global RUNS_DIR
+    ffmpeg = str(cfg.get("ffmpeg_path") or "").strip()
+    ffprobe = str(cfg.get("ffprobe_path") or "").strip()
+    if ffmpeg and not ffprobe:
+        ffprobe = sibling_ffprobe(ffmpeg)
+    TOOLS["ffmpeg"] = ffmpeg or "ffmpeg"
+    TOOLS["ffprobe"] = ffprobe or "ffprobe"
+    cfg["ffmpeg_path"], cfg["ffprobe_path"] = TOOLS["ffmpeg"], TOOLS["ffprobe"]
+
+    out = Path(str(cfg.get("output_dir") or "runs").strip()).expanduser()
+    RUNS_DIR = out if out.is_absolute() else ROOT / out
+    cfg["output_dir"] = str(RUNS_DIR)
+
+
+def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG_PATH) -> dict:
+    """config.yaml, then config.local.yaml deep-merged over it (if present), then env vars.
+    cfg['_sources'] says which of those were used (names only, never secret values)."""
+    cfg = _read_yaml(path)
+    cfg["_sources"] = {"files": [path.name], "keys": {}, "env": []}
+    local = {}
+    if local_path is not None and Path(local_path).is_file():
+        local = _read_yaml(Path(local_path))
+    cfg = _apply_local_layers(cfg, local, Path(local_path).name if local_path else "config.local.yaml")
+    _resolve_tools_and_dirs(cfg)
     cfg.setdefault("max_animated_shots", 8)
     cfg.setdefault("script", {})
     cfg["script"].setdefault("model", "claude-sonnet-5-5")
@@ -56,6 +179,7 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
                          ("app_screen_seconds", 1.5), ("app_screen_zoom_end", 1.04),
                          ("montage_seconds", 0.5), ("montage_zoom_end", 1.12),
                          ("caption_font", "Montserrat Black Italic"),
+                         ("caption_font_file", "assets/fonts/Montserrat-BlackItalic.ttf"),
                          ("caption_fallback_font", "Arial Black"), ("caption_size", 90),
                          ("caption_y", 0.55), ("music_volume", 0.15), ("saturation", 0.85)]:
         asm.setdefault(key, default)
@@ -202,6 +326,11 @@ def slugify(text: str, max_len: int = 32) -> str:
 
 def new_run_id(premise: str) -> str:
     return f"{datetime.now():%Y%m%d-%H%M%S}-{slugify(premise)}"
+
+
+def runs_dir() -> Path:
+    """Where runs live (config output_dir, default <repo>/runs)."""
+    return RUNS_DIR
 
 
 def run_dir_for(run_id: str, must_exist: bool = True) -> Path:

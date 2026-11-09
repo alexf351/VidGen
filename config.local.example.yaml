@@ -1,0 +1,35 @@
+# Copy this file to config.local.yaml and fill in what you need. config.local.yaml is not
+# committed (it is in .gitignore). It is deep-merged over config.yaml, so you only list the
+# settings you want to change; any other config.yaml setting can be overridden the same way.
+#
+# Precedence, lowest to highest: config.yaml < config.local.yaml < environment variables.
+# A key already set in the environment or in .env wins over the value here.
+# Placeholders ("...", "<...>", empty) are ignored.
+
+# API keys (environment variable each one maps to, and what uses it).
+keys:
+  anthropic: "sk-ant-..."     # ANTHROPIC_API_KEY  - script step (Claude)
+  fal: "..."                  # FAL_KEY            - images and video on fal; Nano Banana and Seedance
+  elevenlabs: "..."           # ELEVENLABS_API_KEY - voice step
+  sume: "..."                 # SUME_API_KEY       - only if a provider below is sume (Nano Banana and Seedance on Sume)
+  # Nano Banana (Google's Gemini image model) runs through fal or Sume, so it uses FAL_KEY or
+  # SUME_API_KEY. VidGen never calls Google directly, so there is no separate Gemini key.
+
+# Full path to ffmpeg. Leave empty to find it on PATH. ffprobe is taken from the same folder.
+# On Windows use forward slashes or single quotes (in double quotes, \f and \b are escapes):
+#   ffmpeg_path: 'C:\ffmpeg\bin\ffmpeg.exe'
+#   ffmpeg_path: "C:/Users/you/AppData/Local/Microsoft/WinGet/Links/ffmpeg.exe"
+ffmpeg_path: ""
+
+# Which service generates video clips and images: fal or sume.
+default_video_provider: fal   # same as providers.video
+default_image_provider: fal   # same as providers.images
+
+# Where runs are written. Relative paths are inside the repo; absolute paths work too.
+output_dir: "runs"            # e.g. 'D:\VidGen\runs'
+
+# Any other config.yaml setting, for example:
+# sume:
+#   max_concurrent: 4
+# assemble:
+#   caption_font_file: "assets/fonts/Montserrat-BlackItalic.ttf"

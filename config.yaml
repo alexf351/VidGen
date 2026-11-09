@@ -21,6 +21,12 @@ elevenlabs:
   output_format: "mp3_44100_128"
   cost_per_1k_chars: 0.22        # USD per 1000 characters, for the running estimate
 
+# Machine-specific settings (API keys, ffmpeg location, output folder, providers) go in
+# config.local.yaml, which is merged over this file and not committed. Start from
+# config.local.example.yaml. Environment variables override both files.
+ffmpeg_path: ""                 # empty = find ffmpeg on PATH; ffprobe comes from the same folder
+output_dir: "runs"              # where runs are written; relative to the repo or absolute
+
 # Background music mixed under the final cut. Empty = no music bed (add it on-platform).
 music_path: ""
 
@@ -41,6 +47,7 @@ assemble:
   montage_zoom_end: 1.12        # quick punch-in on each montage shot, from 1.00 to this
   zoom_end: 1.08                # still shots push in from 1.00 to this
   caption_font: "Montserrat Black Italic"
+  caption_font_file: "assets/fonts/Montserrat-BlackItalic.ttf"   # bundled (SIL OFL); loaded by libass directly
   caption_fallback_font: "Arial Black"
   caption_size: 90
   caption_y: 0.55               # vertical centre of the caption, fraction of height

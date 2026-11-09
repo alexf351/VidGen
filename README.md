@@ -9,26 +9,64 @@ video, voice and assemble in order and leaves `runs/<run_id>/final.mp4`.
 
 ## Setup
 
-Requires Python 3.11.
+Requires Python 3.11+ and ffmpeg (with libass, which every common build has).
+
+macOS / Linux:
 
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # then fill in the keys
+cp config.local.example.yaml config.local.yaml   # then fill in your keys
+python main.py doctor
 ```
 
-`.env` holds `ANTHROPIC_API_KEY`, `FAL_KEY` and `ELEVENLABS_API_KEY`. It is loaded with
-python-dotenv and ignored by git. The script step needs the Anthropic key, images and video
-need the fal key (or `SUME_API_KEY` when Sume is selected, see below), and voice needs the
-ElevenLabs key. Assembly needs `ffmpeg` and `ffprobe`
-on your PATH.
+Windows (PowerShell):
+
+```powershell
+winget install Python.Python.3.11
+winget install Gyan.FFmpeg          # then open a NEW terminal so ffmpeg is on PATH
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1          # if blocked: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+pip install -r requirements.txt
+copy config.local.example.yaml config.local.yaml   # then fill in your keys
+python main.py doctor
+```
+
+`python main.py doctor` checks ffmpeg and ffprobe (and that the build has libass and libx264),
+the caption font, each API key, `assets/iro.png`, `assets/app_icon.png`, the app screenshots and
+that the output folder is writable, and prints PASS / FAIL / SKIP per item. It makes no API calls.
+
+On Windows, quote premises with single quotes in PowerShell if they contain `$` (inside double
+quotes PowerShell replaces `$500` with an empty variable): `python main.py new 'He lost $500'`.
+
+### Configuration layers
+
+1. `config.yaml`: committed project settings (style, cast, models, prices, assembly).
+2. `config.local.yaml`: your machine. Not committed. Deep-merged over `config.yaml`, so it only
+   needs the settings you change: API keys, `ffmpeg_path`, `default_video_provider`,
+   `default_image_provider`, `output_dir`, or any other key. Start from
+   `config.local.example.yaml`.
+3. Environment variables win over both files: the API keys (`ANTHROPIC_API_KEY`, `FAL_KEY`,
+   `ELEVENLABS_API_KEY`, `SUME_API_KEY`, also loaded from `.env`), and `VIDGEN_FFMPEG_PATH`,
+   `VIDGEN_OUTPUT_DIR`, `VIDGEN_VIDEO_PROVIDER`, `VIDGEN_IMAGE_PROVIDER`.
+
+Every command starts by printing which of these were loaded and where each key came from,
+never the values. Nano Banana runs through fal or Sume, so it uses `FAL_KEY` or `SUME_API_KEY`;
+there is no separate Gemini key.
+
+Captions use the bundled `assets/fonts/Montserrat-BlackItalic.ttf` (SIL Open Font License,
+`assets/fonts/OFL-Montserrat.txt`), loaded by libass directly, so nothing needs to be installed.
 
 ## Usage
 
 ```bash
 # create a run and execute every step in order
 python main.py new "A laid-off line cook opens a food truck and nobody shows up on day one"
+
+# script only: write and print the shot list, nothing sent to fal, Sume or ElevenLabs
+# (it still calls Claude to write the script, a few cents)
+python main.py new "A laid-off line cook opens a food truck" --dry-run
 
 # re-run a single step on an existing run
 python main.py step 20261103-201530-a-laid-off-line-cook script
