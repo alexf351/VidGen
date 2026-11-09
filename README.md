@@ -344,7 +344,16 @@ Rules enforced by the prompt and checked by the validator (the numbers and wordi
 - the last shot's caption is exactly `SEARCH IRO AI`
 - the style line opens every `image_prompt` (prepended if the model forgets)
 - no more than `max_animated_shots` shots are `animate: true`, reserved for shots where motion is the beat
-- `speaker` is `narrator` or a known character id; captions are at most two words (except the CTA)
+- `speaker` is a known character id (never `narrator`); captions are at most two words (except the CTA)
+- dialogue sounds spoken, not written by AI: a `vo_line` with an em dash, a semicolon, "it's not X,
+  it's Y", "not just X but Y", filler ("here's the thing", "let that sink in"), fake suspense
+  ("plot twist:") or an AI word (unlock, game-changer, next level, ...) fails validation
+  (`rules.banned_vo_line` in the format, taken from the viral-video-writing skill's checker)
+
+The prompt also asks for: a hook in shot 1 (open mid-action on the insult or the firing, readable
+on mute, an immediate camera move), something new at least every 8 seconds with the strongest
+grind moment in the middle, and at most one one-word line. These come from the
+viral-video-writing skill in `skills/`.
 
 If the JSON is invalid or fails validation, the errors are sent back to the model and it gets
 one retry. The result is saved to `runs/<run_id>/script.json` and printed as a shot table.
@@ -390,8 +399,9 @@ ffprobe is missing.
 - Every shot is scaled and cropped to fill 1080x1920 with no black bars, then all shots are
   concatenated and the voice-over clips are placed at their shot start times.
 - Captions come from a generated `.ass` file and are burned in. Every spoken word is shown,
-  1-2 words at a time in all caps, built from the word timings in `audio/<n>.json`: a chunk
-  never holds more than two words and always breaks after punctuation, appears when its first
+  one word at a time in all caps for `pixar_arc` (the format's `captions.max_words`; set it to
+  2 for two-word chunks), built from the word timings in `audio/<n>.json`: a chunk never holds
+  more than `max_words` words and always breaks after punctuation, appears when its first
   word starts and stays until the next chunk starts (the last one until the shot ends). Each
   chunk pops in from 85% to 100% scale over 80 ms. Commas and periods are dropped from the
   display; `!` and `?` are kept. Silent shots show the shot's `caption` field for the whole

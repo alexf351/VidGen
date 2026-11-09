@@ -100,6 +100,35 @@
           air around him ("payment received", "new client"), never on a phone screen. After the
           mentor beat, never show a plain laptop on a desk.
 
+        THE HOOK (SHOT 1)
+        - Shot 1 decides whether anyone keeps watching. Open in the middle of beat 1 on its most
+          dramatic moment: the insult, the firing, or her walking off with the rival. Never an
+          establishing shot, a calm setup or backstory.
+        - It must work on mute: the image alone shows the conflict (who is against the hero and
+          what he just lost), and its line is short enough to read in one second.
+        - Its motion_prompt is an immediate, readable move (a fast push-in on the hero's face, a
+          door slamming, a box of his things hitting the floor), not a slow drift.
+
+        RETENTION
+        - Something new lands at least every 8 seconds: a new counter value, a time-jump card, a
+          failure, a twist, a new place or a new person. A spoken line runs about 3-4 words a
+          second, a silent shot about 1-2 seconds; count as you go.
+        - Put the strongest grind moment (the failure, then the first big jump on the counter)
+          in the middle of the video, not saved for the end.
+        - No two shots in a row carry the same information. Every shot moves the story forward.
+
+        DIALOGUE
+        - Write lines people actually say out loud to each other. Plain, short words.
+        - Never use: em dashes or semicolons; "it's not X, it's Y" or "not just X but Y";
+          filler such as "here's the thing", "let that sink in", "the truth is", "at the end of
+          the day", "buckle up"; "spoiler:" or "plot twist:"; the words delve, unlock, unleash,
+          harness, leverage, seamless, robust, cutting-edge, game-changer, revolutionary,
+          transformative, landscape, realm, tapestry, elevate, empower, supercharge, deep dive,
+          next level, dive in.
+        - At most one one-word line in the whole script.
+        - Say numbers the way people say them ("six figures", "thirty days"); the counter in the
+          image shows the digits.
+
 {{SHOT_RULES}}
 
         FLEX MONTAGE

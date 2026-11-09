@@ -168,6 +168,7 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
     montage_rule, card_rule = rules["montage"], rules["cards"]
     APP_SCREENS_MAX, app_hint = rules["app_screens"]["max"], rules["app_screens"]["hint"]
     banned = rules["banned_image_prompt"]
+    banned_vo = rules.get("banned_vo_line") or {"fix": "", "patterns": []}
     errors: list[str] = []
     locked = locked or []
     locked_desc = {c["id"]: c["description"] for c in locked}
@@ -315,6 +316,12 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             vo = ""
         if not is_montage:                     # the montage never counts toward the word budget
             vo_words += len(vo.split())
+        if vo.strip() and banned_vo["patterns"]:
+            low = vo.lower()
+            hits = [what for pat, what in banned_vo["patterns"] if re.search(pat, low)]
+            if hits:
+                fix = f"; {banned_vo['fix']}" if banned_vo["fix"] else ""
+                errors.append(f"{label}.vo_line has {', '.join(hits)}: {vo.strip()!r}{fix}")
         speaker = s.get("speaker")
         if speaker == "narrator" and not rules["narrator"]:
             errors.append(f"{label}.speaker is 'narrator'; there is no narrator, every line is "

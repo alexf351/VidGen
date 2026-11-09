@@ -69,6 +69,7 @@ def _rules(raw, where: str) -> dict:
         "cards": None, "montage": None,
         "app_screens": {"max": 0, "hint": ""},
         "banned_image_prompt": {"fix": "", "patterns": []},
+        "banned_vo_line": {"fix": "", "patterns": []},
     }
     if raw.get("cards"):
         c = raw["cards"]
@@ -81,17 +82,18 @@ def _rules(raw, where: str) -> dict:
     if raw.get("app_screens"):
         a = raw["app_screens"]
         r["app_screens"] = {"max": int(a.get("max", 0)), "hint": str(a.get("hint") or "")}
-    banned = raw.get("banned_image_prompt") or {}
-    patterns = []
-    for i, p in enumerate(banned.get("patterns") or []):
-        if not isinstance(p, list) or len(p) != 2:
-            raise StepError(f"{where}: rules.banned_image_prompt.patterns[{i}] must be [regex, label]")
-        try:
-            re.compile(p[0])
-        except re.error as e:
-            raise StepError(f"{where}: rules.banned_image_prompt.patterns[{i}] is not a valid regex: {e}") from e
-        patterns.append((str(p[0]), str(p[1])))
-    r["banned_image_prompt"] = {"fix": str(banned.get("fix") or ""), "patterns": patterns}
+    for key in ("banned_image_prompt", "banned_vo_line"):
+        banned = raw.get(key) or {}
+        patterns = []
+        for i, p in enumerate(banned.get("patterns") or []):
+            if not isinstance(p, list) or len(p) != 2:
+                raise StepError(f"{where}: rules.{key}.patterns[{i}] must be [regex, label]")
+            try:
+                re.compile(p[0])
+            except re.error as e:
+                raise StepError(f"{where}: rules.{key}.patterns[{i}] is not a valid regex: {e}") from e
+            patterns.append((str(p[0]), str(p[1])))
+        r[key] = {"fix": str(banned.get("fix") or ""), "patterns": patterns}
     return r
 
 

@@ -36,8 +36,8 @@ music_path: ""
 outro_path: ""
 
 assemble:
-  music_volume: 0.15            # music bed level under the voice (aspect, captions, grade and
-                                # shot timing are set by the format)
+  music_volume: 0.06            # music bed level under the voice; 0.15 drowned it out
+                                # (aspect, captions, grade and shot timing are set by the format)
 
 script:
   model: "claude-sonnet-5-5"

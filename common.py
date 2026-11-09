@@ -199,7 +199,7 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
                          ("caption_fill", "&H00FFFFFF"), ("caption_outline_color", "&H00E6C8FF"),
                          ("caption_outline", 5), ("caption_blur", 6),
                          ("caption_pop_from", 85), ("caption_pop_ms", 80),
-                         ("music_volume", 0.15), ("saturation", 0.85),
+                         ("music_volume", 0.06), ("saturation", 0.85),
                          ("colorbalance", "rs=-0.03:bs=0.04:rm=-0.02:bm=0.03:rh=-0.01:bh=0.02")]:
         asm.setdefault(key, default)
     cfg["music_path"] = (cfg.get("music_path") or "").strip()
