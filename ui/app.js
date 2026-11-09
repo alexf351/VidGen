@@ -1,16 +1,14 @@
 /* VidGen editor: a single-page frontend for the local API (server.py). No build step. */
 "use strict";
 
-// Prices for the confirm dialog. /api/config does not expose rates, so these mirror config.yaml
-// (fal.* and sume.* image_cost / video_cost_per_second, elevenlabs.cost_per_1k_chars).
+// Fallback prices, used only if /api/config has no "prices" (an older server). They mirror
+// config.yaml (fal.* and sume.* image_cost / video_cost_per_second, elevenlabs.cost_per_1k_chars).
 const RATES = {
   fal: { image: 0.0398, video: { "480p": 0.1125, "720p": 0.2419 } },
   sume: { image: 0.039, video: { "480p": 0.056246, "720p": 0.12096 } },
   voicePer1k: 0.22,
 };
-// Rough size of a full run when the script does not exist yet (pixar_arc's limits: up to 22
-// story shots + 8 montage shots, 8 animated, about 100 spoken words). Formats do not expose
-// their rules through the API, so this is an upper-bound guess for any format.
+// Upper-bound guess for a full run when a format reports no limits (an older server).
 const NEW_RUN_GUESS = { images: 30, sheets: 6, clips: 8, voiceChars: 650 };
 const STEPS = ["script", "images", "video", "voice", "assemble"];
 const ACTIVE = new Set(["queued", "running"]);
@@ -125,12 +123,20 @@ function clipSeconds(formatName) {
   const f = S.formats.find((x) => x.name === formatName);
   return (f && f.clip_seconds) || (S.config && S.config.video.clip_seconds) || 4;
 }
-function imageCost(n, choice) { return n * RATES[providerFor("images", choice)].image; }
-function clipCost(n, formatName, choice) {
-  const p = providerFor("video", choice);
-  return n * clipSeconds(formatName) * (RATES[p].video[resolution()] ?? RATES[p].video["480p"]);
+function prices() {
+  const p = S.config && S.config.prices;
+  if (!p) return RATES;
+  return { fal: { image: p.fal.image, video: p.fal.video_per_second },
+           sume: { image: p.sume.image, video: p.sume.video_per_second }, voicePer1k: p.voice_per_1k_chars };
 }
-function voiceCost(chars) { return (chars / 1000) * RATES.voicePer1k; }
+function imageRate(choice) { return prices()[providerFor("images", choice)].image; }
+function videoRate(choice) {
+  const v = prices()[providerFor("video", choice)].video;
+  return v[resolution()] ?? Object.values(v)[0];
+}
+function imageCost(n, choice) { return n * imageRate(choice); }
+function clipCost(n, formatName, choice) { return n * clipSeconds(formatName) * videoRate(choice); }
+function voiceCost(chars) { return (chars / 1000) * prices().voicePer1k; }
 
 function targetShots(run, step, only) {
   const shots = run.shots;
@@ -155,14 +161,14 @@ function estimateStep(run, step, only) {
   const shots = targetShots(run, step, only);
   if (step === "images") {
     const sheets = missingSheets(run, shots);
-    const rows = [[`${plural(shots.length, "keyframe")}${sheets ? ` + ${plural(sheets, "sheet")}` : ""} × ${usd(RATES[providerFor("images")].image)} (${providerFor("images")})`,
+    const rows = [[`${plural(shots.length, "keyframe")}${sheets ? ` + ${plural(sheets, "sheet")}` : ""} × ${usd(imageRate())} (${providerFor("images")})`,
       imageCost(shots.length + sheets)]];
     return { rows, total: imageCost(shots.length + sheets), count: shots.length + sheets,
       note: sheets ? "Sheets for locked characters with a reference image (Iro) cost nothing; counted anyway." : null };
   }
   if (step === "video") {
     const p = providerFor("video");
-    return { rows: [[`${plural(shots.length, "clip")} × ${clipSeconds(fmt)}s × ${usd(RATES[p].video[resolution()])}/s (${p}, ${resolution()})`, clipCost(shots.length, fmt)]],
+    return { rows: [[`${plural(shots.length, "clip")} × ${clipSeconds(fmt)}s × ${usd(videoRate())}/s (${p}, ${resolution()})`, clipCost(shots.length, fmt)]],
       total: clipCost(shots.length, fmt), count: shots.length };
   }
   if (step === "voice") {
@@ -184,13 +190,22 @@ function estimateReroll(run, shot) {
   return { rows, total };
 }
 
+// Upper bound for a whole video in a format, from its limits: every shot drawn, the most
+// animated clips it allows, the longest script it allows (about 6 characters a spoken word).
+function formatSize(formatName) {
+  const f = S.formats.find((x) => x.name === formatName);
+  const L = f && f.limits;
+  if (!L) return { ...NEW_RUN_GUESS, guess: true };
+  const images = L.story_shots[1] + (L.montage ? L.montage[1] : 0) - (L.cards ? L.cards[0] : 0);
+  return { images, sheets: f.locked_cast.length + 2, clips: L.max_animated_shots ?? 8, voiceChars: L.vo_words[1] * 6 };
+}
 function estimateNew(formatName, choice) {
-  const g = NEW_RUN_GUESS;
+  const g = formatSize(formatName);
   const rows = [
     ["Script (Claude)", "a few cents"],
-    [`~${g.images} keyframes + ${g.sheets} sheets (${providerFor("images", choice)})`, imageCost(g.images + g.sheets, choice)],
+    [`up to ${g.images} keyframes + ~${g.sheets} sheets (${providerFor("images", choice)})`, imageCost(g.images + g.sheets, choice)],
     [`up to ${g.clips} clips × ${clipSeconds(formatName)}s (${providerFor("video", choice)}, ${resolution()})`, clipCost(g.clips, formatName, choice)],
-    [`~${g.voiceChars} characters of voice`, voiceCost(g.voiceChars)],
+    [`up to ~${g.voiceChars} characters of voice`, voiceCost(g.voiceChars)],
   ];
   const total = rows.reduce((a, [, v]) => a + (typeof v === "number" ? v : 0), 0);
   return { rows, total };
@@ -375,71 +390,175 @@ function renderSidebar() {
   }));
 }
 
-// -------------------------------------------------------------- new view
-function renderNew() {
-  const fmtSel = h("select", { id: "f-format" }, S.formats.filter((f) => !f.error).map((f) =>
-    h("option", { value: f.name, selected: f.default }, f.name)));
-  const desc = h("div", { class: "format-desc" });
-  const beats = h("div", { class: "beats" });
-  const showFormat = () => {
-    const f = S.formats.find((x) => x.name === fmtSel.value);
-    desc.textContent = f ? f.description : "";
-    beats.textContent = f && f.beats.length ? f.beats.join("  ›  ") : "";
-  };
-  fmtSel.addEventListener("change", showFormat);
-  showFormat();
+// ---------------------------------------------------------- studio views
+function formatTitle(f) { return f.title || f.name.replace(/_/g, " "); }
 
+// A format with no cover yet gets a quiet stand-in: a dark tint keyed to its name, its initial.
+function coverArt(f, big) {
+  const hue = [...f.name].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
+  return h("div", { class: `cover-art${big ? " big" : ""}`,
+    style: `background: radial-gradient(110% 70% at 50% 30%, hsl(${hue} 38% 24%), hsl(${hue} 30% 11%) 72%, #0a0c13)` },
+    h("span", { class: "cover-initial" }, formatTitle(f).slice(0, 1)),
+    h("span", { class: "cover-none" }, "no cover yet"));
+}
+
+function coverImg(f) {
+  if (!f.cover) return coverArt(f);
+  return h("img", { src: f.cover, alt: "", loading: "lazy" });
+}
+
+function renderStudio() {
+  const formats = S.formats.filter((f) => !f.error).sort((x, y) => (y.default ? 1 : 0) - (x.default ? 1 : 0));
+  const broken = S.formats.filter((f) => f.error);
+  const cards = formats.map((f) => {
+    const est = estimateNew(f.name, "");
+    return h("a", { class: `fcard${f.default ? " default" : ""}`, href: `#/new/${encodeURIComponent(f.name)}`,
+      title: f.description },
+      h("div", { class: "fcard-img" }, coverImg(f), f.default ? h("span", { class: "fcard-tag" }, "Default") : null),
+      h("div", { class: "fcard-body" },
+        h("div", { class: "fcard-title" }, formatTitle(f)),
+        h("div", { class: "fcard-desc" }, f.description)),
+      h("div", { class: "fcard-cost" }, `about ${usd(est.total)} a video`));
+  });
+  $("#main").replaceChildren(h("div", { class: "view studio" },
+    doctorNotice(),
+    h("div", { class: "studio-head" },
+      h("div", {}, h("h1", {}, "Studio"), h("p", { class: "lede" }, "Pick a format. Each one is a look and a story shape.")),
+      h("span", { class: "muted", style: "font-size:12px" }, `${formats.length} formats`)),
+    h("div", { class: "fgrid" }, cards),
+    broken.length ? h("div", { class: "notice bad", style: "margin-top:18px" },
+      h("b", {}, "Formats that did not load"), h("ul", {}, broken.map((f) => h("li", {}, h("b", {}, f.name), ": ", f.error)))) : null));
+  if (!S.doctor) loadDoctor();
+}
+
+function chips(options, value, onChange, label) {
+  const wrap = h("div", { class: "chips", role: "radiogroup", "aria-label": label });
+  const draw = (v) => wrap.replaceChildren(...options.map(([val, text, sub]) =>
+    h("button", { type: "button", class: `chip${val === v ? " on" : ""}`, role: "radio", "aria-checked": String(val === v),
+      onclick: () => { draw(val); onChange(val); } }, text, sub ? h("span", { class: "chip-sub" }, sub) : null)));
+  draw(value);
+  return wrap;
+}
+
+function renderCreate(formatName) {
+  const f = S.formats.find((x) => x.name === formatName && !x.error);
+  if (!f) { $("#main").replaceChildren(h("div", { class: "empty" }, `No format called "${formatName}". `, h("a", { href: "#/new", class: "muted" }, "Back to Studio"))); return; }
+  const st = { provider: "", dry: false };
   const d = S.config.providers.default;
-  const provSel = h("select", { id: "f-provider" },
-    h("option", { value: "" }, `Config default (images ${d.images}, video ${d.video})`),
-    h("option", { value: "fal" }, "fal for everything"),
-    h("option", { value: "sume" }, "Sume for everything"));
-  const keyWarn = h("div", { class: "format-desc" });
-  const checkKey = () => {
-    const kinds = new Set([providerFor("images", provSel.value), providerFor("video", provSel.value)]);
+  const premise = h("textarea", { class: "premise-box", id: "f-premise", rows: "6", maxlength: "600",
+    placeholder: f.limits && f.limits.narrator ? "A baker's oven dies the day her cake goes viral…"
+      : "A laid-off line cook buys a beat-up food truck and nobody shows up on day one…" });
+  const count = h("span", { class: "count-note" });
+  const costLine = h("div", { class: "cost-big" }); const costSub = h("div", { class: "cost-sub" });
+  const keyWarn = h("div", { class: "field-note warn" });
+  const go = h("button", { class: "btn primary go", type: "submit" }, "Generate video");
+  const update = () => {
+    const words = premise.value.trim() ? premise.value.trim().split(/\s+/).length : 0;
+    count.textContent = words ? `${words} words` : "One or two sentences is plenty";
+    const kinds = new Set([providerFor("images", st.provider), providerFor("video", st.provider)]);
     const missing = [...kinds].filter((p) => !S.config.keys_present[p === "fal" ? "FAL_KEY" : "SUME_API_KEY"]);
     keyWarn.textContent = missing.length ? `No API key set for ${missing.join(", ")}.` : "";
-    keyWarn.style.color = missing.length ? "var(--warn)" : "";
+    if (st.dry) {
+      costLine.textContent = "a few cents"; costSub.textContent = "Script only. Nothing goes to the image, video or voice providers.";
+      go.textContent = "Write the script";
+    } else {
+      const est = estimateNew(f.name, st.provider);
+      costLine.textContent = `up to ${usd(est.total)}`;
+      costSub.textContent = est.rows.slice(1).map(([k]) => k).join(" · ");
+      go.textContent = "Generate video";
+    }
   };
-  provSel.addEventListener("change", checkKey);
-  checkKey();
+  premise.addEventListener("input", update);
 
-  const premise = h("textarea", { class: "premise-box", id: "f-premise", rows: "5", maxlength: "600",
-    placeholder: "A laid-off line cook buys a beat-up food truck and nobody shows up on day one…" });
-  const dry = h("input", { type: "checkbox", id: "f-dry" });
-  const go = h("button", { class: "btn primary", type: "submit" }, "Generate");
-  const form = h("form", { class: "view new-view", onsubmit: async (e) => {
+  const L = f.limits || {};
+  const details = h("details", { class: "card-sec" },
+    h("summary", {}, h("span", { class: "sec-label" }, "Format details"), h("span", { class: "muted" }, "Show")),
+    h("dl", { class: "facts" },
+      f.duration_target ? [h("dt", {}, "Length"), h("dd", {}, f.duration_target)] : null,
+      L.story_shots ? [h("dt", {}, "Shots"), h("dd", {}, `${L.story_shots[0]}-${L.story_shots[1]}${L.montage ? ` + ${L.montage[0]}-${L.montage[1]} montage` : ""}`)] : null,
+      L.vo_words ? [h("dt", {}, "Spoken words"), h("dd", {}, `${L.vo_words[0]}-${L.vo_words[1]}${L.narrator ? ", narrated" : ", dialogue only"}`)] : null,
+      h("dt", {}, "Clips"), h("dd", {}, `up to ${L.max_animated_shots ?? "?"} × ${f.clip_seconds || 4}s`),
+      f.locked_cast.length ? [h("dt", {}, "Cast"), h("dd", {}, f.locked_cast.join(", "))] : null,
+      L.cta_caption ? [h("dt", {}, "Ends on"), h("dd", {}, L.cta_caption)] : null),
+    f.beats.length ? h("ol", { class: "beat-list" }, f.beats.map((b) => h("li", {}, b))) : null);
+
+  const form = h("form", { class: "create-left", onsubmit: async (e) => {
     e.preventDefault();
     const text = premise.value.trim();
     if (!text) { premise.focus(); toast("Write a premise first.", "bad"); return; }
-    if (!dry.checked) {
-      const est = estimateNew(fmtSel.value, provSel.value);
-      const ok = await confirmDialog({ title: "Generate the full video?", rows: est.rows, total: est.total,
+    if (!st.dry) {
+      const est = estimateNew(f.name, st.provider);
+      const ok = await confirmDialog({ title: `Generate a ${formatTitle(f)} video?`, rows: est.rows, total: est.total,
         text: "Runs script, images, video, voice and assemble.", ok: "Generate",
-        note: "A rough upper bound: the real count depends on the shot list. Tick Dry run to see the script first for a few cents." });
+        note: "An upper bound from the format's limits; the real cost depends on the shot list. Choose Script only to check it first for a few cents." });
       if (!ok) return;
     }
     go.disabled = true;
-    const r = await submit(api("POST", "/api/runs", { premise: text, format: fmtSel.value, provider: provSel.value || null, dry_run: dry.checked }),
-      dry.checked ? "dry run" : "new video");
+    const r = await submit(api("POST", "/api/runs", { premise: text, format: f.name, provider: st.provider || null, dry_run: st.dry }),
+      st.dry ? "script" : `${formatTitle(f)} video`);
     go.disabled = false;
     if (r) { await refreshRuns(); location.hash = `#/run/${encodeURIComponent(r.run_id)}`; }
   } },
-    doctorNotice(),
-    h("h1", {}, "New video"),
-    h("p", { class: "lede" }, "One premise in, a finished vertical short out."),
-    h("label", { class: "field" }, h("span", {}, "Premise"), premise),
-    h("div", { class: "row", style: "margin-top:14px" },
-      h("label", { class: "field" }, h("span", {}, "Format"), fmtSel),
-      h("label", { class: "field" }, h("span", {}, "Provider"), provSel)),
-    h("div", { style: "margin-top:6px" }, desc, beats, keyWarn),
-    h("div", { class: "row", style: "margin-top:18px; align-items:center" },
-      h("label", { class: "check" }, dry, "Dry run: write the script only (a few cents)"),
-      h("span", { style: "flex:1" }), go));
+    h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Premise"), count), premise),
+    h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Output")),
+      chips([[false, "Full video"], [true, "Script only", "a few cents"]], st.dry, (v) => { st.dry = v; update(); }, "Output")),
+    h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Provider")),
+      chips([["", "Default", `${d.images} / ${d.video}`], ["fal", "fal"], ["sume", "Sume"]], st.provider, (v) => { st.provider = v; update(); }, "Provider"),
+      keyWarn),
+    details,
+    h("section", { class: "card-sec cost-card" }, h("div", {}, costLine, costSub), go));
   premise.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) form.requestSubmit(); });
-  $("#main").replaceChildren(form);
+
+  // The example: the format's example video, else its cover, else the stand-in art.
+  const frame = h("div", { class: "example-frame" });
+  let video = null;
+  if (f.example_video) {
+    video = h("video", { src: f.example_video, muted: true, loop: true, playsinline: true, autoplay: true, preload: "auto" });
+    video.muted = true;
+    frame.append(video);
+  } else if (f.cover) {
+    frame.append(h("img", { src: f.cover, alt: `${formatTitle(f)} example` }));
+  } else {
+    frame.append(coverArt(f, true));
+  }
+  if (f.example_video || f.cover) frame.append(h("span", { class: "example-tag" }, "Example"));
+  const soundBtn = video ? h("button", { class: "btn small", type: "button", onclick: () => {
+    video.muted = !video.muted; if (!video.muted) { video.currentTime = 0; video.play(); }
+    soundBtn.textContent = video.muted ? "Play with sound" : "Mute";
+  } }, "Play with sound") : null;
+  const right = h("section", { class: "create-right" },
+    h("div", { class: "sec-label" }, "Your result"),
+    h("div", { class: "example-wrap" }, frame,
+      soundBtn ? h("div", { class: "example-actions" }, soundBtn) : null,
+      h("p", { class: "example-note" }, f.example_video || f.cover
+        ? `A finished ${formatTitle(f)}. Your video replaces it once you generate.`
+        : `No example yet. Make one, then use "Use as cover" on a shot or "Use as example" on the finished video.`)));
+
+  $("#main").replaceChildren(h("div", { class: "view create" },
+    h("a", { class: "back-link", href: "#/new" }, "‹ Studio"),
+    h("h1", {}, formatTitle(f)),
+    h("p", { class: "lede" }, f.description),
+    doctorNotice(),
+    h("div", { class: "create-grid" }, form, right)));
+  update();
   premise.focus();
   if (!S.doctor) loadDoctor();
+}
+
+async function setFormatMedia(run, kind, shotN) {
+  const f = S.formats.find((x) => x.name === run.format);
+  const title = f ? formatTitle(f) : run.format;
+  const ok = await confirmDialog({ title: kind === "cover" ? `Use shot ${shotN} as the ${title} cover?` : `Use this video as the ${title} example?`,
+    ok: kind === "cover" ? "Use as cover" : "Use as example",
+    text: kind === "cover" ? "It shows on this format's card in the Studio. It replaces the current cover, if any."
+      : "It plays on this format's create screen. It replaces the current example, if any." });
+  if (!ok) return;
+  try {
+    await api("POST", `/api/formats/${encodeURIComponent(run.format)}/${kind}`,
+      kind === "cover" ? { run_id: run.run_id, shot: shotN } : { run_id: run.run_id });
+    S.formats = await api("GET", "/api/formats");
+    toast(kind === "cover" ? `Cover set for ${title}` : `Example set for ${title}`, "ok");
+  } catch (e) { toast(e.message, "bad"); }
 }
 
 function doctorNotice() {
@@ -580,6 +699,10 @@ function shotCard(run, s, busy) {
         if (bar) bar.replaceWith(selectionBar(run, runBusy(run.run_id)));
       } }));
   }
+  if (s.image) {
+    thumb.append(h("button", { class: "set-cover", title: "Use as this format's cover in the Studio",
+      "aria-label": `Use shot ${s.n} as the format cover`, onclick: (e) => { e.stopPropagation(); setFormatMedia(run, "cover", s.n); } }, "★"));
+  }
   if (s.audio) {
     let audio = null;
     const btn = h("button", { class: "play-audio", title: "Play line", "aria-label": `Play shot ${s.n} line`,
@@ -610,7 +733,8 @@ function sideColumn(run, busy) {
     col.append(h("video", { class: "player", controls: true, playsinline: true, preload: "metadata", src }),
       h("div", { class: "final-actions" },
         h("a", { class: "btn small", href: src, download: `${run.run_id}.mp4` }, "Download mp4"),
-        h("a", { class: "btn small ghost", href: src, target: "_blank", rel: "noopener" }, "Open")));
+        h("a", { class: "btn small ghost", href: src, target: "_blank", rel: "noopener" }, "Open"),
+        h("button", { class: "btn small ghost", onclick: () => setFormatMedia(run, "example") }, "Use as example")));
   } else {
     col.append(h("div", { class: "player-empty" }, run.script ? "Not assembled yet. Run Assemble once images, clips and voice are in." : "No video yet."));
   }
@@ -825,11 +949,14 @@ function route() {
   if (runId !== S.runId) { S.selected.clear(); S.saveErrors = null; S.afterSave = null; S.draft = null; S.draftFor = null; S.run = null; }
   S.runId = runId;
   renderSidebar();
+  const nf = location.hash.match(/^#\/new\/(.+)$/);
   if (runId) {
     if (!S.run) $("#main").replaceChildren(h("div", { class: "empty" }, h("span", { class: "spin" }), "  Loading…"));
     loadRun(runId);
+  } else if (nf) {
+    renderCreate(decodeURIComponent(nf[1]));
   } else {
-    renderNew();
+    renderStudio();
   }
   $("#main").focus({ preventScroll: true });
 }

@@ -190,10 +190,15 @@ The editor (`ui/`: `index.html`, `app.css`, `app.js`; plain HTML/CSS/JS, no buil
 
 - **Sidebar**: New video, and every run with its state (video ready, script only, in progress,
   running, last job failed).
-- **New video**: premise, format, provider, dry run. Setup problems from `doctor` show on top.
+- **Studio** (New video): every format as a card with its cover, description and an "about $X a
+  video" estimate from the format's own limits. Pick one to open its create screen: premise,
+  output (full video or script only), provider, format details (length, shots, clips, cast, beats)
+  and the cost, next to the format's example video or cover. Setup problems from `doctor` show on
+  top.
 - **Run**: the step pipeline with per-step progress (click a step to run it), the provider for
   actions, the estimated cost so far; the cast sheets; a 9:16 card per shot (keyframe, clip
-  plays on hover, play button for the line, Reroll / Image / Voice); select several shots to
+  plays on hover, play button for the line, Reroll / Image / Voice, ★ to use it as the format's
+  cover); select several shots to
   redo images, video or voice for just those; the final video with Download; and the script
   editor (dialogue, speaker, caption, time-card text) that validates on save and offers to
   redo the voice for changed lines.
@@ -201,8 +206,8 @@ The editor (`ui/`: `index.html`, `app.css`, `app.js`; plain HTML/CSS/JS, no buil
   line of any that failed.
 
 Every paid action asks first with an estimate (keyframes × image price, clips × clip length ×
-price per second, voice characters × price). The prices are copied from `config.yaml` into
-`ui/app.js` (`RATES`), because the API does not expose them; update both if prices change.
+price per second, voice characters × price), using the prices in `config.yaml` (served by
+`/api/config`).
 Dry runs, Assemble and Recast make no paid calls and do not ask. Buttons on a run are disabled
 while it has a queued or running job, and the run refreshes (with fresh media) when a job ends.
 
