@@ -165,7 +165,11 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
     cfg.setdefault("max_animated_shots", 8)
     cfg.setdefault("script", {})
     cfg["script"].setdefault("model", "claude-sonnet-5-5")
-    cfg["script"].setdefault("max_tokens", 16000)
+    cfg["script"].setdefault("max_tokens", 64000)
+    effort = str(cfg["script"].get("effort") or "").strip().lower()
+    if effort and effort not in ("low", "medium", "high", "xhigh", "max"):
+        raise StepError(f"config: script.effort must be low, medium, high, xhigh or max, got {effort!r}")
+    cfg["script"]["effort"] = effort
     if not cfg.get("style"):
         raise StepError(f"{fmt['file']} is missing the 'style' line")
     cfg["format"] = {k: v for k, v in fmt.items() if k != "overlay"}

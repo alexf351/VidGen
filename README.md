@@ -393,7 +393,8 @@ characters_cache/<id>.png   generated sheets for locked characters, reused by ev
 |----------------------|---------------------------------------------------------------|
 | `voice_id`           | default ElevenLabs voice                                       |
 | `script.model`       | Claude model for the script step (`claude-sonnet-5-5`)         |
-| `script.max_tokens`  | output cap for the script request                              |
+| `script.max_tokens`  | cap on one script reply, the model's thinking included (64000) |
+| `script.effort`      | how hard the model thinks: `low` to `max`; empty = its default |
 | `characters_cache_dir` | where generated locked-character sheets are cached           |
 | `fal.image_model`    | text-to-image endpoint (`fal-ai/nano-banana`)                  |
 | `fal.image_edit_model` | reference-image endpoint (`fal-ai/nano-banana/edit`)         |

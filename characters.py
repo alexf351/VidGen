@@ -218,8 +218,9 @@ def describe_image(image: Path, config: dict, client=None) -> str:
     client = client or create_client()
     model = config["script"]["model"]
     print(f"[character] describing {image.name} with {model}...")
-    response = call_model(client, model, 400, "You write short, literal character descriptions.",
-                          [{"role": "user", "content": content}])
+    # Room for the model's thinking as well as the one sentence; low effort keeps it quick.
+    response = call_model(client, model, 4000, "You write short, literal character descriptions.",
+                          [{"role": "user", "content": content}], effort="low")
     text = re.sub(r"\s+", " ", response_text(response)).strip().strip('"').strip()
     text = text.rstrip(".")
     if not text:

@@ -41,7 +41,11 @@ assemble:
 
 script:
   model: "claude-sonnet-5-5"
-  max_tokens: 16000
+  # The cap on one reply. The model thinks before it writes and the thinking counts toward this
+  # too, so it needs room for both (you pay only for what is used, not for the cap).
+  max_tokens: 64000
+  # How hard the model thinks: low | medium | high | xhigh | max. Empty = the model's default.
+  effort: ""
 
 # python main.py import-skill: converts a Claude skill into a format (one call per import,
 # a second only if the first result does not fit the format schema).

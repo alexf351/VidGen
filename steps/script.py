@@ -99,14 +99,20 @@ def create_client() -> anthropic.Anthropic:
 
 
 def call_model(client: anthropic.Anthropic, model: str, max_tokens: int,
-               system: str, messages: list) -> anthropic.types.Message:
-    """One Messages API request. Streams so long shot lists never hit HTTP timeouts."""
+               system: str, messages: list, effort: str | None = None) -> anthropic.types.Message:
+    """One Messages API request. Streams so long shot lists never hit HTTP timeouts.
+
+    max_tokens covers the model's thinking as well as its answer (current models think before
+    they write), so it needs room for both. `effort` (low | medium | high | xhigh | max) sets
+    how much it thinks; None leaves the model's default."""
+    extra = {"output_config": {"effort": effort}} if effort else {}
     try:
         with client.messages.stream(
             model=model,
             max_tokens=max_tokens,
             system=system,
             messages=messages,
+            **extra,
         ) as stream:
             response = stream.get_final_message()
     except anthropic.AuthenticationError as e:
@@ -124,7 +130,9 @@ def call_model(client: anthropic.Anthropic, model: str, max_tokens: int,
             detail = f" ({response.stop_details.category}: {response.stop_details.explanation})"
         raise StepError(f"the model declined to write this script{detail}")
     if response.stop_reason == "max_tokens":
-        raise StepError(f"response was cut off at max_tokens={max_tokens}; raise script.max_tokens in config.yaml")
+        raise StepError(f"the model's reply was cut off at max_tokens={max_tokens} (its thinking counts "
+                        f"toward that limit too); raise script.max_tokens in config.local.yaml, or set "
+                        f"script.effort: medium so it thinks less")
     return response
 
 
@@ -581,7 +589,8 @@ def generate_script(premise: str, config: dict, client=None) -> dict:
     last_error = None
     for attempt in (1, 2):
         print(f"[script] calling {model} (attempt {attempt}/2)...")
-        response = call_model(client, model, max_tokens, system, messages)
+        response = call_model(client, model, max_tokens, system, messages,
+                              effort=config["script"].get("effort") or None)
         text = response_text(response)
         try:
             return validate_and_normalize(parse_json(text), style, max_animated, locked, screens,
