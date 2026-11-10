@@ -146,7 +146,24 @@ Six more, from the formats ad buyers rank highest right now:
 | `founder_podcast` | a podcast clip where the founder tells the story behind the app | talking shots |
 | `song_ad` | a 3D animated mini-story told as a song, karaoke lyrics on screen | song mode |
 
+And seven modelled on formats from Fastlane's gallery:
+
+| format | what it is | built on |
+|---|---|---|
+| `explainer_3d` | a fast narrated 3D explainer in the Zack D Films style: one idea, one visual metaphor | narrator + clips |
+| `skeleton` | a glowing skeleton lives your day while a narrator explains what your brain is doing | narrator + a locked skeleton |
+| `felt`, `fashion_doll` | the narrated story ad in needle-felted wool, or with plastic fashion dolls (the Barbie look) | same as claymation |
+| `news_anchor` | a deadpan anchor breaks the viewer's problem as tonight's top story, red banner on screen | talking shots + labels |
+| `podcast` | two hosts at their mics, back-and-forth | talking shots |
+| `beginner_expert` | three people pass a mic, each with a sharper take, with BEGINNER / INTERMEDIATE / EXPERT tags | talking shots + labels |
+
+(The Lego look is the `brick` format.)
+
 Each adds one capability a format can switch on in its `rules`:
+
+- **Labels** (`rules.labels: true`). A shot may carry `"label"`: a tag of up to three words shown
+  at the top of the screen for the whole shot, on a coloured box. The format's `labels:` block
+  sets size, position, the default box colour and a colour per label text.
 
 - **Letter shots** (`rules.letter: true`). Every shot carries `"letter"`: its line of the letter.
   The assemble step draws the letter so far, in a handwriting font (Caveat, `assets/fonts/`), on

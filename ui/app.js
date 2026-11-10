@@ -849,6 +849,7 @@ function shotCard(run, s, busy) {
     h("span", { class: "badge n" }, `#${s.n}`),
     s.kind !== "shot" ? h("span", { class: "badge kind" }, s.kind === "app_screen" ? "APP" : s.kind.toUpperCase()) : null,
     shot.animate ? h("span", { class: "badge anim", title: s.clip ? "Animated clip (hover to play)" : "Animated: no clip yet" }, s.clip ? "▶ clip" : "▶ —") : null,
+    shot.label ? h("span", { class: "badge kind", title: "On-screen label for this shot" }, shot.label) : null,
     shot.talk ? h("span", { class: "badge anim", title: s.clip ? "Lip-synced talking clip (hover to play)" : "Talking shot: no clip yet (video step)" }, s.clip ? "🗣 talk" : "🗣 —") : null));
   if (drawable) {
     thumb.append(h("input", { type: "checkbox", class: "sel", checked: selected, "aria-label": `Select shot ${s.n}`,

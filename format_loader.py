@@ -75,6 +75,7 @@ def _rules(raw, where: str) -> dict:
         "letter": bool(raw.get("letter", False)),   # every story shot carries a line of an on-screen letter
         "talking": None,                             # {"max": n}: shots may be lip-synced talking clips
         "song": bool(raw.get("song", False)),       # the lines are sung as one song
+        "labels": bool(raw.get("labels", False)),   # shots may carry a short on-screen tag
     }
     if raw.get("talking"):
         t = raw["talking"]
@@ -142,6 +143,12 @@ def _overlay(f: dict, where: str) -> dict:
     grade = f.get("grade") or {}
     for key, value in grade.items():
         asm[key] = value
+    labels = f.get("labels") or {}
+    if labels:
+        if not isinstance(labels, dict):
+            raise StepError(f"{where}: labels must be a mapping of label settings")
+        for key, value in labels.items():
+            asm[f"label_{key}"] = value
     letter = f.get("letter") or {}
     if letter:
         if not isinstance(letter, dict):

@@ -15,7 +15,9 @@ from format_loader import DEFAULT_FORMAT, load_format, render
 SHOT_KEYS = {"n", "characters", "image_prompt", "motion_prompt", "vo_line",
              "speaker", "caption", "animate"}
 OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage",   # card / app screenshot / flex montage
-                      "letter", "talk"}                    # a line of the letter / a lip-synced clip
+                      "letter", "talk",                    # a line of the letter / a lip-synced clip
+                      "label"}                             # a short tag on screen for the whole shot
+LABEL_MAX_WORDS = 3
 LETTER_MAX_WORDS = 40
 SONG_STYLE_MAX = 300
 
@@ -61,6 +63,7 @@ def prompt_values(fmt: dict) -> dict:
     if r.get("talking"):
         v["TALK_MAX"] = r["talking"]["max"]
     v["LETTER_MAX_WORDS"] = LETTER_MAX_WORDS
+    v["LABEL_MAX_WORDS"] = LABEL_MAX_WORDS
     if r["cards"]:
         v["CARDS_MIN"], v["CARDS_MAX"] = r["cards"]["count"]
         v["CARD_WORDS_MIN"], v["CARD_WORDS_MAX"] = r["cards"]["words"]
@@ -382,6 +385,20 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             errors.append(f"{label}.caption must be a string (may be empty)")
         elif len(caption.split()) > CAPTION_MAX_WORDS and caption.strip().upper() != CTA_CAPTION:
             errors.append(f"{label}.caption must be 1-{CAPTION_MAX_WORDS} words or empty, got {caption!r}")
+        tag = s.get("label", "")
+        if tag is None:
+            tag = ""
+        if not _is_str(tag):
+            errors.append(f"{label}.label must be a string, got {tag!r}")
+            tag = ""
+        tag = " ".join(tag.split())
+        if tag:
+            if not rules.get("labels"):
+                errors.append(f"{label}: this format has no on-screen labels, so leave out \"label\"")
+            elif is_card or is_app:
+                errors.append(f"{label}: a card or app screen shot cannot carry a label")
+            elif len(tag.split()) > LABEL_MAX_WORDS:
+                errors.append(f"{label}.label must be at most {LABEL_MAX_WORDS} words, got {tag!r}")
         talk = s.get("talk", False)
         if talk is None:
             talk = False
@@ -414,7 +431,7 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             # Drawn by the assembly step from the real screenshot; nothing else on the shot is used.
             shot.update({"app_screen": app, "characters": [], "vo_line": "", "speaker": "",
                          "caption": "", "animate": False, "image_prompt": "", "motion_prompt": ""})
-            for key in ("card", "letter", "talk"):
+            for key in ("card", "letter", "talk", "label"):
                 shot.pop(key, None)
             normalized_shots.append(shot)
             continue
@@ -427,6 +444,7 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             # A card is drawn by the assembly step; nothing else on the shot is used.
             shot.pop("letter", None)
             shot.pop("talk", None)
+            shot.pop("label", None)
             shot.update({"card": card.upper(), "characters": [], "vo_line": "", "speaker": "",
                          "caption": "", "animate": False,
                          "image_prompt": (s.get("image_prompt") or "").strip() if _is_str(s.get("image_prompt")) else "",
@@ -452,6 +470,10 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 shot["animate"] = False
             else:
                 shot.pop("talk", None)
+            if tag:
+                shot["label"] = tag.upper()
+            else:
+                shot.pop("label", None)
             if _is_str(shot.get("caption")):
                 shot["caption"] = shot["caption"].strip().upper()
             if not vo.strip() and _is_str(shot.get("speaker")):

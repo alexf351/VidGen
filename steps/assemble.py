@@ -539,6 +539,20 @@ def _ass_escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace("{", "(").replace("}", ")")
 
 
+def _ass_bgr(color: str) -> str:
+    """#RRGGBB -> &HBBGGRR& (an inline ASS colour override)."""
+    r, g, b = _hex(color)
+    return f"&H{b:02X}{g:02X}{r:02X}&"
+
+
+def _ass_color(color: str) -> str:
+    """#RRGGBB -> &H00BBGGRR (an ASS style colour); ASS colours pass through."""
+    if str(color).startswith("&H"):
+        return str(color)
+    r, g, b = _hex(color)
+    return f"&H00{b:02X}{g:02X}{r:02X}"
+
+
 def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> tuple[Path, int]:
     w, h = int(asm["width"]), int(asm["height"])
     font = pick_caption_font(asm, build)
@@ -563,6 +577,11 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
         # fill, outline colour (&HAABBGGRR), bold italic, outline + \\blur = soft glow (format's captions)
         f"Style: Caption,{font},{size},{fill},{fill},{outline_color},&H00000000,"
         f"-1,-1,0,0,100,100,0,0,1,{outline},0,5,40,40,0,1",
+        # On-screen labels (shot "label"): bold text on an opaque box (BorderStyle 3 = box in the
+        # outline colour), top-centred.
+        f"Style: Label,{font},{int(asm['label_size'])},{_ass_color(asm['label_text'])},"
+        f"{_ass_color(asm['label_text'])},{_ass_color(asm['label_box'])},&H00000000,"
+        f"-1,-1,0,0,100,100,1,0,3,{max(6, int(asm['label_size']) // 4)},0,8,40,40,0,1",
         "",
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
@@ -580,6 +599,13 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
                          f"{{\\an5\\pos({w // 2},{h // 2})\\blur{blur}\\fad({fade},{fade})}}{_ass_escape(text)}")
             count += 1
             continue
+        tag = str(item["shot"].get("label") or "").strip().upper()
+        if tag:
+            colors = {str(k).upper(): v for k, v in (asm.get("label_colors") or {}).items()}
+            box = f"\\3c{_ass_bgr(colors[tag])}" if tag in colors else ""
+            ly = int(round(h * float(asm["label_y"])))
+            lines.append(f"Dialogue: 1,{_ass_time(item['start'])},{_ass_time(item['start'] + item['duration'])},"
+                         f"Label,,0,0,0,,{{\\an8\\pos({w // 2},{ly}){box}}}{_ass_escape(tag)}")
         for start, end, text in shot_caption_events(run_dir, item, max_words):
             lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
                          f"{{\\an5\\pos({w // 2},{cy})\\blur{blur}{pop}}}{_ass_escape(text)}")

@@ -211,6 +211,8 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
                          ("caption_outline", 5), ("caption_blur", 6),
                          ("caption_pop_from", 85), ("caption_pop_ms", 80),
                          ("music_volume", 0.06), ("saturation", 0.85),
+                         ("label_size", 50), ("label_y", 0.12), ("label_text", "#FFFFFF"),
+                         ("label_box", "#1B1E2B"), ("label_colors", {}),
                          ("letter_font_file", "assets/fonts/Caveat.ttf"), ("letter_font_size", 66),
                          ("letter_weight", 500), ("letter_paper", "#FBF7EE"), ("letter_ink", "#26232D"),
                          ("letter_rule", "#9DB4D6"), ("letter_width", 0.84), ("letter_bg_blur", 2),

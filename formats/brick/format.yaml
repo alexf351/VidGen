@@ -4,7 +4,7 @@
 # rules for the image model, so the format runs on VidGen's normal pipeline.
 
 name: brick
-title: Brick
+title: Brick (Lego style)
 description: 'Lego style: the whole world built from toy plastic bricks with studs, under soft sun.'
 duration_target: about 15-25 seconds
 aspect: '9:16'
