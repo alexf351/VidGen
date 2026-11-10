@@ -24,6 +24,7 @@ const S = {
   jobStatus: new Map(), jobsLoaded: false, doctor: null,
   chars: [], charsLoaded: false, storyDraft: null, storyFor: null, storyErrors: null,
   voices: null, voicesError: null, preview: null,
+  lookOpen: new Set(),         // shots whose Picture and motion editor is open
 };
 const CODE_STEPS = ["story", "scenes", "voice", "render"];
 
@@ -1126,7 +1127,7 @@ function draftChanged() {
   if (!S.run || !S.run.script || !S.draft) return out;
   S.draft.shots.forEach((s, i) => {
     const o = S.run.script.shots[i] || {};
-    for (const k of ["vo_line", "speaker", "caption", "card", "letter"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
+    for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
   });
   return out;
 }
@@ -1146,8 +1147,23 @@ function scriptPanel(run, busy) {
     actions.classList.toggle("stuck", ch.size > 0);
     wc.textContent = `${S.draft.shots.filter((s) => !s.montage).reduce((a, s) => a + (s.vo_line || "").split(/\s+/).filter(Boolean).length, 0)} spoken words`;
   };
+  // What the clip does and what the picture shows, tucked under each drawn shot.
+  const lookEditor = (s, i, row) => {
+    const o = run.script.shots[i] || {};
+    const touched = (s.motion_prompt ?? "") !== (o.motion_prompt ?? "") || (s.image_prompt ?? "") !== (o.image_prompt ?? "");
+    const box = h("details", { class: "look", open: touched || S.lookOpen.has(s.n) },
+      h("summary", {}, "Picture and motion"),
+      h("label", { class: "look-label" }, "Motion: what moves in the clip, and the camera",
+        h("textarea", { rows: "3", "aria-label": `Shot ${s.n} motion`, placeholder: "the car drives forward and leaves the frame, camera holds on Marcus",
+          oninput: (e) => update(i, "motion_prompt", e.target.value, row) }, s.motion_prompt || "")),
+      h("label", { class: "look-label" }, "Picture: what the image shows",
+        h("textarea", { rows: "5", "aria-label": `Shot ${s.n} picture`,
+          oninput: (e) => update(i, "image_prompt", e.target.value, row) }, s.image_prompt || "")));
+    box.addEventListener("toggle", () => { if (box.open) S.lookOpen.add(s.n); else S.lookOpen.delete(s.n); });
+    return box;
+  };
   const rows = S.draft.shots.map((s, i) => {
-    const row = h("div", { class: `srow${changed.has(s.n) ? " dirty" : ""}` });
+    const row = h("div", { class: `srow${changed.has(s.n) ? " dirty" : ""}`, id: `srow-${s.n}` });
     const fields = h("div", { class: "fields" });
     if (s.card) {
       fields.append(h("span", { class: "kind" }, "time card"),
@@ -1156,6 +1172,7 @@ function scriptPanel(run, busy) {
       fields.append(h("span", { class: "kind" }, "app screen"), h("span", { class: "ro" }, s.app_screen));
     } else if (s.montage) {
       fields.append(h("span", { class: "kind" }, "montage"), h("span", { class: "ro" }, "silent, no caption"));
+      if ((s.image_prompt || "").trim()) fields.append(lookEditor(s, i, row));
     } else {
       const sp = h("select", { "aria-label": `Shot ${s.n} speaker`, onchange: (e) => update(i, "speaker", e.target.value, row) },
         h("option", { value: "", selected: !s.speaker }, "— silent —"),
@@ -1168,6 +1185,7 @@ function scriptPanel(run, busy) {
           oninput: (e) => update(i, "letter", e.target.value, row) }, s.letter || "") : null,
         h("textarea", { rows: "2", placeholder: run.song ? "lyric line" : "no dialogue", "aria-label": `Shot ${s.n} ${run.song ? "lyric" : "dialogue"}`,
           oninput: (e) => update(i, "vo_line", e.target.value, row) }, s.vo_line || "")].filter(Boolean));
+      if ((s.image_prompt || "").trim()) fields.append(lookEditor(s, i, row));
     }
     row.append(h("span", { class: "num" }, `#${s.n}`), fields);
     return row;
@@ -1179,11 +1197,22 @@ function scriptPanel(run, busy) {
   const topSave = h("button", { class: "btn primary small", disabled: busy || !changed.size, onclick: () => saveScript(run) }, "Save");
   const panel = h("section", { "aria-label": "Script" },
     h("div", { class: "panel-title" }, h("span", {}, "Script"), topSave),
-    h("div", { class: "notice info" }, "Saving changes script.json only. Rerun Voice for changed lines (Images for changed scenes), then Assemble."));
+    h("div", { class: "notice info" }, "Saving changes script.json only. Rerun Voice for changed lines, then Assemble. To change what a clip does, open Picture and motion on its shot."));
   if (S.afterSave && S.afterSave.run === run.run_id && S.afterSave.voice.length) {
     const ns = S.afterSave.voice;
     panel.append(h("div", { class: "notice" }, `Saved. Lines changed on ${ns.length === 1 ? "shot" : "shots"} ${ns.join(", ")}. `,
-      h("button", { class: "btn small", disabled: busy, onclick: () => { S.afterSave = null; runStep(run, "voice", ns); } }, "Redo voice for them")));
+      h("button", { class: "btn small", disabled: busy, onclick: () => { S.afterSave.voice = []; runStep(run, "voice", ns); } }, "Redo voice for them")));
+  }
+  if (S.afterSave && S.afterSave.run === run.run_id && (S.afterSave.images || []).length) {
+    const ns = S.afterSave.images;
+    panel.append(h("div", { class: "notice" }, `Saved. The picture changed on ${ns.length === 1 ? "shot" : "shots"} ${ns.join(", ")}. `,
+      h("button", { class: "btn small", disabled: busy, onclick: () => { S.afterSave.video = [...new Set([...(S.afterSave.video || []), ...ns])].sort((a, b) => a - b); S.afterSave.images = []; runStep(run, "images", ns); } }, "Redo the images"),
+      h("div", { class: "field-note" }, "Their clips are made from the old images, so redo the video for them afterwards.")));
+  }
+  if (S.afterSave && S.afterSave.run === run.run_id && (S.afterSave.video || []).length && !(S.afterSave.images || []).length) {
+    const ns = S.afterSave.video;
+    panel.append(h("div", { class: "notice" }, `${ns.length === 1 ? "Shot" : "Shots"} ${ns.join(", ")}: the clip no longer matches the script. `,
+      h("button", { class: "btn small", disabled: busy, onclick: () => { S.afterSave.video = []; runStep(run, "video", ns); } }, "Redo the video for them")));
   }
   if (S.saveErrors) {
     panel.append(h("div", { class: "notice bad errors" }, h("b", {}, "Not saved: the script does not pass validation"),
@@ -1200,10 +1229,17 @@ async function saveScript(run) {
     const a = S.draft.shots.find((s) => s.n === n), b = run.script.shots.find((s) => s.n === n) || {};
     return (a.vo_line || "") !== (b.vo_line || "") && (a.vo_line || "").trim() || (a.speaker !== b.speaker && (a.vo_line || "").trim());
   });
+  const differs = (key) => changed.filter((n) => {
+    const a = S.draft.shots.find((s) => s.n === n), b = run.script.shots.find((s) => s.n === n) || {};
+    return (a[key] || "").trim() !== (b[key] || "").trim();
+  });
+  const images = differs("image_prompt");
+  const clipped = new Set(run.shots.filter((s) => s.shot.animate || s.shot.talk).map((s) => s.n));
+  const video = differs("motion_prompt").filter((n) => clipped.has(n) && !images.includes(n));
   try {
     await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/script`, S.draft);
     S.saveErrors = null;
-    S.afterSave = { run: run.run_id, voice };
+    S.afterSave = { run: run.run_id, voice, images, video: [...video, ...images.filter((n) => clipped.has(n))].sort((a, b) => a - b) };
     toast("Script saved", "ok");
     await loadRun(run.run_id, { keepDraft: false });
   } catch (e) {
