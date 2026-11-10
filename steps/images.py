@@ -56,14 +56,41 @@ def _sheet_style(style: str) -> str:
     return re.sub(r",?\s*vertical\s*9:16", "", style, flags=re.I).strip(" ,")
 
 
-def sheet_prompt(description: str, style: str) -> str:
+def sheet_prompt(description: str, style: str, outfit: str = "") -> str:
+    """`outfit` is a locked character's fixed way of dressing (format.yaml `outfit:`). The sheet
+    then shows a plain black version of it instead of the usual grey, so the reference picture
+    does not pull every shot back toward a grey t-shirt."""
+    clothes = ("Simple plain black outfit (a fitted long-sleeved black top and black trousers)"
+               if outfit else "Neutral plain grey outfit (a simple t-shirt and trousers)")
     return (
         f"{_sheet_style(style)}, character reference sheet of {description}. "
         "Three full-body views of the same character standing side by side: front view, "
-        "three-quarter view, side profile view. Neutral plain grey outfit (a simple t-shirt and "
-        "trousers); if the character is a mascot or robot, show its design exactly as described. "
+        f"three-quarter view, side profile view. {clothes}; if the character is a mascot or "
+        "robot, show its design exactly as described. "
         "Relaxed neutral pose, plain light grey studio background, even soft lighting, no text."
     )
+
+
+def _cache_note(config: dict, char_id: str) -> Path:
+    return cache_path(config, char_id).with_suffix(".txt")
+
+
+def _look(c: dict) -> str:
+    """What a cached sheet was drawn from: the description, plus the fixed outfit if any."""
+    return "\n".join(x for x in (c.get("description", "").strip(), (c.get("outfit") or "").strip()) if x)
+
+
+def cache_is_current(config: dict, lock: dict) -> bool:
+    """True when characters_cache/<id>.png was drawn from this character's current look.
+    characters_cache/<id>.txt records the look; a sheet with no note, or a different one, was
+    drawn from an older description and is redrawn."""
+    if not cache_path(config, lock["id"]).exists():
+        return False
+    note = _cache_note(config, lock["id"])
+    try:
+        return note.read_text(encoding="utf-8").strip() == _look(lock)
+    except OSError:
+        return False
 
 
 def shot_prompt(shot: dict, ref_ids: list[str]) -> str:
@@ -131,8 +158,9 @@ def _generate_image(config: dict, prompt: str, aspect: str, refs: list[Path], la
 def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | None = None) -> dict[str, Path]:
     """Make sure runs/<id>/characters/<cid>.png exists for every needed character.
 
-    Priority: config image_path -> characters_cache -> existing run sheet -> generate.
-    Generated sheets for locked characters are copied into characters_cache for later runs.
+    Priority: config image_path -> existing run sheet -> characters_cache -> generate.
+    Generated sheets for locked characters are copied into characters_cache for later runs,
+    with a note of the look they were drawn from; change the look and the sheet is redrawn.
     Characters from your library (characters.py) get a sheet in this run's style, drawn from
     their picture once per format and cached."""
     locked = _locked_by_id(config)
@@ -143,12 +171,13 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
     def generate_sheet(c: dict, dest: Path, lock: dict | None) -> None:
         cid = c["id"]
         print(f"  [{cid}] generating reference sheet...")
-        _generate_image(config, sheet_prompt(c["description"], style), SHEET_ASPECT, [],
-                        f"sheet {cid}", dest)
+        _generate_image(config, sheet_prompt(c["description"], style, (lock or {}).get("outfit", "")),
+                        SHEET_ASPECT, [], f"sheet {cid}", dest)
         if lock:
             cache = cache_path(config, cid)
             cache.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(dest, cache)
+            _cache_note(config, cid).write_text(_look(lock) + "\n", encoding="utf-8")
             print(f"  [{cid}] cached at {cache.relative_to(ROOT)}")
 
     def library_sheet(c: dict, dest: Path, lock: dict) -> None:
@@ -182,10 +211,12 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
                 print(f"  [{cid}] reference sheet exists, skipping")
         elif dest.exists():
             print(f"  [{cid}] reference sheet exists, skipping")
-        elif lock and cache_path(config, cid).exists():
+        elif lock and cache_is_current(config, lock):
             shutil.copyfile(cache_path(config, cid), dest)
             print(f"  [{cid}] reference sheet from cache")
         else:
+            if lock and cache_path(config, cid).exists():
+                print(f"  [{cid}] the cached sheet was drawn from an older description, redrawing it")
             runner.submit(generate_sheet, c, dest, lock)
         out[cid] = dest
     runner.join()

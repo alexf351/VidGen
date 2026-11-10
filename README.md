@@ -383,6 +383,7 @@ runs/<run_id>/
   build/                intermediate clips, captions.ass, the pre-outro mix
   final.mp4             the finished short
 characters_cache/<id>.png   generated sheets for locked characters, reused by every run
+characters_cache/<id>.txt   the description each sheet was drawn from
 ```
 
 `<run_id>` is a timestamp plus a slug of the premise.
@@ -456,11 +457,12 @@ overshoot win, flex, the ex returns, reversal ("i'm good", Iro says "that's my b
 closing CTA shot of the app with the caption `SEARCH IRO AI`.
 
 The hero (marcus), love interest (jess), rival (tyler), mentor (iro), boss and new partner
-(sofia) come from `locked_characters` in `formats/pixar_arc/format.yaml` and are reused by id with their
+(sofia, a goth girl who always dresses in black) come from `locked_characters` in `formats/pixar_arc/format.yaml` and are reused by id with their
 descriptions copied word for word. Iro's reference image is `assets/iro.png`, the gold mascot
 from the Kiro app; `assets/app_icon.png` is the app icon for the CTA shot. Descriptions are physical identity
 only; each image prompt adds a scene-fitting outfit (work clothes in setbacks, upgraded clothes in
-wins). Jess leaves Marcus for Tyler in beat 1, and the insult comes from her or Tyler, never the
+wins). A character can also have an `outfit:` line in `locked_characters` for a look they keep in
+every scene (sofia's all-black goth style). Jess leaves Marcus for Tyler in beat 1, and the insult comes from her or Tyler, never the
 boss. Iro is always the penguin mascot.
 New characters are only invented for minor roles. Setbacks are cold office light, wins are
 golden hour. A real AI tool (Claude or ChatGPT) is named at least once.
@@ -517,7 +519,10 @@ one retry. The result is saved to `runs/<run_id>/script.json` and printed as a s
 `runs/<run_id>/characters/<id>.png`. The source is, in order: the `image_path` set in
 `locked_characters`, a cached sheet in `characters_cache/`, a sheet already in the run, or a
 freshly generated sheet (front, three-quarter and side view on a plain light grey background).
-New sheets for locked characters are copied into `characters_cache/` for later runs.
+New sheets for locked characters are copied into `characters_cache/` for later runs, with a
+note (`<id>.txt`) of the look they were drawn from. Change a locked character's description or
+`outfit` and their cached sheet is redrawn the next time it is needed. For a run that already
+exists, `python main.py recast <run_id>` applies the new description to it.
 
 Then it generates one 9:16 keyframe per shot at `runs/<run_id>/shots/<n>.png`. Shots with
 characters go through the edit endpoint with those characters' sheets attached as references

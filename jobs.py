@@ -43,12 +43,20 @@ class Job:
         self.log: list[str] = []
         self.dropped = 0                       # lines dropped from the front of the log
         self.version = 0                       # bumps on every status change
-        self._partial = ""
+        self._partial: dict[int, str] = {}     # unfinished line per thread
         self.fn: Callable[[Job], None] | None = None
 
     def write(self, text: str) -> None:
-        text = (self._partial + text).replace("\r\n", "\n").replace("\r", "\n")
-        *lines, self._partial = text.split("\n")
+        """Add text to the log. print() sends a line and its newline as two writes, so each
+        thread's unfinished line is kept apart; two threads printing at once (the image and
+        video steps do) can then never run their lines together."""
+        who = threading.get_ident()
+        text = (self._partial.get(who, "") + text).replace("\r\n", "\n").replace("\r", "\n")
+        *lines, rest = text.split("\n")
+        if rest:
+            self._partial[who] = rest
+        else:
+            self._partial.pop(who, None)
         self.log.extend(lines)
         if len(self.log) > MAX_LOG_LINES:
             extra = len(self.log) - MAX_LOG_LINES
@@ -56,9 +64,8 @@ class Job:
             self.dropped += extra
 
     def flush_partial(self) -> None:
-        if self._partial:
-            self.log.append(self._partial)
-            self._partial = ""
+        self.log.extend(text for text in self._partial.values() if text)
+        self._partial = {}
 
     def to_dict(self, logs: bool = True, since: int = 0) -> dict:
         d = {"id": self.id, "action": self.action, "run_id": self.run_id, "params": self.params,
@@ -81,7 +88,7 @@ class Job:
         j.finished_at, j.error = d.get("finished_at"), d.get("error")
         j.log = list(d.get("log") or [])
         j.dropped = int(d.get("log_offset") or 0)
-        j.version, j._partial, j.fn = 0, "", None
+        j.version, j._partial, j.fn = 0, {}, None
         return j
 
 

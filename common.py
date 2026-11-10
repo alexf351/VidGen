@@ -339,7 +339,7 @@ def available_app_screens(config: dict) -> list[dict]:
 
 
 def _check_locked_characters(raw, where: str = "config.yaml") -> list[dict]:
-    """Validate locked_characters and fill in defaults (image_path -> "")."""
+    """Validate locked_characters and fill in defaults (image_path -> "", outfit -> "")."""
     if not isinstance(raw, list):
         raise StepError(f"{where}: locked_characters must be a list")
     seen: set[str] = set()
@@ -358,6 +358,10 @@ def _check_locked_characters(raw, where: str = "config.yaml") -> list[dict]:
         entry = dict(c)
         entry["description"] = desc.strip()
         entry["image_path"] = (c.get("image_path") or "").strip()
+        outfit = c.get("outfit")
+        if outfit is not None and not isinstance(outfit, str):
+            raise StepError(f"{where}: locked_characters[{i}] ({cid}).outfit must be text")
+        entry["outfit"] = (outfit or "").strip()
         out.append(entry)
     return out
 

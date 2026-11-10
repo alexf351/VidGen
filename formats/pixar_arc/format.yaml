@@ -135,7 +135,8 @@ app_screens:
 
 # Recurring cast. Descriptions are physical identity only (no clothing); the script step
 # reuses them word for word and adds a scene-appropriate outfit per shot. The validator
-# rejects a script that alters a description. image_path is a reference image for later
+# rejects a script that alters a description. A character whose look depends on their
+# clothes can have an optional `outfit:` line: how they always dress, in every scene. image_path is a reference image for later
 # steps (empty = none yet; Iro's points to the app icon).
 locked_characters:
   - id: marcus
@@ -160,5 +161,6 @@ locked_characters:
     image_path: ""
   - id: sofia
     role: new partner in the reversal
-    description: "a 25 year old woman with long glossy blonde hair, bright blue eyes, full lips, light skin, and a curvy hourglass figure"
+    description: "a 25 year old goth woman with long straight jet-black hair and blunt bangs, very pale skin, dark winged eyeliner, black lipstick, a black spiked choker, and a curvy hourglass figure"
+    outfit: "all black goth outfits that fit the scene, such as a fitted black dress with sheer black sleeves and a black corset belt for a night out, or a black swimsuit with a sheer black cover-up at the beach. Never colourful or pastel clothes"
     image_path: ""

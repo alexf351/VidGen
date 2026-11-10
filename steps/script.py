@@ -36,6 +36,9 @@ def _cast_block(locked: list[dict]) -> str:
         role = c.get("role", "")
         role = f" ({role})" if role else ""
         lines.append(f'  - id "{c["id"]}"{role}: "{c["description"]}"')
+        if c.get("outfit"):
+            lines.append(f'      {c["id"]} ALWAYS dresses like this, in every scene (it replaces the '
+                         f'outfit rules below for this character): {c["outfit"]}')
     return "\n".join(lines) if lines else "  (none)"
 
 
