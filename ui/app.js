@@ -12,6 +12,7 @@ const RATES = {
 };
 // Upper-bound guess for a full run when a format reports no limits (an older server).
 const NEW_RUN_GUESS = { images: 30, sheets: 6, clips: 8, voiceChars: 650 };
+const PREMISE_MAX = 2000;                // characters the premise box accepts
 const STEPS = ["script", "images", "video", "voice", "assemble"];
 const ACTIVE = new Set(["queued", "running"]);
 
@@ -525,7 +526,7 @@ function renderCreate(formatName) {
   const st = { provider: "", dry: false, engine: "ai", cast: [] };
   const hasCode = (f.engines || []).includes("claude_code");
   const d = S.config.providers.default;
-  const premise = h("textarea", { class: "premise-box", id: "f-premise", rows: "6", maxlength: "600",
+  const premise = h("textarea", { class: "premise-box", id: "f-premise", rows: "6", maxlength: String(PREMISE_MAX),
     placeholder: f.limits && f.limits.narrator ? "A baker's oven dies the day her cake goes viral…"
       : "A laid-off line cook buys a beat-up food truck and nobody shows up on day one…" });
   const count = h("span", { class: "count-note" });
@@ -535,7 +536,10 @@ function renderCreate(formatName) {
   const codeWarn = h("div", { class: "field-note warn" });
   const update = () => {
     const words = premise.value.trim() ? premise.value.trim().split(/\s+/).length : 0;
-    count.textContent = words ? `${words} words` : "One or two sentences is plenty";
+    const left = PREMISE_MAX - premise.value.length;
+    count.textContent = !words ? "One or two sentences is plenty"
+      : left <= 0 ? `${words} words. That is the limit, nothing more will fit`
+      : left < 200 ? `${words} words, room for ${left} more characters` : `${words} words`;
     const kinds = new Set([providerFor("images", st.provider), providerFor("video", st.provider)]);
     const missing = [...kinds].filter((p) => !S.config.keys_present[p === "fal" ? "FAL_KEY" : "SUME_API_KEY"]);
     keyWarn.textContent = missing.length ? `No API key set for ${missing.join(", ")}.` : "";
