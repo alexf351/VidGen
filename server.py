@@ -553,9 +553,15 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
                                      f"wait for it to finish")
         cfg = config_for_run(run_dir)
+        # A run keeps the cast descriptions it was written with. If the format's description of a
+        # character changed since (say sofia got a new look), editing a line of dialogue must not
+        # be refused for it; Recast is how a run takes the new description.
+        mine = {c.get("id"): c.get("description") for c in (run_status.load_script(run_dir) or {}).get("characters", [])
+                if isinstance(c, dict) and isinstance(c.get("description"), str) and c["description"].strip()}
+        locked = [{**c, "description": mine.get(c["id"], c["description"])} for c in cfg.get("locked_characters", [])]
         try:
             normalized = S.validate_and_normalize(
-                script, cfg["style"], int(cfg["max_animated_shots"]), cfg.get("locked_characters", []),
+                script, cfg["style"], int(cfg["max_animated_shots"]), locked,
                 available_app_screens(cfg), cfg["format"]["rules"], animate_all=bool(cfg.get("animate_all")))
         except ValueError as e:
             errors = [line[2:] if line.startswith("- ") else line for line in str(e).splitlines()]
