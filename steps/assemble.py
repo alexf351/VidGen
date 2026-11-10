@@ -484,13 +484,14 @@ def card_event(item: dict) -> tuple[float, float, str] | None:
     return (item["start"], item["start"] + item["duration"], card)
 
 
-def shot_caption_events(run_dir: Path, item: dict,
-                        max_words: int = MAX_CHUNK_WORDS) -> list[tuple[float, float, str]]:
+def shot_caption_events(run_dir: Path, item: dict, max_words: int = MAX_CHUNK_WORDS,
+                        spoken: bool = True) -> list[tuple[float, float, str]]:
     """(start, end, text) in seconds on the final timeline for one shot's captions.
 
     Spoken shot: every word, in chunks synced to the voice timing; each chunk holds until the
     next one starts, the last until the shot ends. Silent shot: the caption field for the whole
-    shot (nothing if it is empty)."""
+    shot (nothing if it is empty). spoken=False (the "off" caption style) leaves out the
+    word-by-word captions and keeps the rest."""
     shot_start = item["start"]
     shot_end = item["start"] + item["duration"]
     if item["shot"].get("card") or item["shot"].get("app_screen") or item["shot"].get("montage"):
@@ -510,6 +511,10 @@ def shot_caption_events(run_dir: Path, item: dict,
         caption = (item["shot"].get("caption") or "").strip().upper()
         return [(shot_start, shot_end, caption)] if caption else []
 
+    if not spoken:
+        # No word-by-word captions: a spoken shot shows only its own caption (the closing one).
+        caption = (item["shot"].get("caption") or "").strip().upper()
+        return [(shot_start, shot_end, caption)] if caption else []
     tp = timing_path(run_dir, item["n"])
     words = read_json(tp).get("words", []) if tp.exists() else []
     if not words:
@@ -553,16 +558,18 @@ def _ass_color(color: str) -> str:
     return f"&H00{b:02X}{g:02X}{r:02X}"
 
 
-def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> tuple[Path, int]:
-    w, h = int(asm["width"]), int(asm["height"])
-    font = pick_caption_font(asm, build)
+def ass_head(asm: dict, font: str, w: int, h: int) -> list[str]:
+    """The .ass file up to the [Events] header: the Caption and Label styles for these settings."""
     size = int(asm["caption_size"])
-    cy = int(round(h * float(asm["caption_y"])))
-    fill, outline_color = str(asm["caption_fill"]), str(asm["caption_outline_color"])
-    outline, blur = int(asm["caption_outline"]), int(asm["caption_blur"])
-    pop_from, pop_ms = int(asm["caption_pop_from"]), int(asm["caption_pop_ms"])
-    max_words = int(asm["caption_max_words"])
-    lines = [
+    fill, outline_color = _ass_color(asm["caption_fill"]), _ass_color(asm["caption_outline_color"])
+    outline = int(asm["caption_outline"])
+    bold = -1 if asm.get("caption_bold", True) else 0
+    italic = -1 if asm.get("caption_italic", True) else 0
+    box = bool(asm.get("caption_box"))
+    shadow = 0 if box else int(asm.get("caption_shadow", 0))
+    back = _ass_color(asm.get("caption_shadow_color") or "&H00000000")
+    spacing = int(asm.get("caption_spacing", 0))
+    return [
         "[Script Info]",
         "ScriptType: v4.00+",
         f"PlayResX: {w}",
@@ -574,11 +581,12 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
         "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, "
         "Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        # fill, outline colour (&HAABBGGRR), bold italic, outline + \\blur = soft glow (format's captions)
-        f"Style: Caption,{font},{size},{fill},{fill},{outline_color},&H00000000,"
-        f"-1,-1,0,0,100,100,0,0,1,{outline},0,5,40,40,0,1",
-        # On-screen labels (shot "label"): bold text on an opaque box (BorderStyle 3 = box in the
-        # outline colour), top-centred.
+        # Fill, outline and shadow colours are &HAABBGGRR. BorderStyle 1 = outline plus drop
+        # shadow (an outline with a blur is a soft glow); 3 = the text sits on an opaque box in
+        # the outline colour, and the outline width is the padding.
+        f"Style: Caption,{font},{size},{fill},{fill},{outline_color},{back},"
+        f"{bold},{italic},0,0,100,100,{spacing},0,{3 if box else 1},{outline},{shadow},5,40,40,0,1",
+        # On-screen labels (shot "label"): bold text on an opaque box, top-centred.
         f"Style: Label,{font},{int(asm['label_size'])},{_ass_color(asm['label_text'])},"
         f"{_ass_color(asm['label_text'])},{_ass_color(asm['label_box'])},&H00000000,"
         f"-1,-1,0,0,100,100,1,0,3,{max(6, int(asm['label_size']) // 4)},0,8,40,40,0,1",
@@ -586,8 +594,23 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
-    # Pop-in on every chunk: start at pop_from% scale, animate to 100% over the first pop_ms.
-    pop = f"\\fscx{pop_from}\\fscy{pop_from}\\t(0,{pop_ms},\\fscx100\\fscy100)"
+
+
+def caption_pop(asm: dict) -> str:
+    """Inline tags for the pop-in: start at pop_from% scale, grow to 100% over the first pop_ms."""
+    pop_from, pop_ms = int(asm["caption_pop_from"]), int(asm["caption_pop_ms"])
+    return f"\\fscx{pop_from}\\fscy{pop_from}\\t(0,{pop_ms},\\fscx100\\fscy100)"
+
+
+def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> tuple[Path, int]:
+    w, h = int(asm["width"]), int(asm["height"])
+    font = pick_caption_font(asm, build)
+    cy = int(round(h * float(asm["caption_y"])))
+    blur = int(asm["caption_blur"])
+    max_words = int(asm["caption_max_words"])
+    spoken = asm.get("caption_style") != "off"
+    lines = ass_head(asm, font, w, h)
+    pop = caption_pop(asm)
     # Time-jump cards: same style, centred on the black frame, a quick fade in and out, no pop.
     fade = int(asm["card_fade_ms"])
     count = 0
@@ -606,7 +629,7 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
             ly = int(round(h * float(asm["label_y"])))
             lines.append(f"Dialogue: 1,{_ass_time(item['start'])},{_ass_time(item['start'] + item['duration'])},"
                          f"Label,,0,0,0,,{{\\an8\\pos({w // 2},{ly}){box}}}{_ass_escape(tag)}")
-        for start, end, text in shot_caption_events(run_dir, item, max_words):
+        for start, end, text in shot_caption_events(run_dir, item, max_words, spoken=spoken):
             lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
                          f"{{\\an5\\pos({w // 2},{cy})\\blur{blur}{pop}}}{_ass_escape(text)}")
             count += 1
@@ -777,7 +800,10 @@ def letter_pages(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> Non
 def run(run_dir: Path, config: dict) -> None:
     require_ffmpeg()
     script = read_script(run_dir)
-    asm = config["assemble"]
+    import caption_styles
+    style = caption_styles.for_run(run_dir, config)
+    asm = caption_styles.apply(config["assemble"], style)
+    config = {**config, "assemble": asm}
     build = run_dir / "build"
     build.mkdir(parents=True, exist_ok=True)
 
@@ -787,6 +813,8 @@ def run(run_dir: Path, config: dict) -> None:
     letter_pages(run_dir, build, plan, asm)
     print(f"[assemble] {len(plan)} shots, {total:.1f}s at {asm['width']}x{asm['height']} {asm['fps']}fps")
 
+    import progress
+    progress.plan(len(plan) + 2)      # every shot's clip, then the final mix, then the outro
     clips = []
     scene_clip: Path | None = None   # last real scene, the blurred background for app screens
     for it in plan:
@@ -804,6 +832,7 @@ def run(run_dir: Path, config: dict) -> None:
             kind = "clip" if (it["shot"].get("animate") and video_path(run_dir, it["n"]).exists()) else "push-in"
         print(f"  shot {it['n']}: {kind} {it['duration']:.2f}s" + (f" (VO {it['vo_len']:.2f}s)" if it["vo"] else ""))
         clip = build_shot_clip(run_dir, build, it, asm, background=scene_clip)
+        progress.tick()
         if not (it["shot"].get("card") or it["shot"].get("app_screen")):
             scene_clip = clip
         clips.append(clip)
@@ -815,9 +844,11 @@ def run(run_dir: Path, config: dict) -> None:
                "concat", cwd=build)
 
     captions, n_caps = write_captions(run_dir, build, plan, asm)
-    print(f"[assemble] {n_caps} caption(s) -> {captions.relative_to(run_dir)}")
+    look = "" if style == caption_styles.FORMAT else f" ({caption_styles.title(style)} style)"
+    print(f"[assemble] {n_caps} caption(s){look} -> {captions.relative_to(run_dir)}")
 
     main = render_main(build, cut, captions, plan, total, config)
+    progress.tick()
     final_src = append_outro(build, main, config)
     final = run_dir / "final.mp4"
     shutil.copyfile(final_src, final)

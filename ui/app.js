@@ -228,7 +228,7 @@ function formatSize(formatName) {
   const L = f && f.limits;
   if (!L) return { ...NEW_RUN_GUESS, guess: true };
   const images = L.letter ? 4 : L.story_shots[1] + (L.montage ? L.montage[1] : 0) - (L.cards ? L.cards[0] : 0);
-  return { images, sheets: L.letter ? 0 : f.locked_cast.length + 2, clips: L.max_animated_shots ?? 8,
+  return { images, sheets: L.letter ? 0 : f.locked_cast.length + 2, clips: L.animate_all ? images : (L.max_animated_shots ?? 8),
     voiceChars: L.song ? 0 : L.vo_words[1] * 6,
     talkSeconds: L.talking ? L.vo_words[1] / 2.6 : 0,
     songSeconds: L.song ? L.vo_words[1] / 2 + 5 : 0 };
@@ -399,6 +399,7 @@ async function refreshJobs() {
   }
   renderDrawer();
   if (busyBefore !== busyAfter && !finished.some((j) => j.run_id === S.runId)) renderMain();
+  paintProgress();
   if (finished.length || jobs.some((j) => ACTIVE.has(j.status) && !S.runs.some((r) => r.run_id === j.run_id))) refreshRuns();
 }
 
@@ -422,9 +423,14 @@ function schedulePoll() {
 // While a job works on the open run, show new thumbnails / clips / lines as they land. Only
 // re-render when the step counts move, so scrolling, hovering and typing are not disturbed.
 let lastProgressCheck = 0;
+let lastProgressMark = "";
 async function refreshOpenRun() {
   if (!S.runId || !S.run || !S.jobs.some((j) => j.run_id === S.runId && j.status === "running")) return;
-  if (Date.now() - lastProgressCheck < 3000) return;
+  // Look again as soon as the job reports another finished piece, else every few seconds.
+  const job = S.jobs.find((j) => j.run_id === S.runId && j.status === "running");
+  const mark = job && job.progress ? `${job.id}:${job.progress.step}:${job.progress.done}` : "";
+  if (mark === lastProgressMark && Date.now() - lastProgressCheck < 3000) return;
+  lastProgressMark = mark;
   lastProgressCheck = Date.now();
   const key = (steps) => JSON.stringify(Object.values(steps).map((s) => s.done));
   try {
@@ -436,6 +442,118 @@ async function refreshOpenRun() {
       await loadRun(S.runId);
     }
   } catch { /* next poll */ }
+}
+
+// ------------------------------------------------------------ progress bar
+const STEP_DOING = { script: "Writing the script", images: "Drawing images", video: "Animating clips",
+  voice: "Recording voices", assemble: "Putting the video together", story: "Writing the story",
+  scenes: "Coding the scenes", render: "Rendering the video" };
+
+function elapsed(iso) {
+  const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (!iso || isNaN(s)) return "";
+  return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`
+    : `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m`;
+}
+
+// What to show for a run's active job. size: "full" (run page), "line" (job bar), "mini" (sidebar).
+function progressKids(job, size) {
+  if (!job) return [];
+  const bar = (pct, moving) => h("div", { class: `pbar${moving ? " moving" : ""}`, role: "progressbar",
+    "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(pct) },
+    h("div", { class: "pbar-fill", style: `width:${Math.max(pct, moving ? 100 : 2)}%` }));
+  if (job.status === "queued") {
+    return size === "mini" ? [] : [h("div", { class: "p-line" }, h("span", { class: "p-what" }, "Waiting for the job ahead to finish"))];
+  }
+  const p = job.progress;
+  if (!p) return size === "mini" ? [bar(0, true)] : [h("div", { class: "p-line" }, h("span", { class: "p-what" }, "Starting…")), bar(0, true)];
+  const counted = p.total > 0;
+  if (size === "mini") return [bar(p.percent, !counted && p.count === 1)];
+  const what = STEP_DOING[p.step] || p.step;
+  const detail = counted ? (p.unit ? `${p.done} of ${p.total} ${p.unit}` : "") : "";
+  const stepOf = p.count > 1 ? `Step ${p.index} of ${p.count}` : "";
+  // A one-step job with nothing to count (the script) has no meaningful percentage.
+  const pct = p.count === 1 && !counted ? "" : `${p.percent}%`;
+  const line = h("div", { class: "p-line" },
+    h("span", { class: "p-what" }, what, detail ? h("span", { class: "p-detail" }, ` · ${detail}`) : null),
+    h("span", { class: "p-meta" }, [stepOf, pct, job.started_at ? elapsed(job.started_at) : ""].filter(Boolean).join(" · ")));
+  return [line, bar(p.percent, !counted)];
+}
+
+function activeJobFor(runId) {
+  return S.jobs.find((j) => j.run_id === runId && j.status === "running")
+    || S.jobs.find((j) => j.run_id === runId && j.status === "queued");
+}
+
+// Fill every progress slot on the page from the latest job list (called on each poll, so the
+// bars move without re-rendering the page around them).
+function paintProgress() {
+  document.querySelectorAll("[data-progress-run]").forEach((el) => {
+    const kids = progressKids(activeJobFor(el.dataset.progressRun), el.dataset.size || "full");
+    el.replaceChildren(...kids);
+    el.classList.toggle("empty", !kids.length);
+  });
+  const slot = $("#drawer-progress");
+  if (slot) {
+    const running = S.jobs.find((j) => j.status === "running");
+    const p = running && running.progress;
+    slot.replaceChildren(...(running ? [h("div", { class: `pbar${!p || !p.total ? " moving" : ""}` },
+      h("div", { class: "pbar-fill", style: `width:${p && p.total ? Math.max(p.percent, 2) : 100}%` })),
+      p && (p.total || p.count > 1) ? h("span", { class: "p-pct" }, `${p.percent}%`) : null].filter(Boolean) : []));
+  }
+}
+function progressSlot(runId, size) {
+  const el = h("div", { class: `progress ${size}`, "data-progress-run": runId, "data-size": size });
+  const kids = progressKids(activeJobFor(runId), size);
+  el.replaceChildren(...kids);
+  el.classList.toggle("empty", !kids.length);
+  return el;
+}
+
+// ---------------------------------------------------------- caption styles
+function captionStyles() { return (S.config && S.config.caption_styles) || []; }
+function captionTitle(id) { const c = captionStyles().find((x) => x.id === id); return c ? c.title : id; }
+function captionPreview(formatName, id) {
+  if (id === "off") return h("div", { class: "cap-img off" }, "No captions");
+  const img = h("img", { class: "cap-img", loading: "lazy", alt: "", src: `/caption-preview/${encodeURIComponent(formatName)}/${encodeURIComponent(id)}` });
+  img.addEventListener("error", () => img.replaceWith(h("div", { class: "cap-img off" }, "Aa")));
+  return img;
+}
+// The picker on the create screen: one tile per style, drawn the way this format will show it.
+function captionPicker(formatName, value, onChange) {
+  const box = h("div", { class: "cap-grid", role: "radiogroup", "aria-label": "Caption style" });
+  const draw = (current) => box.replaceChildren(...captionStyles().map((c) =>
+    h("button", { type: "button", class: `cap-tile${c.id === current ? " on" : ""}`, role: "radio", "aria-checked": String(c.id === current),
+      title: c.note, onclick: () => { draw(c.id); onChange(c.id); } },
+      captionPreview(formatName, c.id), h("span", { class: "cap-name" }, c.title))));
+  draw(value);
+  return box;
+}
+
+function captionsPanel(run, busy) {
+  const box = h("section", { class: "captions-panel", "aria-label": "Captions" });
+  const draw = () => {
+    const current = run.caption_style || "format";
+    const sel = h("select", { "aria-label": "Caption style", disabled: busy, onchange: async (e) => {
+      try {
+        const r = await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/captions`, { style: e.target.value });
+        run.caption_style = r.caption_style;
+        S.captionRedo = r.assembled ? run.run_id : null;
+      } catch (err) { toast(err.message, "bad"); }
+      draw();
+    } }, captionStyles().map((c) => h("option", { value: c.id, selected: c.id === current }, c.title)));
+    const redo = S.captionRedo === run.run_id;
+    box.replaceChildren(...[
+      h("div", { class: "panel-title" }, "Captions"),
+      h("div", { class: "cap-row" }, captionPreview(run.format, current), sel),
+      redo ? h("div", { class: "notice" }, `The finished video still has the old captions. `,
+        h("button", { class: "btn small", disabled: busy, onclick: () => { S.captionRedo = null; runStep(run, "assemble"); } }, "Assemble again"),
+        h("div", { class: "field-note" }, "Assembling makes no API calls, so it costs nothing.")) : null,
+      !redo ? h("div", { class: "field-note" }, "Change the look any time. Only the assemble step runs again, which is free.") : null,
+    ].filter(Boolean));
+  };
+  draw();
+  return box;
 }
 
 // --------------------------------------------------------------- sidebar
@@ -466,7 +584,8 @@ function renderSidebar() {
       title: `${r.premise}\n${STATE_LABEL[st]}` },
       h("div", { class: "premise" }, h("span", { class: `dot ${st}`, "aria-label": STATE_LABEL[st] }), h("span", {}, r.premise || r.run_id)),
       h("div", { class: "meta" }, h("span", {}, r.format), r.engine === "claude_code" ? h("span", { class: "eng" }, "Claude Code") : null,
-        h("span", {}, "·"), h("span", {}, when(r.created_at))));
+        h("span", {}, "·"), h("span", {}, when(r.created_at))),
+      progressSlot(r.run_id, "mini"));
   }));
 }
 
@@ -523,7 +642,7 @@ function chips(options, value, onChange, label) {
 function renderCreate(formatName) {
   const f = S.formats.find((x) => x.name === formatName && !x.error);
   if (!f) { $("#main").replaceChildren(h("div", { class: "empty" }, `No format called "${formatName}". `, h("a", { href: "#/new", class: "muted" }, "Back to Studio"))); return; }
-  const st = { provider: "", dry: false, engine: "ai", cast: [] };
+  const st = { provider: "", dry: false, engine: "ai", cast: [], captions: S.config.caption_style || "format" };
   const hasCode = (f.engines || []).includes("claude_code");
   const d = S.config.providers.default;
   const premise = h("textarea", { class: "premise-box", id: "f-premise", rows: "6", maxlength: String(PREMISE_MAX),
@@ -544,6 +663,7 @@ function renderCreate(formatName) {
     const missing = [...kinds].filter((p) => !S.config.keys_present[p === "fal" ? "FAL_KEY" : "SUME_API_KEY"]);
     keyWarn.textContent = missing.length ? `No API key set for ${missing.join(", ")}.` : "";
     provSec.classList.toggle("hidden", st.engine === "claude_code");
+    capSec.classList.toggle("hidden", st.engine === "claude_code");
     codeWarn.textContent = st.engine === "claude_code" ? codeEngineProblem() : "";
     if (st.engine === "claude_code") {
       const est = estimateCode(f.name);
@@ -572,7 +692,7 @@ function renderCreate(formatName) {
       f.duration_target ? [h("dt", {}, "Length"), h("dd", {}, f.duration_target)] : null,
       L.story_shots ? [h("dt", {}, "Shots"), h("dd", {}, `${L.story_shots[0]}-${L.story_shots[1]}${L.montage ? ` + ${L.montage[0]}-${L.montage[1]} montage` : ""}`)] : null,
       L.vo_words ? [h("dt", {}, "Spoken words"), h("dd", {}, `${L.vo_words[0]}-${L.vo_words[1]}${L.narrator ? ", narrated" : ", dialogue only"}`)] : null,
-      h("dt", {}, "Clips"), h("dd", {}, `up to ${L.max_animated_shots ?? "?"} × ${f.clip_seconds || 4}s`),
+      h("dt", {}, "Clips"), h("dd", {}, L.animate_all ? `every shot is a clip × ${f.clip_seconds || 4}s` : `up to ${L.max_animated_shots ?? "?"} × ${f.clip_seconds || 4}s`),
       f.locked_cast.length ? [h("dt", {}, "Cast"), h("dd", {}, f.locked_cast.join(", "))] : null,
       L.cta_caption ? [h("dt", {}, "Ends on"), h("dd", {}, L.cta_caption)] : null),
     f.beats.length ? h("ol", { class: "beat-list" }, f.beats.map((b) => h("li", {}, b))) : null);
@@ -585,6 +705,10 @@ function renderCreate(formatName) {
   const provSec = h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Provider")),
     chips([["", "Default", `${d.images} / ${d.video}`], ["fal", "fal"], ["sume", "Sume"]], st.provider, (v) => { st.provider = v; update(); }, "Provider"),
     keyWarn);
+  const capSec = h("section", { class: "card-sec" },
+    h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Captions")),
+    captionPicker(f.name, st.captions, (v) => { st.captions = v; }),
+    h("div", { class: "field-note" }, "You can change this after the video is made, for free."));
   S.onDoctor = update;
   const form = h("form", { class: "create-left", onsubmit: async (e) => {
     e.preventDefault();
@@ -606,7 +730,7 @@ function renderCreate(formatName) {
     }
     go.disabled = true;
     const r = await submit(api("POST", "/api/runs", { premise: text, format: f.name, provider: st.engine === "ai" ? (st.provider || null) : null,
-      dry_run: st.dry, engine: st.engine, cast: st.cast }),
+      dry_run: st.dry, engine: st.engine, cast: st.cast, captions: st.engine === "ai" ? st.captions : null }),
       st.dry ? (st.engine === "claude_code" ? "story" : "script") : `${formatTitle(f)} video`);
     go.disabled = false;
     if (r) { await refreshRuns(); location.hash = `#/run/${encodeURIComponent(r.run_id)}`; }
@@ -619,6 +743,7 @@ function renderCreate(formatName) {
       codeWarn) : null,
     h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Output")), outputBox),
     provSec,
+    capSec,
     castSection(f, st, update),
     details,
     h("section", { class: "card-sec cost-card" }, h("div", {}, costLine, costSub), go));
@@ -802,6 +927,7 @@ function renderRun() {
       h("span", { class: "dim" }, when(run.created_at)),
       busy ? h("span", { class: "busy-note" }, h("span", { class: `dot ${active.status}` }),
         `${active.action}${active.params.step ? ` ${active.params.step}` : ""} ${active.status}…`) : null),
+    progressSlot(run.run_id, "full"),
     h("div", { class: "steps" }, stepBtns,
       h("span", { style: "flex:1" }),
       h("button", { class: "btn small ghost", disabled: busy || !run.script, onclick: () => recast(run),
@@ -933,6 +1059,7 @@ function sideColumn(run, busy) {
   } else {
     col.append(h("div", { class: "player-empty" }, run.script ? "Not assembled yet. Run Assemble once images, clips and voice are in." : "No video yet."));
   }
+  if (run.script && captionStyles().length) col.append(captionsPanel(run, busy));
   if (run.voices && run.voices.length) col.append(voicesPanel(run, busy));
   if (run.song) {
     col.append(h("div", { class: "panel-title" }, "Song"),

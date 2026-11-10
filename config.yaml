@@ -38,6 +38,14 @@ outro_path: ""
 assemble:
   music_volume: 0.06            # music bed level under the voice; 0.15 drowned it out
                                 # (aspect, captions, grade and shot timing are set by the format)
+  # The caption look for new videos: classic | outline | yellow_pop | comic | headline | banner |
+  # off. Empty = each format's own look. You can also pick one per video on the create screen.
+  caption_style: ""
+
+# Every drawn shot becomes a video clip instead of a still with a slow zoom. Each format decides
+# (Pixar Arc: on). Uncomment to force it for every format (true) or to animate only the key
+# shots everywhere (false). Clips are most of a video's cost.
+# animate_all: false
 
 script:
   model: "claude-sonnet-5-5"

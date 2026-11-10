@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 
+import progress
 from common import STEP_ORDER, StepError, create_run, run_dir_for, run_engine
 
 STEPS_WITH_ONLY = {"images", "video", "voice"}
@@ -19,6 +20,7 @@ def step_module(name: str):
 
 
 def run_step(name: str, run_dir: Path, config: dict, only: str | None = None) -> None:
+    progress.step(name)
     if run_engine(run_dir) == "claude_code":
         import code_engine
         if only:
@@ -39,8 +41,12 @@ def run_step(name: str, run_dir: Path, config: dict, only: str | None = None) ->
         raise StepError(f"--only is supported for {sorted(STEPS_WITH_ONLY)}, not '{name}'")
 
 
-def create_new_run(premise: str, config: dict, log=print, engine: str | None = None) -> Path:
-    """Make the run folder for `new` (premise.txt, run.json with the format, cast and engine)."""
+def create_new_run(premise: str, config: dict, log=print, engine: str | None = None,
+                   captions: str | None = None) -> Path:
+    """Make the run folder for `new` (premise.txt, run.json with the format, cast, engine and
+    caption style)."""
+    import caption_styles
+    captions = caption_styles.check(captions) if captions else None
     if engine not in (None, "ai", "claude_code"):
         raise StepError(f"engine must be ai or claude_code, got {engine!r}")
     if engine == "claude_code":
@@ -49,7 +55,7 @@ def create_new_run(premise: str, config: dict, log=print, engine: str | None = N
             raise StepError(f"the {config['format']['name']} format does not offer the Claude Code "
                             f"engine (its format.yaml has no code_render block)")
     run_dir = create_run(premise, config["format"]["name"], cast=config.get("cast") or None,
-                         engine=engine)
+                         engine=engine, captions=captions)
     log(f"created run {run_dir.name} (format {config['format']['name']}"
         + (", Claude Code engine)" if engine == "claude_code" else ")"))
     log(f"  {run_dir}")
@@ -60,8 +66,10 @@ def execute_new(run_dir: Path, config: dict, dry_run: bool = False) -> None:
     """Run every step of a new run in order, or only the script step for a dry run."""
     if run_engine(run_dir) == "claude_code":
         import code_engine
+        progress.start(code_engine.CODE_STEPS[:1] if dry_run else list(code_engine.CODE_STEPS))
         code_engine.execute(run_dir, config, dry_run)
         return
+    progress.start(STEP_ORDER[:1] if dry_run else list(STEP_ORDER))
     if dry_run:
         # Only the script step runs. It calls Claude (a few cents) to write the shot list;
         # nothing is sent to fal, Sume or ElevenLabs.
@@ -74,8 +82,8 @@ def execute_new(run_dir: Path, config: dict, dry_run: bool = False) -> None:
     print(f"\nrun {run_dir.name} complete")
 
 
-def new(premise: str, config: dict, dry_run: bool = False) -> Path:
-    run_dir = create_new_run(premise, config)
+def new(premise: str, config: dict, dry_run: bool = False, captions: str | None = None) -> Path:
+    run_dir = create_new_run(premise, config, captions=captions)
     execute_new(run_dir, config, dry_run)
     return run_dir
 
@@ -94,7 +102,10 @@ def reroll(run_id: str, shot_number: int, config: dict) -> None:
     run_dir = run_dir_for(run_id)
     _image_pipeline_only(run_dir, "reroll")
     print(f"\n=== reroll shot {shot_number} ({run_dir.name}) ===")
+    progress.start(["images", "video"])
+    progress.step("images")
     step_module("images").reroll_shot(run_dir, config, shot_number)
+    progress.step("video")
     step_module("video").reroll_shot(run_dir, config, shot_number)
 
 

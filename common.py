@@ -163,6 +163,8 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
                             **{k: v for k, v in providers.items() if v}}
         cfg["_sources"]["env"].append("request (providers)")
     cfg.setdefault("max_animated_shots", 8)
+    if not isinstance(cfg.setdefault("animate_all", False), bool):
+        raise StepError("config: animate_all must be true or false")
     cfg.setdefault("script", {})
     cfg["script"].setdefault("model", "claude-sonnet-5-5")
     cfg["script"].setdefault("max_tokens", 64000)
@@ -217,6 +219,7 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
                          ("caption_fill", "&H00FFFFFF"), ("caption_outline_color", "&H00E6C8FF"),
                          ("caption_outline", 5), ("caption_blur", 6),
                          ("caption_pop_from", 85), ("caption_pop_ms", 80),
+                         ("caption_style", ""),
                          ("music_volume", 0.06), ("saturation", 0.85),
                          ("label_size", 50), ("label_y", 0.12), ("label_text", "#FFFFFF"),
                          ("label_box", "#1B1E2B"), ("label_colors", {}),
@@ -388,7 +391,7 @@ def run_dir_for(run_id: str, must_exist: bool = True) -> Path:
 
 
 def create_run(premise: str, format_name: str, cast: list | None = None,
-               engine: str | None = None) -> Path:
+               engine: str | None = None, captions: str | None = None) -> Path:
     run_id = new_run_id(premise)
     run_dir = RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
@@ -403,6 +406,8 @@ def create_run(premise: str, format_name: str, cast: list | None = None,
         meta["cast"] = cast
     if engine and engine != "ai":
         meta["engine"] = engine
+    if captions:
+        meta["captions"] = captions          # a caption style id, see caption_styles.py
     write_json(run_dir / "run.json", meta)
     return run_dir
 

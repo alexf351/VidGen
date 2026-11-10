@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+import progress
 from common import StepError
 
 STATUSES = ("queued", "running", "done", "failed")
@@ -219,6 +220,7 @@ class JobRunner:
             if job is None or self._stopped:
                 return
             self._current = job
+            progress.clear()
             self._set_status(job, "running")
             try:
                 job.fn(job)
@@ -235,6 +237,7 @@ class JobRunner:
                 self._set_status(job, "done")
             finally:
                 self._current = None
+                progress.clear()
                 job.fn = None
 
     def stop(self) -> None:

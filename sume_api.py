@@ -225,20 +225,9 @@ def _artifact_url(artifacts: list[dict], kind: str, label: str) -> str:
 
 
 def download(url: str, dest: Path) -> Path:
-    dest = Path(dest)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(dest.suffix + ".part")
-    try:
-        with _send("GET", url, stream=True, timeout=180) as r:
-            r.raise_for_status()
-            with open(tmp, "wb") as f:
-                for chunk in r.iter_content(chunk_size=1 << 16):
-                    f.write(chunk)
-    except requests.RequestException as e:
-        tmp.unlink(missing_ok=True)
-        raise StepError(f"download of {url} failed: {e}") from e
-    tmp.replace(dest)
-    return dest
+    """Save a finished file. A dropped connection is tried again (see downloads.py)."""
+    import downloads
+    return downloads.fetch(url, dest, lambda u: _send("GET", u, stream=True, timeout=180), sleep=_sleep)
 
 
 # --------------------------------------------------------------- models ----

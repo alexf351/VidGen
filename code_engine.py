@@ -719,6 +719,8 @@ def run_step(name: str, run_dir: Path, config: dict) -> None:
     if name not in STEP_FUNCS:
         raise StepError(f"the Claude Code engine's steps are {', '.join(CODE_STEPS)}, not '{name}'")
     print(f"\n=== step: {name} ({run_dir.name}, Claude Code engine) ===")
+    import progress
+    progress.step(name)
     STEP_FUNCS[name](run_dir, config)
 
 

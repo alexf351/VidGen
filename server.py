@@ -28,7 +28,9 @@ from sse_starlette.sse import EventSourceResponse
 import characters as lib
 import commands
 import run_status
+import caption_styles
 import code_engine
+import progress
 from common import (KEY_ENV, PROVIDERS, ROOT, STEP_ORDER, StepError, available_app_screens,
                     run_cast, run_engine, run_format, runs_dir, write_json)
 from format_loader import COVER_EXTS, DEFAULT_FORMAT, format_summaries, load_format
@@ -57,6 +59,7 @@ class NewRun(BaseModel):
     dry_run: bool = False
     cast: list[CastEntry] = []
     engine: str = "ai"                # "ai" or "claude_code"
+    captions: str | None = None       # a caption style id (caption_styles.py); None = the default
 
 
 class CharacterIn(BaseModel):
@@ -71,6 +74,10 @@ class CharacterIn(BaseModel):
 class DrawRequest(BaseModel):
     format: str = DEFAULT_FORMAT
     provider: ProviderChoice = None
+
+
+class CaptionChoice(BaseModel):
+    style: str | None = None          # None or "format" = the format's own look
 
 
 class VoiceChoice(BaseModel):
@@ -193,7 +200,10 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             raise HTTPException(400, str(e)) from e
 
     def job_out(job, logs: bool = False) -> dict:
-        return job.to_dict(logs=logs)
+        d = job.to_dict(logs=logs)
+        if job.status == "running":
+            d["progress"] = progress.snapshot()     # where it is, for the progress bar
+        return d
 
     def submit_run_job(action: str, run_dir: Path, params: dict, work: Callable[[dict], None],
                        providers: dict | None) -> dict:
@@ -234,10 +244,18 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                                    "montage": r["montage"]["count"] if r["montage"] else None,
                                    "cards": r["cards"]["count"] if r["cards"] else None,
                                    "max_animated_shots": f["overlay"].get("max_animated_shots"),
+                                   "animate_all": animate_all_for(f),
                                    "narrator": r["narrator"], "cta_caption": r["cta_caption"],
                                    "talking": r["talking"]["max"] if r.get("talking") else None,
                                    "song": bool(r.get("song")), "letter": bool(r.get("letter"))}})
         return out
+
+    def animate_all_for(f: dict) -> bool:
+        """Whether this format makes every shot a clip, after config.local.yaml has its say."""
+        try:
+            return bool(config_for(f["name"]).get("animate_all"))
+        except HTTPException:
+            return bool(f["overlay"].get("animate_all"))
 
     def format_char_path(c: dict) -> Path | None:
         """A format character's picture: its image_path, else the sheet cached by an earlier run,
@@ -338,10 +356,29 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             "code_steps": code_engine.CODE_STEPS,
             "output_dir": str(runs_dir()),
             "script_model": cfg["script"]["model"],
+            "caption_styles": caption_styles.catalog(),
+            "caption_style": caption_default(cfg),
             "video": {"clip_seconds": cfg["fal"]["video_seconds"],
                       "resolution": cfg[cfg["providers"]["video"]]["video_resolution"]},
             "prices": prices(cfg),
         }
+
+    def caption_default(cfg: dict) -> str:
+        """assemble.caption_style from config, or "format" when unset or unknown."""
+        try:
+            return caption_styles.check(cfg["assemble"].get("caption_style"))
+        except StepError:
+            return caption_styles.FORMAT
+
+    @app.get("/caption-preview/{name}/{style}")
+    def caption_preview(name: str, style: str):
+        """A small picture of a caption style as this format would draw it."""
+        format_or_404(name)
+        try:
+            path = caption_styles.preview(config_for(name), caption_styles.check(style))
+        except StepError as e:
+            raise HTTPException(404, str(e)) from e
+        return FileResponse(path, headers={"Cache-Control": "max-age=300"})
 
     def prices(cfg: dict) -> dict:
         """USD rates from config, per provider. fal's block is re-read with fal selected, since
@@ -381,8 +418,15 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             raise HTTPException(400, f"engine must be one of {', '.join(code_engine.ENGINES)}")
         if body.engine == "claude_code" and not code_engine.offered(cfg):
             raise HTTPException(400, f"the {cfg['format']['name']} format does not offer the Claude Code engine")
+        try:
+            captions = caption_styles.check(body.captions) if body.captions else None
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
         preface: list[str] = []
-        run_dir = commands.create_new_run(premise, cfg, log=preface.append, engine=body.engine)
+        run_dir = commands.create_new_run(premise, cfg, log=preface.append, engine=body.engine,
+                                          captions=captions)
+        if captions and captions != caption_styles.FORMAT:
+            preface.append(f"  captions: {caption_styles.title(captions)}")
         for line in lib.describe_cast(cfg):
             preface.append(f"  cast: {line}")
         params = {"premise": premise, "format": cfg["format"]["name"], "provider": providers,
@@ -512,7 +556,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         try:
             normalized = S.validate_and_normalize(
                 script, cfg["style"], int(cfg["max_animated_shots"]), cfg.get("locked_characters", []),
-                available_app_screens(cfg), cfg["format"]["rules"])
+                available_app_screens(cfg), cfg["format"]["rules"], animate_all=bool(cfg.get("animate_all")))
         except ValueError as e:
             errors = [line[2:] if line.startswith("- ") else line for line in str(e).splitlines()]
             raise HTTPException(422, {"message": "the script does not pass validation", "errors": errors})
@@ -528,6 +572,22 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             return {"voices": voice_cast.list_voices(refresh=refresh), "error": None}
         except StepError as e:
             return {"voices": [], "error": str(e)}
+
+    @app.put("/api/runs/{run_id}/captions")
+    def set_run_captions(run_id: str, body: CaptionChoice) -> dict:
+        """Pick this run's caption style. The finished video keeps its old captions until the
+        assemble step runs again (no API calls, so it costs nothing)."""
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "caption styles")
+        active = runner.active_for_run(run_id)
+        if active:
+            raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
+                                     f"wait for it to finish")
+        try:
+            saved = caption_styles.set_for_run(run_dir, body.style)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        return {"caption_style": saved, "assembled": (run_dir / "final.mp4").is_file()}
 
     @app.put("/api/runs/{run_id}/voices")
     def set_run_voice(run_id: str, body: VoiceChoice) -> dict:

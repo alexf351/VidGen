@@ -129,6 +129,9 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
     import voice_cast
     voice_cast.ensure_cast(run_dir, config, script)     # a fitting voice for anyone without one
 
+    import progress
+    progress.plan(sum(1 for s in spoken if force or not (audio_path(run_dir, s["n"]).exists()
+                                                        and timing_path(run_dir, s["n"]).exists())), "lines")
     generated = 0
     chars = 0
     for shot in spoken:
@@ -139,6 +142,7 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         speaker = shot.get("speaker") or "narrator"
         print(f"  shot {n}: {speaker} ({voice_cast.voice_for(run_dir, speaker, config)}) \"{shot['vo_line'].strip()}\"")
         generate_voice(run_dir, config, shot)
+        progress.tick()
         clip = run_dir / "shots" / f"{n}.mp4"
         if shot.get("talk") and clip.exists():
             clip.unlink()      # its lips followed the old line

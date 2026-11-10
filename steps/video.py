@@ -9,7 +9,9 @@ from pathlib import Path
 
 import fal_api
 import sume_api
-from common import StepError, parse_only, read_script, select_shots
+from common import StepError, parse_only, read_script, select_shots, write_json
+import downloads
+import progress
 from parallel import TaskRunner
 from steps.images import shot_path
 
@@ -70,14 +72,16 @@ def generate_talk_clip(run_dir: Path, config: dict, shot: dict) -> Path:
         generate_voice(run_dir, config, shot)
     fal = config["fal"]
     label = f"shot {n} (talking)"
+    dest = video_path(run_dir, n)
+    if downloads.resume(dest, fal_api.download, label):
+        return dest
     prompt = (shot.get("motion_prompt") or "").strip() or "the person talks naturally to the camera"
     result = fal_api.call(fal["avatar_model"], {
         "image_url": fal_api.upload(keyframe),
         "audio_url": fal_api.upload(audio),
         "prompt": prompt,
     }, label=label)
-    dest = video_path(run_dir, n)
-    fal_api.download(fal_api.video_url(result, label), dest)
+    downloads.save(fal_api.video_url(result, label), dest, fal_api.download)
     return dest
 
 
@@ -91,8 +95,12 @@ def generate_clip(run_dir: Path, config: dict, shot: dict) -> Path:
     label = f"shot {n}"
     if video_provider(config) == "sume":
         video_resolution(config)
+        if downloads.resume(dest, sume_api.download, label):
+            return dest
         url = sume_api.generate_video(config, shot["motion_prompt"].strip(), keyframe, label)
-        sume_api.download(url, dest)
+        downloads.save(url, dest, sume_api.download)
+        return dest
+    if downloads.resume(dest, fal_api.download, label):
         return dest
     result = fal_api.call(fal["video_model"], {
         "prompt": shot["motion_prompt"].strip(),
@@ -102,12 +110,17 @@ def generate_clip(run_dir: Path, config: dict, shot: dict) -> Path:
         "aspect_ratio": ASPECT,
         "generate_audio": bool(fal["video_audio"]),
     }, label=label)
-    fal_api.download(fal_api.video_url(result, label), dest)
+    downloads.save(fal_api.video_url(result, label), dest, fal_api.download)
     return dest
 
 
 def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> None:
     script = read_script(run_dir)
+    from steps.script import apply_animate_all
+    more = apply_animate_all(script, config)
+    if more:
+        write_json(run_dir / "script.json", script)
+        print(f"[video] every shot is a video clip in this format: {more} more shot(s) marked to animate")
     selected = select_shots(script, only)
     animated = [s for s in selected if s.get("animate") and not s.get("talk")]
     talking = [s for s in selected if s.get("talk")]
@@ -139,11 +152,14 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
 
     totals = {"cost": 0.0, "count": 0}
     lock = threading.Lock()
+    progress.plan(sum(1 for s in [*animated, *talking]
+                      if force or not video_path(run_dir, s["n"]).exists()), "clips")
 
     def make(shot: dict) -> None:
         n = shot["n"]
         print(f"  shot {n}: generating...")
         generate_clip(run_dir, config, shot)
+        progress.tick()
         cost = seconds * rate
         with lock:
             totals["cost"] += cost
@@ -154,6 +170,7 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         n = shot["n"]
         print(f"  shot {n}: generating talking clip ({shot['speaker']})...")
         generate_talk_clip(run_dir, config, shot)
+        progress.tick()
         secs = talk_seconds(run_dir, n)
         cost = secs * talk_rate
         with lock:

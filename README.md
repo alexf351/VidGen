@@ -88,6 +88,11 @@ python main.py reroll 20261103-201530-a-laid-off-line-cook 7
 # after editing locked_characters in the format: update an existing run's script.json,
 # drop the stale reference sheets, and print the images --only command to regenerate
 python main.py recast 20261103-201530-a-laid-off-line-cook
+
+# pick a caption style for a new video, or change it on a finished one (then assemble again)
+python main.py new "A laid-off line cook buys a food truck" --captions yellow_pop
+python main.py captions 20261103-201530-a-laid-off-line-cook headline
+python main.py step 20261103-201530-a-laid-off-line-cook assemble
 ```
 
 Every step skips shots whose output file already exists. `--only` and `reroll` override that
@@ -315,6 +320,11 @@ can reach it). It calls the same functions as the CLI (`commands.py`), so runs m
 and in the terminal are the same runs in the same output folder. Interactive API docs are at
 `/api/docs`.
 
+While a job runs, a progress bar on the run's page shows what it is doing ("Drawing images, 12
+of 29"), which step of how many, an overall percentage and the time so far. The same bar, in
+small, sits in the job bar at the bottom and under the run in the sidebar. The steps report it
+through `progress.py`; `GET /api/jobs` returns it as `progress` on the running job.
+
 The editor (`ui/`: `index.html`, `app.css`, `app.js`; plain HTML/CSS/JS, no build step) has:
 
 - **Sidebar**: New video, and every run with its state (video ready, script only, in progress,
@@ -416,7 +426,9 @@ Set by the format (`formats/<name>/format.yaml`), overridable in `config.local.y
 | format key           | becomes                                                        |
 |----------------------|---------------------------------------------------------------|
 | `style`              | style line prepended word-for-word to every `image_prompt`     |
-| `max_animated_shots` | cap on shots marked `animate: true`                            |
+| `max_animated_shots` | cap on shots marked `animate: true` (when `animate_all` is off) |
+| `animate_all`        | `true`: every drawn shot becomes a video clip (set by the format; Pixar Arc: on) |
+| `assemble.caption_style` | caption style for new videos (see Caption styles); empty = the format's own |
 | `app_screens`        | real Iro app screenshots (`path`, `shows`) the script may put in app_screen shots |
 | `locked_characters` (with `cast: locked`) | recurring cast: `id`, `role`, `description`, `image_path` |
 | `resolution`, `fps`  | `assemble.width` / `height` / `fps`                            |
@@ -498,7 +510,8 @@ Rules enforced by the prompt and checked by the validator (the numbers and wordi
   first or last shot. Shots without a `card` field work exactly as before
 - the last shot's caption is exactly `SEARCH IRO AI`
 - the style line opens every `image_prompt` (prepended if the model forgets)
-- no more than `max_animated_shots` shots are `animate: true`, reserved for shots where motion is the beat
+- no more than `max_animated_shots` shots are `animate: true`, reserved for shots where motion is the beat;
+  with `animate_all` on (the default for this format) every drawn shot is `animate: true` instead
 - `speaker` is a known character id (never `narrator`); captions are at most two words (except the CTA)
 - dialogue sounds spoken, not written by AI: a `vo_line` with an em dash, a semicolon, "it's not X,
   it's Y", "not just X but Y", filler ("here's the thing", "let that sink in"), fake suspense
@@ -532,6 +545,22 @@ text-to-image. A running cost estimate is printed at the end.
 
 ## The video step
 
+**Every shot is a clip (`animate_all`).** A format with `animate_all: true` (Pixar Arc) turns
+every drawn shot into a video clip, flex-montage shots included, so nothing in the video is a
+still picture with a slow zoom. Only time-jump cards and app screenshots are not clips. It is
+the main cost of a video: about 26 clips instead of 8. The script prompt then asks for real
+movement in every `motion_prompt`, and a run whose script was written earlier is brought up
+to date when its video step next runs. Set `animate_all: false` in the format, or in
+`config.local.yaml` for every format, to animate only the key shots (at most
+`max_animated_shots`) and keep the rest as stills; `animate_all: true` in `config.local.yaml`
+turns it on for every format.
+
+**Dropped downloads.** A provider can finish a clip and then drop the connection while the file
+is downloaded. Downloads are tried five times, and the file's address is kept next to where it
+will be saved (`shots/18.mp4.url`) until it is safely on disk. If every try fails, running the
+step again downloads the finished file first and only generates again when that address no
+longer works, so a clip you paid for is not made twice.
+
 `steps/video.py` turns each `animate: true` keyframe into a 4 second, silent 9:16 clip at
 `fal.video_resolution` (480p by default; assembly upscales to 1080x1920 either way)
 at `runs/<run_id>/shots/<n>.mp4` using the shot's `motion_prompt`. It prints the estimated cost
@@ -551,6 +580,29 @@ existing clips are skipped unless named with `--only`.
 
 `steps/assemble.py` drives ffmpeg through subprocess and prints a clear error if ffmpeg or
 ffprobe is missing.
+
+### Caption styles
+
+A format sets its own captions. A caption style swaps the look (font, colours, outline, shadow)
+and keeps the format's size, position and words per caption, so any style works with any format.
+
+| style        | look                                              |
+|--------------|---------------------------------------------------|
+| `format`     | the format's own (Pixar Arc: white with a pink glow) |
+| `classic`    | bold white with a soft shadow                     |
+| `outline`    | bold white with a thick black edge                |
+| `yellow_pop` | yellow with a black edge and a bigger pop         |
+| `comic`      | comic-book lettering with a hard shadow           |
+| `headline`   | tall condensed capitals                           |
+| `banner`     | white text on a black bar                         |
+| `off`        | no word-by-word captions; time cards and a shot's own caption (the closing one) stay |
+
+Pick one on the create screen, with `new --captions <style>`, or for every new video with
+`assemble: {caption_style: yellow_pop}` in `config.local.yaml`. The choice is saved in the run's
+`run.json`. To change a finished video, pick another style on its page (or
+`python main.py captions <run_id> <style>`) and run the assemble step again; assembling makes no
+API calls, so it costs nothing. The presets live in `caption_styles.py`; the fonts (Poppins,
+Anton, Bangers, Montserrat) are bundled in `assets/fonts/` under the SIL Open Font License.
 
 - Each shot lasts its voice-over length plus 0.25 s, with a 1.2 s minimum.
 - Animated shots are trimmed to that length (the last frame is held if the clip is shorter).

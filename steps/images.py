@@ -11,6 +11,8 @@ import threading
 import fal_api
 import sume_api
 from common import ROOT, StepError, parse_only, read_script, select_shots
+import downloads
+import progress
 from parallel import TaskRunner
 
 SHEET_ASPECT = "16:9"
@@ -141,7 +143,11 @@ def _generate_image(config: dict, prompt: str, aspect: str, refs: list[Path], la
                     dest: Path) -> None:
     """One image to `dest`: an edit when reference images are given, else text-to-image."""
     if image_provider(config) == "sume":
-        sume_api.download(sume_api.generate_image(config, prompt, aspect, refs, label), dest)
+        if downloads.resume(dest, sume_api.download, label):
+            return
+        downloads.save(sume_api.generate_image(config, prompt, aspect, refs, label), dest, sume_api.download)
+        return
+    if downloads.resume(dest, fal_api.download, label):
         return
     if refs:
         result = fal_api.call(config["fal"]["image_edit_model"], {
@@ -158,7 +164,7 @@ def _generate_image(config: dict, prompt: str, aspect: str, refs: list[Path], la
             "aspect_ratio": aspect,
             "output_format": "png",
         }, label=label)
-    fal_api.download(fal_api.first_image_url(result, label), dest)
+    downloads.save(fal_api.first_image_url(result, label), dest, fal_api.download)
 
 
 # ------------------------------------------------------- reference sheets ----
@@ -187,6 +193,7 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
             shutil.copyfile(dest, cache)
             _cache_note(config, cid).write_text(_look(lock) + "\n", encoding="utf-8")
             print(f"  [{cid}] cached at {cache.relative_to(ROOT)}")
+        progress.tick()
 
     def library_sheet(c: dict, dest: Path, lock: dict) -> None:
         import characters
@@ -197,6 +204,7 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
             _generate_image(config, prompt, SHEET_ASPECT, refs, f"sheet {cid}", to)
 
         print(f"  [{cid}] {characters.library_sheet(config, lock, dest, generate)}")
+        progress.tick()
 
     for c in script["characters"]:
         cid = c["id"]
@@ -207,6 +215,7 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
         lock = locked.get(cid)
 
         if lock and lock.get("library"):
+            progress.add()
             runner.submit(library_sheet, c, dest, lock)
         elif lock and lock.get("image_path"):
             src = ROOT / lock["image_path"]
@@ -227,6 +236,7 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
         else:
             if lock and cache_path(config, cid).exists():
                 print(f"  [{cid}] the cached sheet was drawn from an older description, redrawing it")
+            progress.add()
             runner.submit(generate_sheet, c, dest, lock)
         out[cid] = dest
     runner.join()
@@ -262,6 +272,9 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         print(f"[images] provider: Sume ({config['sume']['image_model']}), "
               f"up to {_workers(config)} at once")
 
+    progress.plan(sum(1 for s in shots if not s.get("card") and not s.get("app_screen")
+                      and needs_keyframe(s) and (force or not shot_path(run_dir, s["n"]).exists())),
+                  "images")
     print(f"[images] reference sheets ({len(script['characters'])} characters)")
     needed = None if only is None else {cid for s in shots for cid in s["characters"]}
     sheets = ensure_sheets(run_dir, config, script, needed)
@@ -275,6 +288,7 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         who = ", ".join(shot["characters"]) or "no characters"
         print(f"  shot {shot['n']}: generating ({who})...")
         generate_keyframe(run_dir, config, shot, sheets)
+        progress.tick()
         with lock:
             done.append(shot["n"])
 

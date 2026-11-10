@@ -73,8 +73,44 @@ def prompt_values(fmt: dict) -> dict:
     return v
 
 
+ANIMATE_ALL_NOTE = """
+
+EVERY SHOT IS A VIDEO CLIP
+This overrides any limit on "animate" above. Every shot that has an image_prompt becomes a
+moving clip, montage shots included, so set "animate": true on all of them (card and app-screen
+shots stay false). Each of those shots needs a motion_prompt that describes real movement for a
+4 second clip: what the people do (walk, turn, gesture, react, laugh, type), what moves around
+them (hair, clothes, traffic, a crowd, screens, light) and one camera move (push in, pull back,
+pan, orbit, handheld drift). Never write "static", "still", "frozen" or "no movement"."""
+
+
+def animates(shot: dict) -> bool:
+    """With animate_all on, the shots that become clips: every drawn shot except talking shots
+    (already clips) and letter shots (the picture is only a backdrop for the letter)."""
+    return (isinstance(shot, dict) and not shot.get("card") and not shot.get("app_screen")
+            and not shot.get("talk") and not shot.get("letter")
+            and bool(str(shot.get("image_prompt") or "").strip()))
+
+
+def apply_animate_all(script: dict | None, config: dict | None) -> int:
+    """When the format (or config) says every shot is a clip, mark every drawn shot
+    "animate": true. Changes `script` in place; returns how many shots it changed. Scripts
+    written before the setting was on are brought up to date this way."""
+    if not script or not (config or {}).get("animate_all"):
+        return 0
+    changed = 0
+    for s in script.get("shots", []):
+        if animates(s) and s.get("animate") is not True:
+            s["animate"] = True
+            if not str(s.get("motion_prompt") or "").strip():
+                s["motion_prompt"] = "slow cinematic push in, subtle natural movement"
+            changed += 1
+    return changed
+
+
 def build_system_prompt(style: str, max_animated: int, locked: list[dict],
-                        app_screens: list[dict] | None = None, fmt: dict | None = None) -> str:
+                        app_screens: list[dict] | None = None, fmt: dict | None = None,
+                        animate_all: bool = False) -> str:
     """The format's script_prompt.md with shot_rules.md and the cast / app screens filled in."""
     fmt = _format(fmt)
     values = prompt_values(fmt)
@@ -86,7 +122,8 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict],
         "APP_SCREENS": _app_screens_block(app_screens or [], fmt)[:-1],
     })
     values["SHOT_RULES"] = render(fmt["shot_rules"], values, f"formats/{fmt['name']}/shot_rules.md")
-    return render(fmt["script_prompt"], values, f"formats/{fmt['name']}/script_prompt.md")
+    prompt = render(fmt["script_prompt"], values, f"formats/{fmt['name']}/script_prompt.md")
+    return prompt + (ANIMATE_ALL_NOTE if animate_all else "")
 
 
 def build_user_prompt(premise: str) -> str:
@@ -174,8 +211,11 @@ def _is_str(v) -> bool:
 def validate_and_normalize(data: dict, style: str, max_animated: int,
                            locked: list[dict] | None = None,
                            app_screens: list[dict] | None = None,
-                           rules: dict | None = None) -> dict:
+                           rules: dict | None = None, animate_all: bool = False) -> dict:
     """Raise ValueError listing every schema problem. Returns a normalized copy on success.
+
+    animate_all: every drawn shot is a clip, so the cap on animated shots does not apply and
+    every such shot comes back with "animate": true.
 
     `rules` are the format's (format.yaml `rules`); default: the default format's.
     Soft issues are fixed in place rather than failed: a missing style prefix on image_prompt
@@ -493,7 +533,11 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 shot["caption"] = ""
         normalized_shots.append(shot)
 
-    if animated > max_animated:
+    if animate_all:
+        for shot in normalized_shots:
+            if animates(shot):
+                shot["animate"] = True
+    elif animated > max_animated:
         errors.append(f"at most {max_animated} shots may have animate: true, got {animated}")
     if talk_rule and talks > talk_rule["max"]:
         errors.append(f"at most {talk_rule['max']} shots may have talk: true, got {talks}")
@@ -586,7 +630,8 @@ def generate_script(premise: str, config: dict, client=None) -> dict:
             print(f"[script] app screenshot {e['path']} is listed in config but missing; not offering it")
     client = client or create_client()
 
-    system = build_system_prompt(style, max_animated, locked, screens, fmt)
+    animate_all = bool(config.get("animate_all"))
+    system = build_system_prompt(style, max_animated, locked, screens, fmt, animate_all=animate_all)
     messages = [{"role": "user", "content": build_user_prompt(premise)}]
 
     last_error = None
@@ -597,7 +642,7 @@ def generate_script(premise: str, config: dict, client=None) -> dict:
         text = response_text(response)
         try:
             return validate_and_normalize(parse_json(text), style, max_animated, locked, screens,
-                                          fmt["rules"])
+                                          fmt["rules"], animate_all=animate_all)
         except ValueError as e:
             last_error = e
             print(f"[script] attempt {attempt} failed validation:\n{e}")

@@ -17,6 +17,7 @@ Commands:
       ... images --only 3,7                 regenerate only those shots (images, video, voice)
   python main.py reroll <run_id> <shot_n>   regenerate one shot's image + video
   python main.py recast <run_id>            sync script.json with the format's locked characters
+  python main.py captions <run_id> [style]  show or change a run's caption style (then: step assemble)
 
 step, reroll and recast reuse the format the run was created with (saved in run.json).
 """
@@ -43,7 +44,8 @@ run_step = commands.run_step
 
 
 def cmd_new(args, config) -> None:
-    run_dir = commands.create_new_run(args.premise, config, engine=getattr(args, "engine", None))
+    run_dir = commands.create_new_run(args.premise, config, engine=getattr(args, "engine", None),
+                                      captions=getattr(args, "captions", None))
     commands.execute_new(run_dir, config, args.dry_run)
 
 
@@ -53,6 +55,21 @@ def cmd_step(args, config) -> None:
 
 def cmd_reroll(args, config) -> None:
     commands.reroll(args.run_id, args.shot_number, config)
+
+
+def cmd_captions(args, config) -> None:
+    """captions <run_id> [style]: show or set a run's caption style."""
+    import caption_styles
+    run_dir = commands.run_dir_for(args.run_id)
+    if args.style is None:
+        current = caption_styles.for_run(run_dir, config)
+        print(f"\n{args.run_id} uses the caption style: {current}")
+        for c in caption_styles.catalog():
+            print(f"  {c['id']:<11} {c['title']}: {c['note']}")
+        return
+    saved = caption_styles.set_for_run(run_dir, args.style)
+    print(f"\ncaption style for {args.run_id} is now: {saved}")
+    print(f"apply it (free, no API calls):  python main.py step {args.run_id} assemble")
 
 
 def cmd_recast(args, config) -> None:
@@ -78,6 +95,9 @@ def build_parser() -> argparse.ArgumentParser:
                        help="ai: image + video models (default). claude_code: Claude Code codes every "
                             "scene and renders on this computer with your Claude login (formats with "
                             "a code_render block)")
+    p_new.add_argument("--captions", default=None, metavar="STYLE",
+                       help="caption style: format (the format's own look), classic, outline, "
+                            "yellow_pop, comic, headline, banner or off")
     p_new.set_defaults(func=cmd_new)
 
     p_step = sub.add_parser("step", help="re-run one step on an existing run")
@@ -96,6 +116,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_recast = sub.add_parser("recast", help="apply config's locked character descriptions to a run")
     p_recast.add_argument("run_id")
     p_recast.set_defaults(func=cmd_recast)
+
+    p_cap = sub.add_parser("captions", help="show or change a run's caption style")
+    p_cap.add_argument("run_id")
+    p_cap.add_argument("style", nargs="?", default=None,
+                       help="format, classic, outline, yellow_pop, comic, headline, banner or off; "
+                            "leave out to see the current one")
+    p_cap.set_defaults(func=cmd_captions)
 
     p_doctor = sub.add_parser("doctor", help="check ffmpeg, the caption font, API keys and assets")
     p_doctor.set_defaults(func=None)

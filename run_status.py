@@ -150,22 +150,36 @@ def code_detail(run_dir: Path, meta: dict, config: dict | None) -> dict:
             "cost": _code_cost(run_dir, story, config)}
 
 
+def _view(run_dir: Path, config: dict | None) -> dict | None:
+    """script.json as the steps will treat it: with "every shot is a clip" on, every drawn shot
+    counts as animated even if the script was written before that (nothing is saved here)."""
+    script = load_script(run_dir)
+    from steps.script import apply_animate_all
+    apply_animate_all(script, config)
+    return script
+
+
 def summary(run_dir: Path, config: dict | None) -> dict:
     meta = run_meta(run_dir)
     if meta["engine"] == "claude_code":
         return code_summary(run_dir, meta, config)
-    script = load_script(run_dir)
+    script = _view(run_dir, config)
     c = cost(run_dir, script, config)
     return {**meta, "steps": step_status(run_dir, script),
             "shots": len(script["shots"]) if script else 0,
             "final_video": file_url(run_dir / "final.mp4"), "est_cost": c["total"]}
 
 
+def _caption_style(run_dir: Path, config: dict | None) -> str:
+    import caption_styles
+    return caption_styles.for_run(run_dir, config or {})
+
+
 def detail(run_dir: Path, config: dict | None) -> dict:
     meta = run_meta(run_dir)
     if meta["engine"] == "claude_code":
         return code_detail(run_dir, meta, config)
-    script = load_script(run_dir)
+    script = _view(run_dir, config)
     shots = []
     for s in (script or {}).get("shots", []):
         if not isinstance(s, dict) or not isinstance(s.get("n"), int):
@@ -200,4 +214,6 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             "characters": characters, "shots": shots,
             "final_video": file_url(run_dir / "final.mp4"),
             "captions": file_url(run_dir / "build" / "captions.ass"),
+            "caption_style": _caption_style(run_dir, config),
+            "animate_all": bool((config or {}).get("animate_all")),
             "cost": cost(run_dir, script, config)}

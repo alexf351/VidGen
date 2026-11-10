@@ -39,7 +39,11 @@ beats:
 # Prepended word for word to every image_prompt.
 style: "3D animated feature film style, soft cinematic lighting, warm saturated colors, vertical 9:16"
 
-# Upper bound on shots marked animate: true. Everything else stays a still.
+# Every drawn shot becomes a video clip (montage shots too), so nothing in the video is a still
+# picture with a slow zoom. This is the main cost of a video: about 26 clips instead of 8.
+# Set it to false here, or `animate_all: false` in config.local.yaml, to animate only the key
+# shots (at most max_animated_shots) and keep the rest as stills.
+animate_all: true
 max_animated_shots: 8
 
 # What the script validator enforces (and the prompt quotes).
@@ -161,6 +165,6 @@ locked_characters:
     image_path: ""
   - id: sofia
     role: new partner in the reversal
-    description: "a 25 year old goth woman with long straight jet-black hair and blunt bangs, very pale skin, dark winged eyeliner, black lipstick, a black spiked choker, and a curvy hourglass figure"
+    description: "a 25 year old goth woman with long straight jet-black hair and blunt bangs, very pale skin, dark winged eyeliner, black lipstick, a black spiked choker, and a very busty, curvy hourglass figure"
     outfit: "all black goth outfits that fit the scene, such as a fitted black dress with sheer black sleeves and a black corset belt for a night out, or a black swimsuit with a sheer black cover-up at the beach. Never colourful or pastel clothes"
     image_path: ""
