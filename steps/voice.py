@@ -136,6 +136,10 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         speaker = shot.get("speaker") or "narrator"
         print(f"  shot {n}: {speaker} ({voice_for(speaker, config)}) \"{shot['vo_line'].strip()}\"")
         generate_voice(run_dir, config, shot)
+        clip = run_dir / "shots" / f"{n}.mp4"
+        if shot.get("talk") and clip.exists():
+            clip.unlink()      # its lips followed the old line
+            print(f"  shot {n}: removed its talking clip (made for the old line); rerun video --only {n}")
         generated += 1
         chars += len(shot["vo_line"].strip())
     print(f"[voice] generated {generated} clip(s), {chars} chars, est. ${chars / 1000 * rate:.2f} "
@@ -143,6 +147,11 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
 
 
 def run(run_dir: Path, config: dict, only: str | None = None) -> None:
-    """Full step. `only` is a comma-separated shot list; those shots are regenerated even if present."""
+    """Full step. `only` is a comma-separated shot list; those shots are regenerated even if present.
+    A song format (rules.song) sings the whole script as one song instead (steps/song.py)."""
+    from steps import song
+    if song.is_song(config):
+        song.run(run_dir, config, only)
+        return
     only_set = parse_only(only)
     _run(run_dir, config, only_set, force=only_set is not None)

@@ -133,7 +133,37 @@ prompt bytes, validation, captions, grade and timing. To make a new format, copy
 | `pixel_art`, `ps2`, `comic`, `brick`, `claymation`, `paper_cutout`, `retro_anime`, `low_poly`, `risograph`, `miniature` | one look each | a narrated 15-25 s story ad: someone wants something, it goes wrong, they open Iro, it pays off, a twist, SEARCH IRO AI |
 | `style_switch` | a different look every shot, on hard cuts | the same narrated story |
 
-Every format except `pixar_arc` can also use the Claude Code engine (below).
+Every format above except `pixar_arc` can also use the Claude Code engine (below).
+
+Six more, from the formats ad buyers rank highest right now:
+
+| format | what it is | what it adds |
+|---|---|---|
+| `letter_ad` | a personal letter, handwritten line by line on a paper card over a quiet photo, read aloud | letter shots |
+| `confession` | a person admits something to their phone camera, then what fixed it | talking shots |
+| `talking_head` | one person, straight to camera, a bold opinion and three quick points | talking shots |
+| `street_interview` | a host with a mic stops strangers; the sharp answer is the ad | talking shots |
+| `founder_podcast` | a podcast clip where the founder tells the story behind the app | talking shots |
+| `song_ad` | a 3D animated mini-story told as a song, karaoke lyrics on screen | song mode |
+
+Each adds one capability a format can switch on in its `rules`:
+
+- **Letter shots** (`rules.letter: true`). Every shot carries `"letter"`: its line of the letter.
+  The assemble step draws the letter so far, in a handwriting font (Caveat, `assets/fonts/`), on
+  a ruled paper card over the shot's picture; the letter grows line by line and scrolls when the
+  card is full. A shot with `"image_prompt": ""` keeps the previous background, so a letter ad
+  needs only a few images. Card look: the `letter:` block in the format (paper, ink, font size).
+- **Talking shots** (`rules.talking: {max: n}`). A shot with `"talk": true` shows only its
+  speaker; the video step turns its keyframe into a lip-synced clip of them saying the line, with
+  fal's talking-avatar model (`fal.avatar_model`, Kling AI Avatar v2 Standard, about $0.06 a
+  second of speech; always on fal, whichever video provider you pick). The shot's voice line is
+  made first if it is missing, and redoing a talking shot's voice deletes its clip so the lips
+  never go out of sync. Cast yourself from the Characters page (e.g. as the founder).
+- **Song mode** (`rules.song: true`). The script adds `"song": {"style": "..."}` and every
+  shot's `vo_line` is a lyric line. The voice step sends the lyrics and style to the ElevenLabs
+  Music API (`elevenlabs.music_model`, needs a paid plan; price in `music_cost_per_minute`,
+  check yours), then ElevenLabs forced alignment finds when each word is sung. Every shot lasts
+  exactly as long as its line, the song is the soundtrack, and the captions follow the lyrics.
 
 The ten looks and the narrated story shape come from the claude-animation-styles skill
 (`skills/claude-animation-styles/`). That skill renders with hand-written three.js code in

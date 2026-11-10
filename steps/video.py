@@ -1,4 +1,6 @@
-"""Video step: image-to-video on each animated shot's keyframe (Seedance 2.0 Fast on fal or Sume)."""
+"""Video step: image-to-video on each animated shot's keyframe (Seedance 2.0 Fast on fal or Sume),
+and a lip-synced clip for each talking shot (a talking-avatar model on fal: the keyframe + the
+shot's voice line, so the voice step's audio for that shot is made first if it is missing)."""
 
 from __future__ import annotations
 
@@ -41,6 +43,44 @@ def video_path(run_dir: Path, n: int) -> Path:
     return shot_path(run_dir, n).with_suffix(".mp4")
 
 
+def talk_seconds(run_dir: Path, n: int) -> float:
+    """Length of a talking shot's voice line (from the voice step's timing file), or 0."""
+    from common import read_json
+    from steps.voice import timing_path
+    tp = timing_path(run_dir, n)
+    if not tp.exists():
+        return 0.0
+    try:
+        return float(read_json(tp).get("duration") or 0.0)
+    except (OSError, ValueError):
+        return 0.0
+
+
+def generate_talk_clip(run_dir: Path, config: dict, shot: dict) -> Path:
+    """The keyframe speaking this shot's voice line, lip-synced (fal talking-avatar model)."""
+    from steps.voice import audio_path, generate_voice, require_key as voice_key
+    n = shot["n"]
+    keyframe = shot_path(run_dir, n)
+    if not keyframe.exists():
+        raise StepError(f"shot {n}: keyframe {keyframe} is missing; run the images step first")
+    audio = audio_path(run_dir, n)
+    if not audio.exists():
+        voice_key()
+        print(f"  shot {n}: making its voice line first (the talking clip is lip-synced to it)")
+        generate_voice(run_dir, config, shot)
+    fal = config["fal"]
+    label = f"shot {n} (talking)"
+    prompt = (shot.get("motion_prompt") or "").strip() or "the person talks naturally to the camera"
+    result = fal_api.call(fal["avatar_model"], {
+        "image_url": fal_api.upload(keyframe),
+        "audio_url": fal_api.upload(audio),
+        "prompt": prompt,
+    }, label=label)
+    dest = video_path(run_dir, n)
+    fal_api.download(fal_api.video_url(result, label), dest)
+    return dest
+
+
 def generate_clip(run_dir: Path, config: dict, shot: dict) -> Path:
     n = shot["n"]
     fal = config["fal"]
@@ -67,24 +107,33 @@ def generate_clip(run_dir: Path, config: dict, shot: dict) -> Path:
 
 
 def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> None:
-    if video_provider(config) == "sume":
-        sume_api.require_key()
-    else:
-        fal_api.require_key()
-    resolution = video_resolution(config)   # fail before any spend on a bad value
     script = read_script(run_dir)
+    selected = select_shots(script, only)
+    animated = [s for s in selected if s.get("animate") and not s.get("talk")]
+    talking = [s for s in selected if s.get("talk")]
+    if animated:
+        if video_provider(config) == "sume":
+            sume_api.require_key()
+        else:
+            fal_api.require_key()
+    if talking:
+        fal_api.require_key()                # talking clips are made on fal whatever the provider
+    resolution = video_resolution(config)   # fail before any spend on a bad value
     block = _block(config)
     seconds = int(block["video_seconds"])
     rate = float(block["video_cost_per_second"])
+    talk_rate = float(config["fal"]["avatar_cost_per_second"])
 
-    animated = [s for s in select_shots(script, only) if s.get("animate")]
-    skipped_static = [s["n"] for s in select_shots(script, only) if not s.get("animate")]
+    skipped_static = [s["n"] for s in selected if not s.get("animate") and not s.get("talk")]
     if only is not None and skipped_static:
         print(f"[video] shot(s) {skipped_static} are animate: false, nothing to render")
     via = "" if video_provider(config) == "fal" else \
         f" via Sume ({block['video_model']}, up to {_workers(config)} at once)"
     print(f"[video] {len(animated)} animated shot(s), {seconds}s each at {resolution}, "
           f"${rate:.4f}/s{via}")
+    if talking:
+        print(f"[video] {len(talking)} talking shot(s), lip-synced on fal ({config['fal']['avatar_model']}), "
+              f"${talk_rate:.4f}/s of speech")
 
     totals = {"cost": 0.0, "count": 0}
     lock = threading.Lock()
@@ -99,6 +148,17 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
             totals["count"] += 1
             print(f"  shot {n}: {seconds}s  est. ${cost:.2f}  (running total ${totals['cost']:.2f})")
 
+    def make_talk(shot: dict) -> None:
+        n = shot["n"]
+        print(f"  shot {n}: generating talking clip ({shot['speaker']})...")
+        generate_talk_clip(run_dir, config, shot)
+        secs = talk_seconds(run_dir, n)
+        cost = secs * talk_rate
+        with lock:
+            totals["cost"] += cost
+            totals["count"] += 1
+            print(f"  shot {n}: {secs:.1f}s talking  est. ${cost:.2f}  (running total ${totals['cost']:.2f})")
+
     runner = TaskRunner(_workers(config))
     for shot in animated:
         n = shot["n"]
@@ -108,6 +168,12 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
             continue
         runner.submit(make, shot)
     runner.join()
+    for shot in talking:                     # one at a time on fal
+        n = shot["n"]
+        if video_path(run_dir, n).exists() and not force:
+            print(f"  shot {n}: talking clip exists, skipping")
+            continue
+        make_talk(shot)
     print(f"[video] generated {totals['count']} clip(s), est. total ${totals['cost']:.2f}")
 
 
@@ -122,7 +188,7 @@ def reroll_shot(run_dir: Path, config: dict, shot_number: int) -> None:
     shot = next((s for s in script["shots"] if s["n"] == shot_number), None)
     if shot is None:
         raise StepError(f"shot {shot_number} not in script.json")
-    if not shot.get("animate"):
+    if not shot.get("animate") and not shot.get("talk"):
         print(f"[video] shot {shot_number} is animate: false, no clip to reroll")
         return
     _run(run_dir, config, {shot_number}, force=True)

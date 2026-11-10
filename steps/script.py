@@ -14,7 +14,10 @@ from format_loader import DEFAULT_FORMAT, load_format, render
 
 SHOT_KEYS = {"n", "characters", "image_prompt", "motion_prompt", "vo_line",
              "speaker", "caption", "animate"}
-OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage"}   # card / app screenshot / flex montage
+OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage",   # card / app screenshot / flex montage
+                      "letter", "talk"}                    # a line of the letter / a lip-synced clip
+LETTER_MAX_WORDS = 40
+SONG_STYLE_MAX = 300
 
 # The story, the rules and the prompt text come from the video format (formats/<name>/).
 
@@ -55,6 +58,9 @@ def prompt_values(fmt: dict) -> dict:
          "CTA_CAPTION": r["cta_caption"], "APP_SCREENS_MAX": r["app_screens"]["max"]}
     if r["montage"]:
         v["MONTAGE_MIN"], v["MONTAGE_MAX"] = r["montage"]["count"]
+    if r.get("talking"):
+        v["TALK_MAX"] = r["talking"]["max"]
+    v["LETTER_MAX_WORDS"] = LETTER_MAX_WORDS
     if r["cards"]:
         v["CARDS_MIN"], v["CARDS_MAX"] = r["cards"]["count"]
         v["CARD_WORDS_MIN"], v["CARD_WORDS_MAX"] = r["cards"]["words"]
@@ -169,9 +175,19 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
     APP_SCREENS_MAX, app_hint = rules["app_screens"]["max"], rules["app_screens"]["hint"]
     banned = rules["banned_image_prompt"]
     banned_vo = rules.get("banned_vo_line") or {"fix": "", "patterns": []}
+    letter_rule, talk_rule, song_rule = rules.get("letter"), rules.get("talking"), rules.get("song")
     errors: list[str] = []
     locked = locked or []
     locked_desc = {c["id"]: c["description"] for c in locked}
+
+    song = data.get("song")
+    if song_rule:
+        if not isinstance(song, dict) or not _is_str(song.get("style")) or not song["style"].strip():
+            errors.append('this format is a song: add "song": {"style": "<genre, tempo, voice>"} at the top level')
+        elif len(song["style"]) > SONG_STYLE_MAX:
+            errors.append(f"song.style must be at most {SONG_STYLE_MAX} characters")
+    elif song not in (None, {}):
+        errors.append('this format has no song, so leave out "song"')
 
     characters = data.get("characters")
     shots = data.get("shots")
@@ -211,6 +227,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         errors.append(f"need {SHOT_MIN}-{SHOT_MAX} story shots{on_top}, got {story_count}")
 
     animated = 0
+    talks = 0
+    letter_bg_seen = False
     vo_words = 0
     cards = 0
     montage_idx: list[int] = []
@@ -303,7 +321,31 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             if i == 0 or i == len(shots) - 1:
                 errors.append(f"{label}: a card cannot be the first or last shot")
         elif not is_app:
+            letter = s.get("letter", "")
+            letter = letter.strip() if _is_str(letter) else letter
+            if letter not in ("", None) and not _is_str(letter):
+                errors.append(f"{label}.letter must be a string")
+                letter = ""
+            letter = letter or ""
+            if letter and not letter_rule:
+                errors.append(f"{label}: this format has no letter, so leave out \"letter\"")
+            if letter_rule and not is_montage:
+                if not letter:
+                    errors.append(f"{label}.letter must be this shot's line of the letter")
+                elif len(letter.split()) > LETTER_MAX_WORDS:
+                    errors.append(f"{label}.letter must be at most {LETTER_MAX_WORDS} words")
+            reuse_bg = bool(letter) and _is_str(s.get("image_prompt")) and not s["image_prompt"].strip()
+            if reuse_bg and not letter_bg_seen:
+                errors.append(f"{label}.image_prompt must describe the background: it is the first "
+                              f"letter shot with a picture")
+            if letter and not reuse_bg:
+                letter_bg_seen = True
+            if reuse_bg and s.get("animate") is True:
+                errors.append(f"{label} reuses the previous background (empty image_prompt), so "
+                              f"animate must be false")
             for key in ("image_prompt", "motion_prompt"):
+                if reuse_bg:
+                    continue          # an empty image_prompt keeps the previous shot's picture
                 if not _is_str(s.get(key)) or not s.get(key).strip():
                     errors.append(f"{label}.{key} must be a non-empty string")
             if _is_str(s.get("image_prompt")):
@@ -340,9 +382,31 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             errors.append(f"{label}.caption must be a string (may be empty)")
         elif len(caption.split()) > CAPTION_MAX_WORDS and caption.strip().upper() != CTA_CAPTION:
             errors.append(f"{label}.caption must be 1-{CAPTION_MAX_WORDS} words or empty, got {caption!r}")
+        talk = s.get("talk", False)
+        if talk is None:
+            talk = False
+        if not isinstance(talk, bool):
+            errors.append(f"{label}.talk must be true or false, got {talk!r}")
+            talk = False
+        if talk:
+            talks += 1
+            if not talk_rule:
+                errors.append(f"{label}: this format has no talking shots, so leave out \"talk\"")
+            if is_card or is_app or is_montage:
+                errors.append(f"{label}: a card, app screen or montage shot cannot talk")
+            elif not vo.strip():
+                errors.append(f"{label} has talk: true, so it needs a vo_line for the speaker to say")
+            elif speaker == "narrator" or speaker not in id_set:
+                errors.append(f"{label} has talk: true, so the speaker must be a character in the shot, "
+                              f"got {speaker!r}")
+            elif chars != [speaker]:
+                errors.append(f"{label} has talk: true, so it shows only the speaker: \"characters\" "
+                              f"must be [{speaker!r}], got {chars!r}")
+        if song_rule and not (is_card or is_app or is_montage) and not vo.strip():
+            errors.append(f"{label}.vo_line must be this shot's lyric line: in a song every shot is sung")
         if not isinstance(s.get("animate"), bool):
             errors.append(f"{label}.animate must be true or false")
-        elif s["animate"]:
+        elif s["animate"] and not talk:
             animated += 1
 
         shot = dict(s)
@@ -350,7 +414,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             # Drawn by the assembly step from the real screenshot; nothing else on the shot is used.
             shot.update({"app_screen": app, "characters": [], "vo_line": "", "speaker": "",
                          "caption": "", "animate": False, "image_prompt": "", "motion_prompt": ""})
-            shot.pop("card", None)
+            for key in ("card", "letter", "talk"):
+                shot.pop(key, None)
             normalized_shots.append(shot)
             continue
         shot.pop("app_screen", None)
@@ -360,17 +425,33 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             shot.pop("montage", None)
         if is_card:
             # A card is drawn by the assembly step; nothing else on the shot is used.
+            shot.pop("letter", None)
+            shot.pop("talk", None)
             shot.update({"card": card.upper(), "characters": [], "vo_line": "", "speaker": "",
                          "caption": "", "animate": False,
                          "image_prompt": (s.get("image_prompt") or "").strip() if _is_str(s.get("image_prompt")) else "",
                          "motion_prompt": (s.get("motion_prompt") or "").strip() if _is_str(s.get("motion_prompt")) else ""})
         else:
             shot.pop("card", None)
-            if _is_str(shot.get("image_prompt")):
+            if _is_str(shot.get("image_prompt")) and shot["image_prompt"].strip():
                 prompt = shot["image_prompt"].strip()
                 if not prompt.lower().startswith(style.lower()):
                     prompt = f"{style}, {prompt}"
                 shot["image_prompt"] = prompt
+            elif _is_str(shot.get("image_prompt")):
+                shot["image_prompt"] = ""
+                shot["animate"] = False
+                if _is_str(shot.get("motion_prompt")):
+                    shot["motion_prompt"] = shot["motion_prompt"].strip()
+            if _is_str(shot.get("letter")) and shot["letter"].strip() and not is_montage:
+                shot["letter"] = " ".join(shot["letter"].split())
+            else:
+                shot.pop("letter", None)
+            if shot.get("talk") is True:
+                shot["talk"] = True
+                shot["animate"] = False
+            else:
+                shot.pop("talk", None)
             if _is_str(shot.get("caption")):
                 shot["caption"] = shot["caption"].strip().upper()
             if not vo.strip() and _is_str(shot.get("speaker")):
@@ -381,6 +462,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
 
     if animated > max_animated:
         errors.append(f"at most {max_animated} shots may have animate: true, got {animated}")
+    if talk_rule and talks > talk_rule["max"]:
+        errors.append(f"at most {talk_rule['max']} shots may have talk: true, got {talks}")
     if not (VO_WORDS_MIN <= vo_words <= VO_WORDS_MAX):
         errors.append(f"total vo_line words must be {VO_WORDS_MIN}-{VO_WORDS_MAX}, got {vo_words}")
     if not montage_rule:
@@ -415,7 +498,10 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
     if errors:
         raise ValueError("\n".join(f"- {e}" for e in errors))
 
-    return {"characters": characters, "shots": normalized_shots}
+    out = {"characters": characters, "shots": normalized_shots}
+    if song_rule:
+        out["song"] = {"style": " ".join(song["style"].split())}
+    return out
 
 
 # ------------------------------------------------------------- reporting ----

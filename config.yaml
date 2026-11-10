@@ -110,3 +110,13 @@ code_engine:
   timeout_minutes: 60           # one Claude Code session
   render_timeout_minutes: 90    # software rendering of the 3D styles is slow off a Mac
   voice: true                   # read the lines with ElevenLabs when ELEVENLABS_API_KEY is set
+
+# Talking shots (formats with rules.talking) and songs (rules.song). These extend the fal and
+# elevenlabs blocks above; defaults shown.
+# fal:
+#   avatar_model: "fal-ai/kling-video/ai-avatar/v2/standard"   # image + voice line -> lip-synced clip
+#   avatar_cost_per_second: 0.0562                             # USD per second of speech (Standard)
+# elevenlabs:
+#   music_model: "music_v2"              # music_v1 | music_v2 | music_v2_5
+#   music_output_format: "mp3_44100_128"
+#   music_cost_per_minute: 0.30          # USD; check your ElevenLabs plan and set it here

@@ -71,7 +71,18 @@ def _rules(raw, where: str) -> dict:
         "app_screens": {"max": 0, "hint": ""},
         "banned_image_prompt": {"fix": "", "patterns": []},
         "banned_vo_line": {"fix": "", "patterns": []},
+        # Shot capabilities a format can switch on (all off by default):
+        "letter": bool(raw.get("letter", False)),   # every story shot carries a line of an on-screen letter
+        "talking": None,                             # {"max": n}: shots may be lip-synced talking clips
+        "song": bool(raw.get("song", False)),       # the lines are sung as one song
     }
+    if raw.get("talking"):
+        t = raw["talking"]
+        if not isinstance(t, dict) or not isinstance(t.get("max"), int) or t["max"] < 1:
+            raise StepError(f"{where}: rules.talking must be a mapping like {{max: 12}}")
+        r["talking"] = {"max": int(t["max"])}
+    if r["song"] and r["letter"]:
+        raise StepError(f"{where}: rules.song and rules.letter cannot both be on")
     if raw.get("cards"):
         c = raw["cards"]
         r["cards"] = {"count": _pair(c.get("count"), f"{where}: rules.cards.count"),
@@ -131,6 +142,12 @@ def _overlay(f: dict, where: str) -> dict:
     grade = f.get("grade") or {}
     for key, value in grade.items():
         asm[key] = value
+    letter = f.get("letter") or {}
+    if letter:
+        if not isinstance(letter, dict):
+            raise StepError(f"{where}: letter must be a mapping of letter-card settings")
+        for key, value in letter.items():
+            asm[f"letter_{key}"] = value
     if asm:
         out["assemble"] = asm
     if "clip_seconds" in f:

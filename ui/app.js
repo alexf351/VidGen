@@ -7,6 +7,8 @@ const RATES = {
   fal: { image: 0.0398, video: { "480p": 0.1125, "720p": 0.2419 } },
   sume: { image: 0.039, video: { "480p": 0.056246, "720p": 0.12096 } },
   voicePer1k: 0.22,
+  talkPerSecond: 0.0562,
+  songPerMinute: 0.30,
 };
 // Upper-bound guess for a full run when a format reports no limits (an older server).
 const NEW_RUN_GUESS = { images: 30, sheets: 6, clips: 8, voiceChars: 650 };
@@ -129,7 +131,8 @@ function prices() {
   const p = S.config && S.config.prices;
   if (!p) return RATES;
   return { fal: { image: p.fal.image, video: p.fal.video_per_second },
-           sume: { image: p.sume.image, video: p.sume.video_per_second }, voicePer1k: p.voice_per_1k_chars };
+           sume: { image: p.sume.image, video: p.sume.video_per_second }, voicePer1k: p.voice_per_1k_chars,
+           talkPerSecond: p.talking_per_second ?? RATES.talkPerSecond, songPerMinute: p.song_per_minute ?? RATES.songPerMinute };
 }
 function imageRate(choice) { return prices()[providerFor("images", choice)].image; }
 function videoRate(choice) {
@@ -139,14 +142,22 @@ function videoRate(choice) {
 function imageCost(n, choice) { return n * imageRate(choice); }
 function clipCost(n, formatName, choice) { return n * clipSeconds(formatName) * videoRate(choice); }
 function voiceCost(chars) { return (chars / 1000) * prices().voicePer1k; }
+function talkCost(seconds) { return seconds * prices().talkPerSecond; }
+function songCost(seconds) { return (seconds / 60) * prices().songPerMinute; }
+// Spoken seconds from words (about 2.6 words a second), for talking-clip estimates.
+const talkSecondsOf = (text) => (text || "").split(/\s+/).filter(Boolean).length / 2.6 + 0.3;
 
 function targetShots(run, step, only) {
   const shots = run.shots;
   const pick = only ? shots.filter((s) => only.includes(s.n)) : shots;
-  if (step === "images") return pick.filter((s) => (s.kind === "shot" || s.kind === "montage") && (only || !s.image));
-  if (step === "video") return pick.filter((s) => s.kind !== "card" && s.kind !== "app_screen" && s.shot.animate && (only || !s.clip));
-  if (step === "voice") return pick.filter((s) => s.kind === "shot" && (s.shot.vo_line || "").trim() && (only || !s.audio));
+  if (step === "images") return pick.filter((s) => drawsImage(s) && (only || !s.image));
+  if (step === "video") return pick.filter((s) => s.kind !== "card" && s.kind !== "app_screen" && (s.shot.animate || s.shot.talk) && (only || !s.clip));
+  if (step === "voice") return pick.filter((s) => (s.kind === "shot" || s.kind === "letter") && (s.shot.vo_line || "").trim() && (only || !s.audio));
   return [];
+}
+
+function drawsImage(s) {
+  return (s.kind === "shot" || s.kind === "montage" || s.kind === "letter") && !!(s.shot.image_prompt || "").trim();
 }
 
 function missingSheets(run, shots) {
@@ -170,8 +181,20 @@ function estimateStep(run, step, only) {
   }
   if (step === "video") {
     const p = providerFor("video");
-    return { rows: [[`${plural(shots.length, "clip")} × ${clipSeconds(fmt)}s × ${usd(videoRate())}/s (${p}, ${resolution()})`, clipCost(shots.length, fmt)]],
-      total: clipCost(shots.length, fmt), count: shots.length };
+    const talking = shots.filter((s) => s.shot.talk), moving = shots.filter((s) => !s.shot.talk);
+    const secs = talking.reduce((a, s) => a + talkSecondsOf(s.shot.vo_line), 0);
+    const rows = [];
+    if (moving.length) rows.push([`${plural(moving.length, "clip")} × ${clipSeconds(fmt)}s × ${usd(videoRate())}/s (${p}, ${resolution()})`, clipCost(moving.length, fmt)]);
+    if (talking.length) rows.push([`${plural(talking.length, "talking clip")}, ~${Math.round(secs)}s of speech (fal)`, talkCost(secs)]);
+    if (!rows.length) rows.push(["no clips to make", 0]);
+    const total = clipCost(moving.length, fmt) + talkCost(secs);
+    return { rows, total, count: shots.length,
+      note: talking.length ? "Talking clips make their voice line first if it is missing (ElevenLabs, a cent or two)." : null };
+  }
+  if (step === "voice" && run.song) {
+    const secs = run.script.shots.reduce((a, s) => a + talkSecondsOf(s.vo_line), 0) + 4;
+    return { rows: [[`one song, ~${Math.round(secs)}s (ElevenLabs Music) + lyric timing`, songCost(secs)]],
+      total: songCost(secs), count: 1, note: "A song is one piece: the whole song is made again. Music needs a paid ElevenLabs plan." };
   }
   if (step === "voice") {
     const chars = shots.reduce((a, s) => a + s.shot.vo_line.length, 0);
@@ -185,7 +208,11 @@ function estimateReroll(run, shot) {
   const sheets = missingSheets(run, [shot]);
   const rows = [[`1 keyframe${sheets ? ` + ${plural(sheets, "sheet")}` : ""} (${providerFor("images")})`, imageCost(1 + sheets)]];
   let total = imageCost(1 + sheets);
-  if (shot.shot.animate) {
+  if (shot.shot.talk) {
+    const secs = talkSecondsOf(shot.shot.vo_line);
+    rows.push([`1 talking clip, ~${Math.round(secs)}s (fal)`, talkCost(secs)]);
+    total += talkCost(secs);
+  } else if (shot.shot.animate) {
     rows.push([`1 clip × ${clipSeconds(run.format)}s (${providerFor("video")}, ${resolution()})`, clipCost(1, run.format)]);
     total += clipCost(1, run.format);
   }
@@ -198,17 +225,22 @@ function formatSize(formatName) {
   const f = S.formats.find((x) => x.name === formatName);
   const L = f && f.limits;
   if (!L) return { ...NEW_RUN_GUESS, guess: true };
-  const images = L.story_shots[1] + (L.montage ? L.montage[1] : 0) - (L.cards ? L.cards[0] : 0);
-  return { images, sheets: f.locked_cast.length + 2, clips: L.max_animated_shots ?? 8, voiceChars: L.vo_words[1] * 6 };
+  const images = L.letter ? 4 : L.story_shots[1] + (L.montage ? L.montage[1] : 0) - (L.cards ? L.cards[0] : 0);
+  return { images, sheets: L.letter ? 0 : f.locked_cast.length + 2, clips: L.max_animated_shots ?? 8,
+    voiceChars: L.song ? 0 : L.vo_words[1] * 6,
+    talkSeconds: L.talking ? L.vo_words[1] / 2.6 : 0,
+    songSeconds: L.song ? L.vo_words[1] / 2 + 5 : 0 };
 }
 function estimateNew(formatName, choice) {
   const g = formatSize(formatName);
   const rows = [
     ["Script (Claude)", "a few cents"],
     [`up to ${g.images} keyframes + ~${g.sheets} sheets (${providerFor("images", choice)})`, imageCost(g.images + g.sheets, choice)],
-    [`up to ${g.clips} clips × ${clipSeconds(formatName)}s (${providerFor("video", choice)}, ${resolution()})`, clipCost(g.clips, formatName, choice)],
-    [`up to ~${g.voiceChars} characters of voice`, voiceCost(g.voiceChars)],
-  ];
+    g.clips ? [`up to ${g.clips} clips × ${clipSeconds(formatName)}s (${providerFor("video", choice)}, ${resolution()})`, clipCost(g.clips, formatName, choice)] : null,
+    g.talkSeconds ? [`up to ~${Math.round(g.talkSeconds)}s of talking clips (lip-synced on fal)`, talkCost(g.talkSeconds)] : null,
+    g.songSeconds ? [`a ~${Math.round(g.songSeconds)}s song (ElevenLabs Music)`, songCost(g.songSeconds)] : null,
+    g.voiceChars ? [`up to ~${g.voiceChars} characters of voice`, voiceCost(g.voiceChars)] : null,
+  ].filter(Boolean);
   const total = rows.reduce((a, [, v]) => a + (typeof v === "number" ? v : 0), 0);
   return { rows, total };
 }
@@ -263,7 +295,7 @@ async function runStep(run, step, only) {
 async function reroll(run, shot) {
   const est = estimateReroll(run, shot);
   const ok = await confirmDialog({ title: `Reroll shot ${shot.n}?`, rows: est.rows, total: est.total,
-    text: shot.shot.animate ? "A new keyframe and a new clip." : "A new keyframe." });
+    text: shot.shot.talk ? "A new keyframe and a new talking clip." : shot.shot.animate ? "A new keyframe and a new clip." : "A new keyframe." });
   if (!ok) return;
   await submit(api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/reroll`,
     { shot: shot.n, provider: providerBody() }), `reroll shot ${shot.n}`);
@@ -787,8 +819,8 @@ function selectionBar(run, busy) {
 
 function shotCard(run, s, busy) {
   const shot = s.shot;
-  const drawable = s.kind === "shot" || s.kind === "montage";
-  const spoken = s.kind === "shot" && (shot.vo_line || "").trim();
+  const drawable = drawsImage(s);
+  const spoken = (s.kind === "shot" || s.kind === "letter") && (shot.vo_line || "").trim();
   const selected = S.selected.has(s.n);
   const thumb = h("div", { class: "thumb" });
   if (s.kind === "card") {
@@ -798,9 +830,12 @@ function shotCard(run, s, busy) {
   } else if (s.image) {
     thumb.append(h("img", { src: bust(s.image, run.run_id), alt: `Shot ${s.n}`, loading: "lazy" }));
     if (!spoken && shot.caption) thumb.append(h("div", { class: "cap" }, shot.caption));
+  } else if (s.kind === "letter" && !drawable) {
+    thumb.append(h("div", { class: "placeholder low" }, "Same background", h("br"), "as the shot before"));
   } else {
     thumb.append(h("div", { class: "placeholder" }, "No image yet"));
   }
+  if (shot.letter) thumb.append(h("div", { class: "letter-peek" }, shot.letter));
   if (s.clip) {
     let video = null;
     thumb.addEventListener("mouseenter", () => {
@@ -813,7 +848,8 @@ function shotCard(run, s, busy) {
   thumb.append(h("div", { class: "badges" },
     h("span", { class: "badge n" }, `#${s.n}`),
     s.kind !== "shot" ? h("span", { class: "badge kind" }, s.kind === "app_screen" ? "APP" : s.kind.toUpperCase()) : null,
-    shot.animate ? h("span", { class: "badge anim", title: s.clip ? "Animated clip (hover to play)" : "Animated: no clip yet" }, s.clip ? "▶ clip" : "▶ —") : null));
+    shot.animate ? h("span", { class: "badge anim", title: s.clip ? "Animated clip (hover to play)" : "Animated: no clip yet" }, s.clip ? "▶ clip" : "▶ —") : null,
+    shot.talk ? h("span", { class: "badge anim", title: s.clip ? "Lip-synced talking clip (hover to play)" : "Talking shot: no clip yet (video step)" }, s.clip ? "🗣 talk" : "🗣 —") : null));
   if (drawable) {
     thumb.append(h("input", { type: "checkbox", class: "sel", checked: selected, "aria-label": `Select shot ${s.n}`,
       onchange: (e) => {
@@ -827,7 +863,7 @@ function shotCard(run, s, busy) {
     thumb.append(h("button", { class: "set-cover", title: "Use as this format's cover in the Studio",
       "aria-label": `Use shot ${s.n} as the format cover`, onclick: (e) => { e.stopPropagation(); setFormatMedia(run, "cover", s.n); } }, "★"));
   }
-  if (s.audio) {
+  if (s.audio && !run.song) {
     let audio = null;
     const btn = h("button", { class: "play-audio", title: "Play line", "aria-label": `Play shot ${s.n} line`,
       onclick: (e) => {
@@ -843,9 +879,10 @@ function shotCard(run, s, busy) {
       : h("div", { class: "line silent" }, s.kind === "card" ? "time card" : s.kind === "app_screen" ? "real screenshot" :
         shot.caption ? `caption: ${shot.caption}` : "silent"));
   const actions = h("div", { class: "shot-actions" },
-    h("button", { disabled: busy || !drawable, title: shot.animate ? "New keyframe and clip" : "New keyframe", onclick: () => reroll(run, s) }, "Reroll"),
+    h("button", { disabled: busy || !drawable, title: shot.talk ? "New keyframe and talking clip" : shot.animate ? "New keyframe and clip" : "New keyframe", onclick: () => reroll(run, s) }, "Reroll"),
     h("button", { disabled: busy || !drawable, title: "Redo the keyframe only", onclick: () => runStep(run, "images", [s.n]) }, "Image"),
-    h("button", { disabled: busy || !spoken, title: "Redo the voice line", onclick: () => runStep(run, "voice", [s.n]) }, "Voice"));
+    h("button", { disabled: busy || !spoken, title: run.song ? "Make the whole song again" : shot.talk ? "Redo the voice line (then redo its talking clip)" : "Redo the voice line",
+      onclick: () => runStep(run, "voice", run.song ? null : [s.n]) }, run.song ? "Song" : "Voice"));
   return h("article", { class: `shot${selected ? " selected" : ""}` }, thumb, info, actions);
 }
 
@@ -862,6 +899,12 @@ function sideColumn(run, busy) {
   } else {
     col.append(h("div", { class: "player-empty" }, run.script ? "Not assembled yet. Run Assemble once images, clips and voice are in." : "No video yet."));
   }
+  if (run.song) {
+    col.append(h("div", { class: "panel-title" }, "Song"),
+      h("div", { class: "song-style" }, run.song.style),
+      run.song.audio ? h("audio", { class: "voice-player", controls: true, preload: "none", src: bust(run.song.audio, run.run_id) })
+        : h("div", { class: "field-note" }, "Not made yet: run the voice step."));
+  }
   if (run.cost.rows.length) {
     col.append(h("div", { class: "cost-rows" },
       run.cost.rows.map((r) => h("div", {}, h("span", {}, r.item), h("span", {}, usd(r.usd)))),
@@ -877,7 +920,7 @@ function draftChanged() {
   if (!S.run || !S.run.script || !S.draft) return out;
   S.draft.shots.forEach((s, i) => {
     const o = S.run.script.shots[i] || {};
-    for (const k of ["vo_line", "speaker", "caption", "card"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
+    for (const k of ["vo_line", "speaker", "caption", "card", "letter"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
   });
   return out;
 }
@@ -911,12 +954,14 @@ function scriptPanel(run, busy) {
       const sp = h("select", { "aria-label": `Shot ${s.n} speaker`, onchange: (e) => update(i, "speaker", e.target.value, row) },
         h("option", { value: "", selected: !s.speaker }, "— silent —"),
         speakers.map((id) => h("option", { value: id, selected: s.speaker === id }, id)));
-      fields.append(
+      fields.append(...[
         h("div", { class: "pair" }, sp,
           h("input", { type: "text", value: s.caption || "", placeholder: "caption", "aria-label": `Shot ${s.n} caption`,
             oninput: (e) => update(i, "caption", e.target.value, row) })),
-        h("textarea", { rows: "2", placeholder: "no dialogue", "aria-label": `Shot ${s.n} dialogue`,
-          oninput: (e) => update(i, "vo_line", e.target.value, row) }, s.vo_line || ""));
+        s.letter !== undefined ? h("textarea", { rows: "2", class: "letter-field", placeholder: "the letter's line", "aria-label": `Shot ${s.n} letter`,
+          oninput: (e) => update(i, "letter", e.target.value, row) }, s.letter || "") : null,
+        h("textarea", { rows: "2", placeholder: run.song ? "lyric line" : "no dialogue", "aria-label": `Shot ${s.n} ${run.song ? "lyric" : "dialogue"}`,
+          oninput: (e) => update(i, "vo_line", e.target.value, row) }, s.vo_line || "")].filter(Boolean));
     }
     row.append(h("span", { class: "num" }, `#${s.n}`), fields);
     return row;

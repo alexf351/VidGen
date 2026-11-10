@@ -182,6 +182,8 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
     fal.setdefault("video_resolution", "480p")
     fal.setdefault("video_audio", False)
     fal.setdefault("video_cost_per_second", {"480p": 0.1125, "720p": 0.2419})
+    fal.setdefault("avatar_model", "fal-ai/kling-video/ai-avatar/v2/standard")
+    fal.setdefault("avatar_cost_per_second", 0.0562)
     _resolve_video_rate(fal)
     _apply_providers(cfg)
     cfg["voices"] = {str(k): (v or "") for k, v in (cfg.get("voices") or {}).items()}
@@ -192,6 +194,9 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
     el.setdefault("model_id", "eleven_multilingual_v2")
     el.setdefault("output_format", "mp3_44100_128")
     el.setdefault("cost_per_1k_chars", 0.22)
+    el.setdefault("music_model", "music_v2")
+    el.setdefault("music_output_format", "mp3_44100_128")
+    el.setdefault("music_cost_per_minute", 0.30)
     asm = cfg.setdefault("assemble", {})
     for key, default in [("width", 1080), ("height", 1920), ("fps", 30),
                          ("vo_pad_seconds", 0.25), ("min_shot_seconds", 1.2), ("zoom_end", 1.08),
@@ -206,6 +211,10 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
                          ("caption_outline", 5), ("caption_blur", 6),
                          ("caption_pop_from", 85), ("caption_pop_ms", 80),
                          ("music_volume", 0.06), ("saturation", 0.85),
+                         ("letter_font_file", "assets/fonts/Caveat.ttf"), ("letter_font_size", 66),
+                         ("letter_weight", 500), ("letter_paper", "#FBF7EE"), ("letter_ink", "#26232D"),
+                         ("letter_rule", "#9DB4D6"), ("letter_width", 0.84), ("letter_bg_blur", 2),
+                         ("letter_bg_dim", 0.8), ("letter_read_wps", 3.0), ("letter_zoom_end", 1.03),
                          ("colorbalance", "rs=-0.03:bs=0.04:rm=-0.02:bm=0.03:rh=-0.01:bh=0.02")]:
         asm.setdefault(key, default)
     cfg["music_path"] = (cfg.get("music_path") or "").strip()

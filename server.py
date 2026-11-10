@@ -228,7 +228,9 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                                    "montage": r["montage"]["count"] if r["montage"] else None,
                                    "cards": r["cards"]["count"] if r["cards"] else None,
                                    "max_animated_shots": f["overlay"].get("max_animated_shots"),
-                                   "narrator": r["narrator"], "cta_caption": r["cta_caption"]}})
+                                   "narrator": r["narrator"], "cta_caption": r["cta_caption"],
+                                   "talking": r["talking"]["max"] if r.get("talking") else None,
+                                   "song": bool(r.get("song")), "letter": bool(r.get("letter"))}})
         return out
 
     def format_char_path(c: dict) -> Path | None:
@@ -335,6 +337,8 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             "sume": {"image": float(sume["image_cost"]), "video_per_second": sume.get("video_cost_by_resolution")
                      or {sume["video_resolution"]: float(sume["video_cost_per_second"])}},
             "voice_per_1k_chars": float(cfg["elevenlabs"]["cost_per_1k_chars"]),
+            "talking_per_second": float(cfg["fal"]["avatar_cost_per_second"]),
+            "song_per_minute": float(cfg["elevenlabs"]["music_cost_per_minute"]),
         }
 
     @app.get("/api/doctor")

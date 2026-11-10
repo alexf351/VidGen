@@ -7,7 +7,7 @@ from pathlib import Path
 
 from common import read_json, runs_dir
 from steps.assemble import cost_report
-from steps.images import sheet_path, shot_path
+from steps.images import needs_keyframe, sheet_path, shot_path
 from steps.video import video_path
 from steps.voice import audio_path, timing_path
 
@@ -79,14 +79,19 @@ def step_status(run_dir: Path, script: dict | None) -> dict:
             out["assemble"] = _status(1, 1)
         return out
     shots = [s for s in script["shots"] if isinstance(s, dict) and isinstance(s.get("n"), int)]
-    drawn = [s for s in shots if not _special(s)]
-    animated = [s for s in drawn if s.get("animate")]
-    spoken = [s for s in drawn if str(s.get("vo_line") or "").strip()]
+    drawn = [s for s in shots if not _special(s) and needs_keyframe(s)]
+    moving = [s for s in shots if not _special(s) and (s.get("talk") or (s.get("animate") and needs_keyframe(s)))]
+    spoken = [s for s in shots if not _special(s) and str(s.get("vo_line") or "").strip()]
+    if isinstance(script.get("song"), dict):
+        from steps.song import song_plan
+        voice = _status(int(song_plan(run_dir) is not None), 1)
+    else:
+        voice = _status(sum(audio_path(run_dir, s["n"]).is_file() for s in spoken), len(spoken))
     return {
         "script": _status(1, 1),
         "images": _status(sum(shot_path(run_dir, s["n"]).is_file() for s in drawn), len(drawn)),
-        "video": _status(sum(video_path(run_dir, s["n"]).is_file() for s in animated), len(animated)),
-        "voice": _status(sum(audio_path(run_dir, s["n"]).is_file() for s in spoken), len(spoken)),
+        "video": _status(sum(video_path(run_dir, s["n"]).is_file() for s in moving), len(moving)),
+        "voice": voice,
         "assemble": _status(int(final.is_file()), 1),
     }
 
@@ -174,7 +179,7 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             except (OSError, ValueError):
                 timing = None
         kind = ("card" if s.get("card") else "app_screen" if s.get("app_screen")
-                else "montage" if s.get("montage") else "shot")
+                else "montage" if s.get("montage") else "letter" if s.get("letter") else "shot")
         shots.append({"n": n, "kind": kind, "shot": s,
                       "image": file_url(shot_path(run_dir, n)),
                       "clip": file_url(video_path(run_dir, n)),
@@ -184,7 +189,11 @@ def detail(run_dir: Path, config: dict | None) -> dict:
     for c in (script or {}).get("characters", []):
         if isinstance(c, dict) and isinstance(c.get("id"), str):
             characters.append({**c, "sheet": file_url(sheet_path(run_dir, c["id"]))})
-    return {**meta, "steps": step_status(run_dir, script), "script": script,
+    song = None
+    if isinstance((script or {}).get("song"), dict):
+        from steps.song import song_path
+        song = {"style": script["song"].get("style", ""), "audio": file_url(song_path(run_dir))}
+    return {**meta, "steps": step_status(run_dir, script), "script": script, "song": song,
             "characters": characters, "shots": shots,
             "final_video": file_url(run_dir / "final.mp4"),
             "captions": file_url(run_dir / "build" / "captions.ass"),

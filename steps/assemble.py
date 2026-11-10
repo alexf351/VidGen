@@ -18,8 +18,34 @@ from steps.voice import audio_path, timing_path
 
 # ----------------------------------------------------------------- timing ----
 
-def shot_durations(run_dir: Path, script: dict, asm: dict) -> list[dict]:
+def song_durations(run_dir: Path, script: dict) -> list[dict]:
+    """Song mode: every shot spans its lyric line in the song (steps/song.py)."""
+    from steps.song import song_plan
+    info = song_plan(run_dir)
+    if info is None:
+        raise StepError("this format is a song and audio/song.mp3 is missing; run the voice step first")
+    spans = {s["n"]: s for s in info["shots"]}
+    plan = []
+    for shot in script["shots"]:
+        n = shot["n"]
+        if n not in spans:
+            raise StepError(f"shot {n} has no place in the song (audio/song.json); run the voice step again")
+        start, end = float(spans[n]["start"]), float(spans[n]["end"])
+        plan.append({"shot": shot, "n": n, "start": start, "duration": end - start, "vo": None,
+                     "vo_len": end - start, "sung": True})
+    return plan
+
+
+def letter_seconds(shot: dict, asm: dict) -> float:
+    """How long a silent letter shot stays up: long enough to read its line."""
+    words = len(str(shot.get("letter") or "").split())
+    return words / float(asm["letter_read_wps"]) + 0.8 if words else 0.0
+
+
+def shot_durations(run_dir: Path, script: dict, asm: dict, song: bool = False) -> list[dict]:
     """Per-shot: duration, start offset, VO path (or None)."""
+    if song:
+        return song_durations(run_dir, script)
     pad = float(asm["vo_pad_seconds"])
     minimum = float(asm["min_shot_seconds"])
     plan = []
@@ -42,6 +68,8 @@ def shot_durations(run_dir: Path, script: dict, asm: dict) -> list[dict]:
         else:
             vo = None
         duration = max(minimum, vo_len + pad) if vo else minimum
+        if shot.get("letter"):
+            duration = max(duration, letter_seconds(shot, asm))
         plan.append({"shot": shot, "n": n, "start": t, "duration": duration, "vo": vo, "vo_len": vo_len})
         t += duration
     return plan
@@ -131,6 +159,111 @@ def compose_phone_mockup(screen: Path, background: Path | None, out: Path, w: in
     return out
 
 
+def _hex(color: str) -> tuple[int, int, int]:
+    c = str(color).lstrip("#")
+    return tuple(int(c[i:i + 2], 16) for i in (0, 2, 4)) if len(c) == 6 else (0, 0, 0)
+
+
+def letter_font(asm: dict, size: int):
+    from PIL import ImageFont
+    rel = str(asm.get("letter_font_file") or "")
+    path = Path(rel) if Path(rel).is_absolute() else ROOT / rel
+    if not rel or not path.is_file():
+        raise StepError(f"letter font {rel or '(assemble.letter_font_file not set)'} not found")
+    font = ImageFont.truetype(str(path), size)
+    try:
+        font.set_variation_by_axes([int(asm.get("letter_weight", 500))])
+    except (OSError, ValueError, AttributeError):
+        pass                                  # a static font: use it as it is
+    return font
+
+
+def _wrap(text: str, font, width: int, draw) -> list[str]:
+    lines, cur = [], ""
+    for word in text.split():
+        trial = f"{cur} {word}".strip()
+        if draw.textlength(trial, font=font) <= width or not cur:
+            cur = trial
+        else:
+            lines.append(cur)
+            cur = word
+    if cur:
+        lines.append(cur)
+    return lines
+
+
+def compose_letter(background: Path | None, paragraphs: list[str], out: Path, asm: dict) -> Path:
+    """The letter so far, handwritten on a paper card over the shot's picture. The newest
+    paragraph is the last one; when the card is full the oldest paragraphs scroll off the top."""
+    from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
+    w, h = int(asm["width"]), int(asm["height"])
+    lanczos = Image.Resampling.LANCZOS
+    if background is not None and background.exists():
+        bg = Image.open(background).convert("RGB")
+        scale = max(w / bg.width, h / bg.height)
+        bg = bg.resize((math.ceil(bg.width * scale), math.ceil(bg.height * scale)), lanczos)
+        left, top = (bg.width - w) // 2, (bg.height - h) // 2
+        bg = bg.crop((left, top, left + w, top + h))
+        blur = float(asm["letter_bg_blur"])
+        if blur:
+            bg = bg.filter(ImageFilter.GaussianBlur(blur))
+        bg = ImageEnhance.Brightness(bg).enhance(float(asm["letter_bg_dim"]))
+    else:
+        bg = Image.new("RGB", (w, h), (24, 22, 28))
+
+    card_w = round(w * float(asm["letter_width"]))
+    pad = round(card_w * 0.09)
+    max_card_h = round(h * 0.74)
+    size = int(asm["letter_font_size"])
+    probe = ImageDraw.Draw(bg)
+    while True:
+        font = letter_font(asm, size)
+        line_h = round(size * 1.18)
+        gap = 0                               # a new paragraph starts on the next ruled line
+        blocks = [_wrap(p, font, card_w - 2 * pad, probe) for p in paragraphs]
+        shown = list(blocks)
+        def height(bs):
+            return sum(len(b) * line_h for b in bs) + gap * max(0, len(bs) - 1) + 2 * pad
+        while len(shown) > 1 and height(shown) > max_card_h:
+            shown.pop(0)                      # scroll: drop the oldest paragraph
+        if height(shown) <= max_card_h or size <= 34:
+            break
+        size -= 4                             # one very long paragraph: write smaller
+    card_h = max(height(shown), round(h * 0.22))
+    x0, y0 = (w - card_w) // 2, round((h - card_h) * 0.42)
+
+    canvas = bg.convert("RGBA")
+    shadow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(shadow).rounded_rectangle([x0, y0 + 18, x0 + card_w, y0 + card_h + 18], 26,
+                                             fill=(0, 0, 0, 150))
+    canvas = Image.alpha_composite(canvas, shadow.filter(ImageFilter.GaussianBlur(24)))
+    paper = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(paper).rounded_rectangle([x0, y0, x0 + card_w, y0 + card_h], 22,
+                                            fill=(*_hex(asm["letter_paper"]), 255))
+    canvas = Image.alpha_composite(canvas, paper)
+    # Faint ruled lines, like notepaper, each one under a line of handwriting (on its own layer,
+    # so the paper stays opaque).
+    rules = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    rd = ImageDraw.Draw(rules)
+    ascent = font.getmetrics()[0]
+    yy = y0 + pad + ascent + round(size * 0.06)
+    while yy < y0 + card_h - pad // 3:
+        rd.line([(x0 + pad // 2, yy), (x0 + card_w - pad // 2, yy)], fill=(*_hex(asm["letter_rule"]), 90), width=2)
+        yy += line_h
+    canvas = Image.alpha_composite(canvas, rules)
+    draw = ImageDraw.Draw(canvas)
+    ink = (*_hex(asm["letter_ink"]), 255)
+    y = y0 + pad
+    for i, block in enumerate(shown):
+        for line in block:
+            draw.text((x0 + pad, y), line, font=font, fill=ink)
+            y += line_h
+        y += gap
+    out.parent.mkdir(parents=True, exist_ok=True)
+    canvas.convert("RGB").save(out)
+    return out
+
+
 def app_screen_file(shot: dict) -> Path:
     rel = str(shot["app_screen"]).strip()
     path = Path(rel) if Path(rel).is_absolute() else ROOT / rel
@@ -179,8 +312,14 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
                     str(out)], label)
         return out
 
-    if shot.get("animate") and clip.exists():
-        # Trim to length; if the clip is shorter than the VO, hold its last frame.
+    if item.get("letter_page"):
+        # The letter so far on its paper card, with a gentle push-in.
+        _push_in(item["letter_page"], out, frames, float(asm["letter_zoom_end"]), asm, label)
+        return out
+
+    if (shot.get("animate") or shot.get("talk")) and clip.exists():
+        # Trim to length; if the clip is shorter than the VO, hold its last frame. A talking clip
+        # is as long as its voice line and starts with it, so its lips stay in sync.
         vf = (f"{_fill_filter(w, h)},fps={fps},"
               f"tpad=stop_mode=clone:stop_duration={duration + 1:.3f},setsar=1")
         run_ffmpeg(["-i", str(clip), "-t", f"{duration:.3f}", "-vf", vf, "-an",
@@ -188,7 +327,10 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
                     str(out)], label)
         return out
 
-    if shot.get("animate"):
+    if shot.get("talk"):
+        print(f"  shot {n}: talk is true but {clip.name} is missing; using a push-in on the keyframe "
+              f"(run the video step for a lip-synced clip)")
+    elif shot.get("animate"):
         print(f"  shot {n}: animate is true but {clip.name} is missing; using a push-in on the keyframe")
     if not keyframe.exists():
         raise StepError(f"shot {n}: keyframe {keyframe} is missing; run the images step first")
@@ -353,7 +495,18 @@ def shot_caption_events(run_dir: Path, item: dict,
     shot_end = item["start"] + item["duration"]
     if item["shot"].get("card") or item["shot"].get("app_screen") or item["shot"].get("montage"):
         return []
-    if item["vo"] is None:
+    if item["shot"].get("letter"):
+        # The letter is the text on screen; only a CTA caption goes on top.
+        caption = (item["shot"].get("caption") or "").strip().upper()
+        return [(shot_start, shot_end, caption)] if caption else []
+    if item.get("sung"):
+        tp = timing_path(run_dir, item["n"])
+        words = read_json(tp).get("words", []) if tp.exists() else []
+        if not words:
+            caption = (item["shot"].get("caption") or "").strip().upper()
+            return [(shot_start, shot_end, caption)] if caption else []
+        item = {**item, "vo": tp}
+    elif item["vo"] is None:
         caption = (item["shot"].get("caption") or "").strip().upper()
         return [(shot_start, shot_end, caption)] if caption else []
 
@@ -448,13 +601,16 @@ def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total:
     vo_items = [it for it in plan if it["vo"] is not None]
     for it in vo_items:
         args += ["-i", str(it["vo"])]
-    music = config.get("music_path") or ""
+    song = song_file(build.parent) if any(it.get("sung") for it in plan) else None
+    music = "" if song else (config.get("music_path") or "")
     music_file = (ROOT / music) if music else None
     if music_file and not music_file.exists():
         print(f"  music: {music} not found, skipping the music bed")
         music_file = None
     if music_file:
         args += ["-stream_loop", "-1", "-i", str(music_file)]
+    if song:
+        args += ["-i", str(song)]
 
     # Video: burn captions, then the format's grade (pixar_arc: desaturate + a slight cool tint).
     sat = float(asm["saturation"])
@@ -479,6 +635,12 @@ def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total:
         parts.append(f"[{mi}:a]aresample=44100,volume={float(asm['music_volume']):.3f},"
                      f"atrim=0:{total:.3f}[mu]")
         labels.append("[mu]")
+    if song:
+        si = len(vo_items) + 1
+        fade = min(1.2, total / 4)
+        parts.append(f"[{si}:a]aresample=44100,atrim=0:{total:.3f},"
+                     f"afade=t=out:st={max(0.0, total - fade):.3f}:d={fade:.3f}[song]")
+        labels.append("[song]")
     if labels:
         if len(labels) == 1:
             parts.append(f"{labels[0]}apad,atrim=0:{total:.3f}[a]")
@@ -535,20 +697,56 @@ def cost_report(run_dir: Path, script: dict, config: dict) -> list[tuple[str, fl
     sheets = sum(1 for c in script["characters"]
                  if (run_dir / "characters" / f"{c['id']}.png").exists()
                  and not (locked.get(c["id"], {}).get("image_path")))
-    clips = sum(1 for s in script["shots"] if video_path(run_dir, s["n"]).exists())
+    clips = sum(1 for s in script["shots"] if video_path(run_dir, s["n"]).exists() and not s.get("talk"))
+    talk_secs = 0.0
+    talk_clips = 0
     chars = 0
     for s in script["shots"]:
         tp = timing_path(run_dir, s["n"])
-        if tp.exists():
-            chars += int(read_json(tp).get("characters", 0))
-    return [
+        timing = read_json(tp) if tp.exists() else {}
+        chars += int(timing.get("characters", 0))
+        if s.get("talk") and video_path(run_dir, s["n"]).exists():
+            talk_clips += 1
+            talk_secs += float(timing.get("duration") or 0.0)
+    rows = [
         (f"images ({keyframes} keyframes + {sheets} sheets)", (keyframes + sheets) * float(fal["image_cost"])),
         (f"video ({clips} clips x {fal['video_seconds']}s)", clips * float(fal["video_seconds"]) * float(fal["video_cost_per_second"])),
-        (f"voice ({chars} chars)", chars / 1000 * float(config["elevenlabs"]["cost_per_1k_chars"])),
     ]
+    if talk_clips:
+        rows.append((f"talking ({talk_clips} clips, {talk_secs:.0f}s)", talk_secs * float(fal["avatar_cost_per_second"])))
+    from steps.song import song_plan
+    info = song_plan(run_dir)
+    if info:
+        secs = float(info.get("seconds") or 0.0)
+        rows.append((f"song ({secs:.0f}s)", secs / 60 * float(config["elevenlabs"]["music_cost_per_minute"])))
+    else:
+        rows.append((f"voice ({chars} chars)", chars / 1000 * float(config["elevenlabs"]["cost_per_1k_chars"])))
+    return rows
 
 
 # ------------------------------------------------------------------- run ----
+
+def song_file(run_dir: Path) -> Path | None:
+    from steps.song import song_path
+    p = song_path(run_dir)
+    return p if p.exists() else None
+
+
+def letter_pages(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> None:
+    """Draw the page for every letter shot: the letter so far over the latest background."""
+    paragraphs: list[str] = []
+    background: Path | None = None
+    for it in plan:
+        shot = it["shot"]
+        if not shot.get("letter"):
+            continue
+        own = shot_path(run_dir, it["n"])
+        if str(shot.get("image_prompt") or "").strip():
+            if not own.exists():
+                raise StepError(f"shot {it['n']}: keyframe {own} is missing; run the images step first")
+            background = own
+        paragraphs.append(shot["letter"])
+        it["letter_page"] = compose_letter(background, paragraphs, build / f"letter_{it['n']:02d}.png", asm)
 
 def run(run_dir: Path, config: dict) -> None:
     require_ffmpeg()
@@ -557,8 +755,10 @@ def run(run_dir: Path, config: dict) -> None:
     build = run_dir / "build"
     build.mkdir(parents=True, exist_ok=True)
 
-    plan = shot_durations(run_dir, script, asm)
+    from steps.song import is_song
+    plan = shot_durations(run_dir, script, asm, song=is_song(config))
     total = sum(it["duration"] for it in plan)
+    letter_pages(run_dir, build, plan, asm)
     print(f"[assemble] {len(plan)} shots, {total:.1f}s at {asm['width']}x{asm['height']} {asm['fps']}fps")
 
     clips = []
@@ -570,6 +770,10 @@ def run(run_dir: Path, config: dict) -> None:
             kind = f"app screen {it['shot']['app_screen']}"
         elif it["shot"].get("card"):
             kind = f"card \"{it['shot']['card']}\""
+        elif it.get("letter_page"):
+            kind = "letter"
+        elif it["shot"].get("talk"):
+            kind = "talking clip" if video_path(run_dir, it["n"]).exists() else "push-in (no talking clip)"
         else:
             kind = "clip" if (it["shot"].get("animate") and video_path(run_dir, it["n"]).exists()) else "push-in"
         print(f"  shot {it['n']}: {kind} {it['duration']:.2f}s" + (f" (VO {it['vo_len']:.2f}s)" if it["vo"] else ""))
