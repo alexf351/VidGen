@@ -1,9 +1,11 @@
-# 3D Explainer: a fast narrated explainer in the Zack D Films style.
-# One idea, one metaphor, quick cuts; runs on the normal image + clip pipeline.
+# 3D Explainer: a fast narrated explainer ad for Iro in the Zack D Films style.
+# Story craft (hook act, hinge-word chain, shot kit, calm shots) follows the same framework
+# as true_story_3d; this one turns to Iro and ends on the call to action.
 name: explainer_3d
 title: 3D Explainer
-description: 'A fast narrated 3D explainer in the Zack D Films style: one wild idea, shown through a metaphor.'
-duration_target: about 25-40 seconds
+description: 'A fast narrated 3D explainer in the Zack D Films style: one wild idea about AI, shown as
+  a chain of things you can see.'
+duration_target: about 35-45 seconds
 aspect: '9:16'
 resolution:
 - 1080
@@ -12,25 +14,24 @@ fps: 30
 clip_seconds: 4
 cast: locked
 beats:
-- the hook question
+- the hook act
+- then
 - what is really happening
-- the metaphor
 - it gets worse
-- what fixes it
+- '"You see," the reason'
 - Iro
 - the payoff
 - Search Iro AI
-style: hyper-detailed 3D render, realistic 3D human character with slightly exaggerated expressions, smooth
-  skin and clean studio lighting, plain bright solid-color background, cutaway and cross-section views,
-  vertical 9:16
+style: clean realistic 3D render like a high-end game cutscene, bright saturated colors, slightly filmic,
+  warm sun and soft shadows, wide lens, shallow depth of field, vertical 9:16
 max_animated_shots: 6
 rules:
   story_shots:
-  - 9
-  - 14
+  - 13
+  - 20
   vo_words:
-  - 65
-  - 115
+  - 90
+  - 130
   caption_max_words: 2
   cta_caption: SEARCH IRO AI
   narrator: true
@@ -82,23 +83,23 @@ captions:
   font: Montserrat Black Italic
   font_file: assets/fonts/Montserrat-BlackItalic.ttf
   fallback_font: Arial Black
-  size: 90
-  y: 0.55
-  max_words: 2
+  size: 72
+  y: 0.78
+  max_words: 3
   fill: '&H00FFFFFF'
-  outline_color: '&H00E6C8FF'
-  outline: 5
-  blur: 6
-  pop_from: 85
-  pop_ms: 80
+  outline_color: '&H00141414'
+  outline: 4
+  blur: 5
+  pop_from: 92
+  pop_ms: 60
   card_fade_ms: 200
 grade:
-  saturation: 1.0
+  saturation: 1.08
   colorbalance: ''
 timing:
-  vo_pad_seconds: 0.25
-  min_shot_seconds: 1.2
-  zoom_end: 1.08
+  vo_pad_seconds: 0.12
+  min_shot_seconds: 1.0
+  zoom_end: 1.1
   card_seconds: 1.5
   app_screen_seconds: 1.5
   app_screen_zoom_end: 1.04

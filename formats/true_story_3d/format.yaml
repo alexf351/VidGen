@@ -1,0 +1,96 @@
+# 3D True Story: one strange true event, told in the Zack D Films style. No ad, no CTA.
+# The premise is the event ("He tied 42 weather balloons to a lawn chair in 1982").
+# The script may only use facts it is sure of; check them before you post.
+name: true_story_3d
+title: 3D True Story
+description: 'A strange true event told Zack D Films style: "He tied 42 balloons to a lawn chair." No
+  ad, pure story.'
+duration_target: about 38-50 seconds
+aspect: '9:16'
+resolution:
+- 1080
+- 1920
+fps: 30
+clip_seconds: 4
+cast: none
+beats:
+- the odd act
+- then
+- then
+- it goes wrong
+- '"You see," the context'
+- someone looks closer
+- the consequence
+style: clean realistic 3D render like a high-end game cutscene, bright saturated colors, slightly filmic,
+  warm sun and soft shadows, wide lens, shallow depth of field, vertical 9:16
+max_animated_shots: 6
+rules:
+  story_shots:
+  - 14
+  - 22
+  vo_words:
+  - 100
+  - 140
+  caption_max_words: 2
+  cta_caption: ''
+  narrator: true
+  banned_image_prompt:
+    fix: describe the thing itself, with no brand on it
+    patterns:
+    - - \blogos?\b
+      - a logo
+  banned_vo_line:
+    fix: say it plainly, the way the story happened
+    patterns:
+    - - —
+      - an em dash
+    - - ;
+      - a semicolon
+    - - \bnot just\b.*\bbut\b
+      - '"not just X but Y"'
+    - - \bit['’]?s not (?:about )?\w+[^.]*?, it['’]?s\b
+      - '"it''s not X, it''s Y"'
+    - - here['’]?s the thing|let that sink in|read the (?:tiny|fine) print|the truth is|in today['’]?s|buckle
+        up|imagine this|it['’]?s worth noting|at the end of the day|whether you['’]?re a
+      - filler
+    - - \b(?:spoiler|plot twist)\s*:|here['’]?s where it gets interesting|the best part\?
+      - fake suspense
+    - - \b(?:delve|unlock|unleash|harness|leverage|seamless|robust|cutting[- ]edge|game[- ]?changer|revolutionary|transformative|landscape|realm|tapestry|elevate|empower|supercharge|deep
+        dive|next level|dive in)\b
+      - an AI word
+    - - \b(?:panic button|goldmine|secret sauce)\b
+      - a metaphor punchline
+    - - \b(?:follow|subscribe|like and|comment below|link in bio|search iro)\b
+      - a call to action
+    - - \?\s*$
+      - a question (the story only states what happened)
+prompt:
+  app_screen_line: '  * "{{PATH}}": {{SHOWS}}'
+  app_screen_unknown: an Iro app screen
+captions:
+  font: Montserrat Black Italic
+  font_file: assets/fonts/Montserrat-BlackItalic.ttf
+  fallback_font: Arial Black
+  size: 72
+  y: 0.78
+  max_words: 3
+  fill: '&H00FFFFFF'
+  outline_color: '&H00141414'
+  outline: 4
+  blur: 5
+  pop_from: 92
+  pop_ms: 60
+  card_fade_ms: 200
+grade:
+  saturation: 1.08
+  colorbalance: ''
+timing:
+  vo_pad_seconds: 0.12
+  min_shot_seconds: 1.0
+  zoom_end: 1.1
+  card_seconds: 1.5
+  app_screen_seconds: 1.5
+  app_screen_zoom_end: 1.04
+  montage_seconds: 0.5
+  montage_zoom_end: 1.12
+app_screens: []

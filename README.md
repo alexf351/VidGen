@@ -150,7 +150,8 @@ And seven modelled on formats from Fastlane's gallery:
 
 | format | what it is | built on |
 |---|---|---|
-| `explainer_3d` | a fast narrated 3D explainer in the Zack D Films style: one idea, one visual metaphor | narrator + clips |
+| `explainer_3d` | a fast narrated 3D explainer ad in the Zack D Films style: one idea about AI as a chain of things you can see | narrator + clips |
+| `true_story_3d` | one strange true event in the same style ("He tied 42 balloons to a lawn chair"); no ad, no call to action | narrator + clips |
 | `skeleton` | a glowing skeleton lives your day while a narrator explains what your brain is doing | narrator + a locked skeleton |
 | `felt`, `fashion_doll` | the narrated story ad in needle-felted wool, or with plastic fashion dolls (the Barbie look) | same as claymation |
 | `news_anchor` | a deadpan anchor breaks the viewer's problem as tonight's top story, red banner on screen | talking shots + labels |
@@ -158,6 +159,14 @@ And seven modelled on formats from Fastlane's gallery:
 | `beginner_expert` | three people pass a mic, each with a sharper take, with BEGINNER / INTERMEDIATE / EXPERT tags | talking shots + labels |
 
 (The Lego look is the `brick` format.)
+
+The two 3D formats share one story craft: line 1 is the odd physical act ("He ..."), every
+sentence after it starts with a hinge word (Then, Suddenly, So, Because, But, Later) and is one
+visible action, the context arrives late after "You see,", and there is a new picture for every
+line from a fixed shot kit (macro insert, hero low angle, top-down, glow highlight, a big 3D
+number, a thought bubble ...), with calm shots only. For `true_story_3d` the premise is the
+event; the script is told to use only facts it is sure of, and it rejects questions and calls to
+action, but check the facts yourself before posting.
 
 Each adds one capability a format can switch on in its `rules`:
 
