@@ -187,6 +187,9 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
     _resolve_video_rate(fal)
     _apply_providers(cfg)
     cfg["voices"] = {str(k): (v or "") for k, v in (cfg.get("voices") or {}).items()}
+    vc = cfg.setdefault("voice_casting", {}) or {}
+    cfg["voice_casting"] = {"enabled": vc.get("enabled", True) is not False,
+                            "exclude": [str(x) for x in (vc.get("exclude") or [])]}
     if cast:
         from characters import apply_cast
         apply_cast(cfg, cast)

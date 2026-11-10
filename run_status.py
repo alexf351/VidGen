@@ -193,7 +193,10 @@ def detail(run_dir: Path, config: dict | None) -> dict:
     if isinstance((script or {}).get("song"), dict):
         from steps.song import song_path
         song = {"style": script["song"].get("style", ""), "audio": file_url(song_path(run_dir))}
+    import voice_cast
+    voices = voice_cast.summary(run_dir, config, script) if config else []
     return {**meta, "steps": step_status(run_dir, script), "script": script, "song": song,
+            "voices": voices,
             "characters": characters, "shots": shots,
             "final_video": file_url(run_dir / "final.mp4"),
             "captions": file_url(run_dir / "build" / "captions.ass"),

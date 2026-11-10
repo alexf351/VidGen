@@ -30,7 +30,8 @@ CAST
   description WORD FOR WORD into "characters" and paste the description into the image_prompt of
   every shot they appear in. Invent anyone else the format needs (see below).
 - An invented person gets an id and ONE sentence of physical identity (an adult age, face, hair,
-  skin, build), no clothing.
+  skin, build), no clothing. Start it with their age and "man" or "woman", like "a 31 year old
+  woman with ...": their voice is chosen from it.
 - Everyone is clearly an adult. Iro, the app's penguin mascot, does not appear in this format.
 
 THE STORY

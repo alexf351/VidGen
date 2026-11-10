@@ -433,3 +433,18 @@ details.notes { margin-top: 14px; }
 .song-style { font-size: 12px; color: var(--muted); margin: -2px 0 8px; font-style: italic; }
 .srow .letter-field { background: rgba(251, 247, 238, .06); }
 .thumb .placeholder.low { place-items: end center; padding-bottom: 44px; }
+
+/* ---------------------------------------------------------------- voices */
+.voices-panel { margin-bottom: 18px; }
+.voice-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.voice-row { display: grid; grid-template-columns: minmax(0, 104px) minmax(0, 1fr) 26px; gap: 6px; align-items: center; }
+.voice-who { display: flex; flex-direction: column; min-width: 0; font-size: 12px; }
+.voice-who b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.voice-src { font-size: 10.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.voice-src.auto { color: var(--info); }
+.voice-src.manual { color: var(--accent-soft); }
+.voice-src.default { color: var(--warn); }
+.voice-row select, .voice-pick select { height: 28px; padding: 0 6px; font-size: 12px; }
+.voice-id { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.voice-pick { display: grid; grid-template-columns: minmax(0, 1fr) 26px; gap: 6px; align-items: center; }
+.voice-pick > input { grid-column: 1 / -1; }

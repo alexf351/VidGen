@@ -118,6 +118,8 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
             fal_api.require_key()
     if talking:
         fal_api.require_key()                # talking clips are made on fal whatever the provider
+        import voice_cast
+        voice_cast.ensure_cast(run_dir, config, script)   # before any talking shot's voice line
     resolution = video_resolution(config)   # fail before any spend on a bad value
     block = _block(config)
     seconds = int(block["video_seconds"])

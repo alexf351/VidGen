@@ -215,6 +215,22 @@ time it is used in that format (cached in `characters_cache/` as `lib-<id>@<form
 editing the picture or description draws a fresh one). Tick "Use my picture exactly as it is"
 to skip that and use the picture itself as the reference.
 
+### Voices
+
+A speaker with a voice id in `voices:` (config.local.yaml), or a library character with its own
+voice, always uses it. Anyone else, usually the people a format invents for one video, is
+**cast automatically** from the voices in your ElevenLabs account: same gender, close in age
+(both read from the character's description, "a 31 year old woman with ..."), and a different
+voice for each person in the video. Casting happens right after the script is written, so the
+run page's **Voices** panel shows who got which voice before anything is spoken; there you can
+play a preview, pick another voice for any speaker (the narrator too, for that one video) and
+redo the lines already spoken. The choices are saved in the run's `voices.json`.
+
+Reading the voice list is a free ElevenLabs call, cached for an hour. To get more variety, add
+voices you like to "My Voices" on elevenlabs.io and press Refresh. `voice_casting.exclude` in
+config lists voice ids never to cast; `voice_casting.enabled: false` turns it off (uncast
+speakers then use the default `voice_id`).
+
 ### The Claude Code engine
 
 The ten looks from claude-animation-styles (and `style_switch`) can also run on the skill's

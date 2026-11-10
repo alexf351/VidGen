@@ -22,6 +22,7 @@ const S = {
   provider: "", viewJob: null, viewPinned: false, es: null,
   jobStatus: new Map(), jobsLoaded: false, doctor: null,
   chars: [], charsLoaded: false, storyDraft: null, storyFor: null, storyErrors: null,
+  voices: null, voicesError: null, preview: null,
 };
 const CODE_STEPS = ["story", "scenes", "voice", "render"];
 
@@ -313,6 +314,33 @@ async function loadBasics() {
   const [config, formats] = await Promise.all([api("GET", "/api/config"), api("GET", "/api/formats")]);
   S.config = config; S.formats = formats;
   await loadChars();
+}
+
+// The ElevenLabs voice list (free, cached on the server). Loaded once; "refresh" asks again.
+async function loadVoices(refresh) {
+  try {
+    const r = await api("GET", `/api/voices${refresh ? "?refresh=true" : ""}`);
+    S.voices = r.voices || []; S.voicesError = r.error;
+  } catch (e) { S.voices = []; S.voicesError = e.message; }
+  return S.voices;
+}
+function voiceLabel(v) {
+  return [v.name, [v.gender, (v.age || "").replace("_", " "), v.accent].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
+}
+function playPreview(voiceId, btn) {
+  const v = (S.voices || []).find((x) => x.voice_id === voiceId);
+  if (S.preview) { S.preview.pause(); S.preview = null; }
+  if (!v || !v.preview_url) { toast("No preview for this voice.", "bad"); return; }
+  const a = new Audio(v.preview_url); S.preview = a;
+  btn.textContent = "■"; a.onended = a.onpause = () => { btn.textContent = "▶"; };
+  a.play().catch(() => { btn.textContent = "▶"; toast("Could not play the preview.", "bad"); });
+}
+function voiceSelect(current, onChange, { emptyLabel, label }) {
+  const known = (S.voices || []).some((v) => v.voice_id === current);
+  return h("select", { "aria-label": label, onchange: (e) => onChange(e.target.value) },
+    emptyLabel ? h("option", { value: "", selected: !current }, emptyLabel) : null,
+    current && !known ? h("option", { value: current, selected: true }, `${current.slice(0, 10)}… (not in your list)`) : null,
+    (S.voices || []).map((v) => h("option", { value: v.voice_id, selected: v.voice_id === current }, voiceLabel(v))));
 }
 
 async function loadChars() {
@@ -900,6 +928,7 @@ function sideColumn(run, busy) {
   } else {
     col.append(h("div", { class: "player-empty" }, run.script ? "Not assembled yet. Run Assemble once images, clips and voice are in." : "No video yet."));
   }
+  if (run.voices && run.voices.length) col.append(voicesPanel(run, busy));
   if (run.song) {
     col.append(h("div", { class: "panel-title" }, "Song"),
       h("div", { class: "song-style" }, run.song.style),
@@ -913,6 +942,50 @@ function sideColumn(run, busy) {
   }
   if (run.script) col.append(scriptPanel(run, busy));
   return col;
+}
+
+// ------------------------------------------------------------ voices panel
+const VOICE_SOURCE = { auto: "cast for this video", manual: "your pick", config: "from your config", default: "default voice" };
+function voicesPanel(run, busy) {
+  const box = h("section", { class: "voices-panel", "aria-label": "Voices" });
+  const draw = () => {
+    const rows = run.voices.map((v) => {
+      const spokenShots = run.shots.filter((s) => v.shots.includes(s.n));
+      const play = h("button", { class: "icon-btn", type: "button", title: "Hear this voice", "aria-label": `Hear ${v.speaker}'s voice`,
+        onclick: (e) => playPreview(v.voice_id, e.currentTarget) }, "▶");
+      const pick = async (voiceId) => {
+        try {
+          const r = await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/voices`, { speaker: v.speaker, voice_id: voiceId || null });
+          run.voices = r.voices;
+          const lines = spokenShots.filter((s) => s.audio).map((s) => s.n);
+          S.voiceRedo = lines.length ? { run: run.run_id, speaker: v.speaker, shots: lines } : null;
+          draw();
+        } catch (e) { toast(e.message, "bad"); draw(); }
+      };
+      return h("div", { class: "voice-row" },
+        h("div", { class: "voice-who" }, h("b", {}, v.speaker),
+          h("span", { class: `voice-src ${v.source}` }, VOICE_SOURCE[v.source] || v.source,
+            v.gender || v.age ? ` · ${[v.gender, (v.age || "").replace("_", " ")].filter(Boolean).join(", ")}` : "")),
+        S.voices && S.voices.length
+          ? voiceSelect(v.voice_id, pick, { label: `Voice for ${v.speaker}`, emptyLabel: v.source === "auto" || v.source === "manual" ? "Back to the default" : null })
+          : h("span", { class: "dim voice-id" }, v.name || v.voice_id),
+        play);
+    });
+    const redo = S.voiceRedo && S.voiceRedo.run === run.run_id ? S.voiceRedo : null;
+    box.replaceChildren(...[
+      h("div", { class: "panel-title" }, h("span", {}, "Voices"),
+        h("button", { class: "btn small ghost", type: "button", title: "Read the voice list from ElevenLabs again",
+          onclick: async () => { await loadVoices(true); draw(); toast(S.voicesError || `${S.voices.length} voices`, S.voicesError ? "bad" : "ok"); } }, "Refresh")),
+      S.voicesError ? h("div", { class: "field-note warn" }, S.voicesError) : null,
+      h("div", { class: "voice-list" }, rows),
+      redo ? h("div", { class: "notice" }, `${redo.speaker} already has ${plural(redo.shots.length, "spoken line")} in the old voice. `,
+        h("button", { class: "btn small", disabled: busy, onclick: () => { const r = redo; S.voiceRedo = null; runStep(run, "voice", r.shots); } }, "Redo them")) : null,
+      h("div", { class: "field-note" }, "People without a voice of their own get one from your ElevenLabs voices, matched by gender and age. Change any of them here before the voice step."),
+    ].filter(Boolean));
+  };
+  draw();
+  if (S.voices === null) loadVoices().then(draw);
+  return box;
 }
 
 // ----------------------------------------------------------- script panel
@@ -1053,6 +1126,15 @@ function renderCharEditor(cid) {
     placeholder: "a 30 year old woman with short black hair, warm brown skin, freckles, a slim build" }, c ? c.description : "");
   const role = h("input", { type: "text", maxlength: "80", value: c ? c.role : "", placeholder: "the hero (optional)" });
   const voice = h("input", { type: "text", maxlength: "64", value: c ? c.voice_id : "", placeholder: "ElevenLabs voice id (optional)" });
+  const voiceBox = h("div", { class: "voice-pick" });
+  const drawVoice = () => {
+    if (!S.voices || !S.voices.length) { voiceBox.replaceChildren(voice); return; }
+    const play = h("button", { class: "icon-btn", type: "button", title: "Hear this voice", "aria-label": "Hear this voice",
+      onclick: (e) => voice.value && playPreview(voice.value, e.currentTarget) }, "▶");
+    voiceBox.replaceChildren(voiceSelect(voice.value, (id) => { voice.value = id; }, { label: "Voice", emptyLabel: "No voice of their own" }), play);
+  };
+  drawVoice();
+  if (S.voices === null) loadVoices().then(drawVoice);
   const asIs = h("input", { type: "checkbox", checked: !!(c && c.keep_as_is) });
   const errBox = h("div");
   const preview = h("div", { class: "char-preview" });
@@ -1137,7 +1219,8 @@ function renderCharEditor(cid) {
           h("div", { class: "field" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Description"), describeBtn), desc,
             h("div", { class: "field-note" }, "Who they are, not what they wear: age, face, hair, skin, build, one distinctive feature.")),
           field("Usual role", role, "Used when you add them to a story. When they replace a format's character they take that role."),
-          field("Voice", voice, "Speaks their lines. Empty: the voice of the character they replace, or the default.")),
+          h("div", { class: "field" }, h("span", {}, "Voice"), voiceBox,
+            h("div", { class: "field-note" }, "Speaks their lines. None: the voice of the character they replace, or one cast for the video."))),
         h("section", { class: "card-sec" },
           h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Picture")),
           h("div", { class: "pic-actions" },

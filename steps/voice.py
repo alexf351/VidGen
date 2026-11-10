@@ -92,7 +92,8 @@ def generate_voice(run_dir: Path, config: dict, shot: dict) -> Path:
     n = shot["n"]
     text = shot["vo_line"].strip()
     speaker = shot.get("speaker") or "narrator"
-    voice_id = voice_for(speaker, config)
+    import voice_cast
+    voice_id = voice_cast.voice_for(run_dir, speaker, config)
     label = f"shot {n}"
     data = tts_with_timestamps(text, voice_id, config, label)
 
@@ -125,6 +126,8 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         print(f"[voice] silent shot(s) {silent}, nothing to synthesize")
     print(f"[voice] {len(spoken)} spoken shot(s), model {config['elevenlabs']['model_id']}, "
           f"${rate:.2f}/1k chars")
+    import voice_cast
+    voice_cast.ensure_cast(run_dir, config, script)     # a fitting voice for anyone without one
 
     generated = 0
     chars = 0
@@ -134,7 +137,7 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
             print(f"  shot {n}: exists, skipping")
             continue
         speaker = shot.get("speaker") or "narrator"
-        print(f"  shot {n}: {speaker} ({voice_for(speaker, config)}) \"{shot['vo_line'].strip()}\"")
+        print(f"  shot {n}: {speaker} ({voice_cast.voice_for(run_dir, speaker, config)}) \"{shot['vo_line'].strip()}\"")
         generate_voice(run_dir, config, shot)
         clip = run_dir / "shots" / f"{n}.mp4"
         if shot.get("talk") and clip.exists():

@@ -653,10 +653,11 @@ def run_voice(run_dir: Path, config: dict) -> None:
         print("[voice] no ELEVENLABS_API_KEY, so the video will have no voice (the beats keep "
               "their seconds)")
         return
-    from steps.voice import tts_with_timestamps, voice_for
+    import voice_cast
+    from steps.voice import tts_with_timestamps
     lines = [b["line"].strip() for b in story["beats"]]
     text = " ".join(lines)
-    voice_id = voice_for("narrator", config)
+    voice_id = voice_cast.voice_for(run_dir, "narrator", config)
     print(f"[voice] reading {len(lines)} lines ({len(text)} characters) with voice {voice_id}...")
     data = tts_with_timestamps(text, voice_id, config, "voice")
     (ws / "voice.mp3").write_bytes(base64.b64decode(data["audio_base64"]))

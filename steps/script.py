@@ -611,3 +611,15 @@ def run(run_dir: Path, config: dict) -> None:
     write_json(out, script)
     print(f"[script] saved {out}")
     print_shot_table(script, config["style"])
+    cast_voices(run_dir, config, script)
+
+
+def cast_voices(run_dir: Path, config: dict, script: dict) -> None:
+    """A new script may have new people: drop the voices cast for the old one (your own picks
+    stay) and cast again, so the run page shows who sounds like what before anything is spoken."""
+    import voice_cast
+    kept = {k: v for k, v in voice_cast.run_voices(run_dir).items() if v.get("source") == "manual"}
+    if voice_cast.voices_path(run_dir).is_file():
+        write_json(voice_cast.voices_path(run_dir), {"voices": kept})
+    if os.environ.get("ELEVENLABS_API_KEY"):
+        voice_cast.ensure_cast(run_dir, config, script)

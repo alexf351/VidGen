@@ -73,6 +73,11 @@ class DrawRequest(BaseModel):
     provider: ProviderChoice = None
 
 
+class VoiceChoice(BaseModel):
+    speaker: str
+    voice_id: str | None = None       # None or "" goes back to the config / default voice
+
+
 class DescribeRequest(BaseModel):
     image: str | None = None          # data: URL, or
     character: str | None = None      # a library character's own picture
@@ -499,6 +504,40 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             raise HTTPException(422, {"message": "the script does not pass validation", "errors": errors})
         write_json(run_dir / "script.json", normalized)
         return {"saved": True, "script": normalized}
+
+    # ------------------------------------------------------------ voices --
+    @app.get("/api/voices")
+    def voices(refresh: bool = False) -> dict:
+        """The voices in the ElevenLabs account (a free call, cached for an hour)."""
+        import voice_cast
+        try:
+            return {"voices": voice_cast.list_voices(refresh=refresh), "error": None}
+        except StepError as e:
+            return {"voices": [], "error": str(e)}
+
+    @app.put("/api/runs/{run_id}/voices")
+    def set_run_voice(run_id: str, body: VoiceChoice) -> dict:
+        """Pick the voice for one speaker in this run. Lines already spoken keep their audio
+        until the voice step is run again for them."""
+        import voice_cast
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "voice casting")
+        script = run_status.load_script(run_dir)
+        if script is None:
+            raise HTTPException(409, "this run has no script.json yet")
+        if body.speaker not in voice_cast.speakers(script):
+            raise HTTPException(404, f"{body.speaker!r} does not speak in this run")
+        name = ""
+        if body.voice_id:
+            try:
+                name = next((v["name"] for v in voice_cast.list_voices() if v["voice_id"] == body.voice_id), "")
+            except StepError:
+                name = ""
+        try:
+            voice_cast.set_voice(run_dir, body.speaker, body.voice_id, name)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        return {"voices": voice_cast.summary(run_dir, config_for_run(run_dir), script)}
 
     # -------------------------------------------------------- characters --
     def char_url(cid: str) -> str | None:
