@@ -735,9 +735,10 @@ function castSection(f, st, onChange) {
     const chars = f.characters || [];
     const rows = chars.map((c) => {
       const lib = swaps[c.id] && S.chars.find((x) => x.id === swaps[c.id]);
-      return h("div", { class: `cast-row${lib ? " swapped" : ""}` },
+      return h("div", { class: `cast-row${lib ? " swapped" : ""}`, title: lib ? lib.description || "" : c.description || "" },
         charFace(lib ? lib.image : c.image, lib ? lib.name : c.id),
-        h("div", { class: "cast-who" }, h("b", {}, lib ? lib.name : c.id), h("span", {}, lib ? `as ${c.role || c.id}` : c.role)),
+        h("div", { class: "cast-who" }, h("b", {}, lib ? lib.name : c.id), h("span", {}, lib ? `as ${c.role || c.id}` : c.role),
+          !lib && c.redraw ? h("span", { class: "cast-new" }, "New look. Drawn on your next video.") : null),
         S.chars.length ? h("select", { "aria-label": `Who plays ${c.id}`, onchange: (e) => { swaps[c.id] = e.target.value; sync(); draw(); } },
           h("option", { value: "", selected: !swaps[c.id] }, `${c.id} (format)`), libOptions(swaps[c.id])) : null);
     });

@@ -80,13 +80,21 @@ def _look(c: dict) -> str:
     return "\n".join(x for x in (c.get("description", "").strip(), (c.get("outfit") or "").strip()) if x)
 
 
+# Sheets cached before the notes existed have no <id>.txt. They are kept (so a recurring
+# character keeps the same face from video to video), except for characters whose look changed
+# while there were no notes: sofia went from blonde to goth.
+_REDRAW_WITHOUT_NOTE = {"sofia"}
+
+
 def cache_is_current(config: dict, lock: dict) -> bool:
     """True when characters_cache/<id>.png was drawn from this character's current look.
-    characters_cache/<id>.txt records the look; a sheet with no note, or a different one, was
-    drawn from an older description and is redrawn."""
+    characters_cache/<id>.txt records the look the sheet was drawn from; a different look
+    means the sheet is redrawn."""
     if not cache_path(config, lock["id"]).exists():
         return False
     note = _cache_note(config, lock["id"])
+    if not note.exists():
+        return lock["id"] not in _REDRAW_WITHOUT_NOTE
     try:
         return note.read_text(encoding="utf-8").strip() == _look(lock)
     except OSError:
@@ -213,6 +221,8 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
             print(f"  [{cid}] reference sheet exists, skipping")
         elif lock and cache_is_current(config, lock):
             shutil.copyfile(cache_path(config, cid), dest)
+            if not _cache_note(config, cid).exists():      # an older sheet: record its look now
+                _cache_note(config, cid).write_text(_look(lock) + "\n", encoding="utf-8")
             print(f"  [{cid}] reference sheet from cache")
         else:
             if lock and cache_path(config, cid).exists():

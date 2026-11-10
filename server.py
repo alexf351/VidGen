@@ -223,7 +223,8 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                         "locked_cast": [c["id"] for c in f["overlay"].get("locked_characters", [])],
                         "characters": [{"id": c["id"], "role": c.get("role", ""),
                                         "description": c.get("description", ""),
-                                        "image": format_char_url(f["name"], c)}
+                                        "image": format_char_url(f["name"], c),
+                                        "redraw": format_char_redraw(c)}
                                        for c in f["overlay"].get("locked_characters", [])],
                         "engines": ["ai", "claude_code"] if f.get("code_render") else ["ai"],
                         "code_styles": (f.get("code_render") or {}).get("styles", []),
@@ -239,16 +240,29 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         return out
 
     def format_char_path(c: dict) -> Path | None:
-        """A format character's picture: its image_path, else the sheet cached by an earlier run."""
+        """A format character's picture: its image_path, else the sheet cached by an earlier run,
+        but only while that sheet still shows the character's current look."""
         if c.get("image_path"):
             p = ROOT / c["image_path"]
             return p if p.is_file() else None
+        from steps import images
         try:
-            cache_dir = load_config()["characters_cache_dir"]
+            cfg = load_config()
         except StepError:
             return None
-        p = ROOT / cache_dir / f"{c['id']}.png"
-        return p if p.is_file() else None
+        return images.cache_path(cfg, c["id"]) if images.cache_is_current(cfg, c) else None
+
+    def format_char_redraw(c: dict) -> bool:
+        """True when an earlier run cached a sheet for this character, but from an older look,
+        so the next video draws a new one."""
+        if c.get("image_path"):
+            return False
+        from steps import images
+        try:
+            cfg = load_config()
+        except StepError:
+            return False
+        return images.cache_path(cfg, c["id"]).exists() and not images.cache_is_current(cfg, c)
 
     def format_char_url(name: str, c: dict) -> str | None:
         p = format_char_path(c)

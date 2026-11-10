@@ -448,3 +448,5 @@ details.notes { margin-top: 14px; }
 .voice-id { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .voice-pick { display: grid; grid-template-columns: minmax(0, 1fr) 26px; gap: 6px; align-items: center; }
 .voice-pick > input { grid-column: 1 / -1; }
+
+.cast-who .cast-new { color: var(--accent, #ff8fc7); white-space: normal; }

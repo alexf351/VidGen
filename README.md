@@ -521,7 +521,8 @@ one retry. The result is saved to `runs/<run_id>/script.json` and printed as a s
 freshly generated sheet (front, three-quarter and side view on a plain light grey background).
 New sheets for locked characters are copied into `characters_cache/` for later runs, with a
 note (`<id>.txt`) of the look they were drawn from. Change a locked character's description or
-`outfit` and their cached sheet is redrawn the next time it is needed. For a run that already
+`outfit` and their cached sheet is redrawn the next time it is needed (the Cast list in the UI
+shows "New look" until then). For a run that already
 exists, `python main.py recast <run_id>` applies the new description to it.
 
 Then it generates one 9:16 keyframe per shot at `runs/<run_id>/shots/<n>.png`. Shots with
