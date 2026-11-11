@@ -262,6 +262,20 @@ function formatSize(formatName) {
     talkSeconds: L.talking ? L.vo_words[1] / 2.6 : 0,
     songSeconds: L.song ? L.vo_words[1] / 2 + 5 : 0 };
 }
+// A ready-made script's shot list is known, so its cost is a figure and not an upper bound.
+function estimateReady(formatName, choice, e) {
+  const f = S.formats.find((x) => x.name === formatName);
+  const L = (f && f.limits) || {};
+  const clips = L.animate_all ? e.drawn - e.flashes : Math.min(e.animated, L.max_animated_shots ?? 8);
+  const sheets = e.cast.length;
+  const rows = [
+    ["Script (ready-made, nothing sent to Claude)", "free"],
+    [`${e.drawn} keyframes + up to ${sheets} character sheets (${providerFor("images", choice)})`, imageCost(e.drawn + sheets, choice)],
+    clips ? [`${clips} clips × ${clipSeconds(formatName)}s (${providerFor("video", choice)}, ${resolution()})`, clipCost(clips, formatName, choice)] : null,
+    e.chars ? [`${e.chars} characters of voice`, voiceCost(e.chars)] : null,
+  ].filter(Boolean);
+  return { rows, total: rows.reduce((a, [, v]) => a + (typeof v === "number" ? v : 0), 0) };
+}
 function estimateNew(formatName, choice) {
   const g = formatSize(formatName);
   const rows = [
@@ -991,8 +1005,8 @@ function renderCreate(formatName) {
       costLine.textContent = "a few cents"; costSub.textContent = "Script only. Nothing goes to the image, video or voice providers.";
       go.textContent = "Write the script";
     } else {
-      const est = estimateNew(f.name, st.provider);
-      costLine.textContent = `up to ${usd(est.total)}`;
+      const est = readyOn ? estimateReady(f.name, st.provider, readyOn) : estimateNew(f.name, st.provider);
+      costLine.textContent = readyOn ? `about ${usd(est.total)}` : `up to ${usd(est.total)}`;
       costSub.textContent = est.rows.slice(1).map(([k]) => k).join(" · ");
       go.textContent = "Generate video";
     }
@@ -1044,10 +1058,12 @@ function renderCreate(formatName) {
         note: "Claude Code runs on your Claude plan and counts toward its usage limits. Rendering happens on this computer and can take several minutes. Choose Story only to read the story first." });
       if (!ok) return;
     } else if (!st.dry) {
-      const est = estimateNew(f.name, st.provider);
-      const ok = await confirmDialog({ title: `Generate a ${formatTitle(f)} video?`, rows: est.rows, total: est.total,
-        text: "Runs script, images, video, voice and assemble.", ok: "Generate",
-        note: "An upper bound from the format's limits; the real cost depends on the shot list. Choose Script only to check it first for a few cents." });
+      const picked = ready ? (f.ready_scripts || []).find((e) => e.id === ready) : null;
+      const est = picked ? estimateReady(f.name, st.provider, picked) : estimateNew(f.name, st.provider);
+      const ok = await confirmDialog({ title: picked ? `Generate "${picked.title}"?` : `Generate a ${formatTitle(f)} video?`, rows: est.rows, total: est.total,
+        text: picked ? `${formatTitle(f)}, from the ready-made script. Runs images, video, voice and assemble.` : "Runs script, images, video, voice and assemble.", ok: "Generate",
+        note: picked ? "Counted from the script's own shot list. Character sheets you already have are reused and cost nothing; shots you redo afterwards cost extra. Choose Script only to read it first for free."
+          : "An upper bound from the format's limits; the real cost depends on the shot list. Choose Script only to check it first for a few cents." });
       if (!ok) return;
     }
     go.disabled = true;

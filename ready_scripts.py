@@ -81,6 +81,11 @@ def listing(fmt: dict) -> list[dict]:
                 "words": sum(len(str(s.get("vo_line") or "").split()) for s in shots),
                 "drawn": sum(1 for s in shots if str(s.get("image_prompt") or "").strip()),
                 "app_screens": [str(s["app_screen"]) for s in shots if s.get("app_screen")],
+                # for the cost shown before generating: exact, because the shot list is known
+                "flashes": sum(1 for s in shots if s.get("flash") and str(s.get("image_prompt") or "").strip()),
+                "animated": sum(1 for s in shots if s.get("animate")),
+                "chars": sum(len(str(s.get("vo_line") or "")) for s in shots),
+                "cast": sorted({str(c) for s in shots for c in (s.get("characters") or [])}),
             })
     return out
 
