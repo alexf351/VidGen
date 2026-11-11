@@ -167,6 +167,16 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                   openapi_url="/api/openapi.json", lifespan=lifespan)
     app.state.runner = runner
 
+    @app.exception_handler(Exception)
+    async def unexpected(request: Request, exc: Exception):
+        # Anything a route did not turn into a clear error: say what it was instead of an empty
+        # 500 (the UI could only show "request failed"), and leave the traceback in the console.
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"detail": f"VidGen hit an error it did not expect: {type(exc).__name__}: "
+                                       f"{str(exc)[:300]}. The window VidGen was started from has the details."},
+                            status_code=500)
+
     @app.middleware("http")
     async def local_only(request: Request, call_next):
         # DNS rebinding: only answer to our own host names. Cross-site requests from other web

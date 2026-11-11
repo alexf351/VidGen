@@ -88,7 +88,7 @@ function when(iso) {
 }
 
 function errText(detail) {
-  if (!detail) return "request failed";
+  if (!detail) return "The request failed and the server gave no reason. The window VidGen was started from has the details.";
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) return detail.map((d) => `${(d.loc || []).slice(1).join(".")}: ${d.msg}`).join("; ");
   if (detail.message) return detail.message;
@@ -333,6 +333,7 @@ async function runStep(run, step, only) {
       text: only ? "The selected shots are generated again." : "Shots that already have output are skipped." });
     if (!ok) return;
   }
+  releaseMedia();        // a clip still open in the page cannot be replaced on Windows
   await submit(api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/step`,
     { step, only: only || null, provider: providerBody() }), `${step}`);
 }
@@ -342,6 +343,7 @@ async function reroll(run, shot) {
   const ok = await confirmDialog({ title: `Reroll shot ${shot.n}?`, rows: est.rows, total: est.total,
     text: shot.shot.talk ? "A new keyframe and a new talking clip." : shot.shot.animate ? "A new keyframe and a new clip." : "A new keyframe." });
   if (!ok) return;
+  releaseMedia();
   await submit(api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/reroll`,
     { shot: shot.n, provider: providerBody() }), `reroll shot ${shot.n}`);
 }
@@ -1513,7 +1515,21 @@ function voicesPanel(run, busy) {
 }
 
 // ----------------------------------------------------------- script panel
+// Let go of every clip and sound on the page. While the browser holds one open, the server
+// has the file open too, and Windows will not let an open file be renamed or replaced.
+// Only the shots' own clips and voices: the finished video stays in its player.
+function releaseMedia() {
+  const ofShot = (u) => /\/(shots|audio)\//.test(u || "");
+  document.querySelectorAll("video, audio").forEach((m) => {
+    const srcs = [m.getAttribute("src"), ...[...m.querySelectorAll("source")].map((x) => x.getAttribute("src"))];
+    if (!srcs.some(ofShot)) return;
+    try { m.pause(); m.removeAttribute("src"); m.querySelectorAll("source").forEach((x) => x.remove()); m.load(); } catch { /* gone already */ }
+  });
+}
+
 async function moveShot(run, n, to) {
+  releaseMedia();
+  await new Promise((r) => setTimeout(r, 250));
   try {
     await api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/move`, { shot: n, to });
   } catch (e) { toast(e.message, "bad"); return; }

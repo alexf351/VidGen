@@ -201,6 +201,11 @@ def detail(run_dir: Path, config: dict | None) -> dict:
     meta = run_meta(run_dir)
     if meta["engine"] == "claude_code":
         return code_detail(run_dir, meta, config)
+    try:
+        import shot_order
+        shot_order.repair(run_dir)          # files a cut-short move left parked go back first
+    except Exception:
+        pass
     script = _view(run_dir, config)
     shots = []
     for s in (script or {}).get("shots", []):

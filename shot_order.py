@@ -70,6 +70,42 @@ def _keep_scenes(old: list[dict], order: list[int], new: list[dict]) -> None:
             current = mine
 
 
+def _rename(src: Path, dest: Path, tries: int = 10, wait: float = 0.4) -> None:
+    """Rename, waiting out a short lock. On Windows a file cannot be renamed while something
+    has it open: the server while the browser is still loading a clip, a virus scanner, a
+    media player. Most of those let go within a second or two."""
+    import time
+    for attempt in range(tries):
+        try:
+            src.replace(dest)
+            return
+        except PermissionError:
+            if attempt == tries - 1:
+                raise
+            time.sleep(wait)
+
+
+def repair(run_dir: Path) -> int:
+    """Put back files a move left parked (".moving-3.mp4") when it was cut short: the server
+    was closed mid-move, or an older version failed half way. Each goes back to its own name
+    when that name is free. Returns how many were put back."""
+    back = 0
+    for folder in _folders(run_dir):
+        if not folder.is_dir():
+            continue
+        for f in sorted(folder.iterdir()):
+            if not f.is_file() or not f.name.startswith(".moving-"):
+                continue
+            home = f.with_name(f.name[len(".moving-"):])
+            if NUMBERED.match(home.name) and not home.exists():
+                try:
+                    f.replace(home)
+                    back += 1
+                except OSError:
+                    pass
+    return back
+
+
 def move(run_dir: Path, config: dict, n: int, to: int) -> dict:
     """Shot `n` becomes shot `to`; the shots between shift by one. Returns
     {"moved": n, "to": to, "files": how many files were renamed, "script": the new script}."""
@@ -110,12 +146,28 @@ def move(run_dir: Path, config: dict, n: int, to: int) -> dict:
                 continue
             new = new_of[int(m.group(1))]
             plan.append((f, f.with_name(f".moving-{f.name}"), f.with_name(f"{new}{m.group(2)}")))
-    # Two passes, so 1 -> 2 and 2 -> 1 never land on each other.
-    for src, parked, _ in plan:
-        src.rename(parked)
-    for _, parked, dest in plan:
-        parked.replace(dest)
-    write_json(path, clean)
+    repair(run_dir)                                          # a move that was cut short earlier
+    # Two passes, so 1 -> 2 and 2 -> 1 never land on each other. If any file cannot be renamed
+    # (Windows refuses while a clip is still open in the browser or another program), every
+    # rename already made is undone: a move happens whole or not at all.
+    done: list[tuple[Path, Path]] = []
+    try:
+        for src, parked, _ in plan:
+            _rename(src, parked)
+            done.append((src, parked))
+        for _, parked, dest in plan:
+            _rename(parked, dest)
+            done.append((parked, dest))
+        write_json(path, clean)
+    except OSError as e:
+        for before, after in reversed(done):
+            try:
+                _rename(after, before, tries=3)
+            except OSError:
+                pass                                         # repair() picks it up on the next look
+        stuck = Path(getattr(e, "filename", "") or "").name
+        raise StepError(f"shot {n} was not moved: {stuck or 'one of its files'} is in use (a clip still open in the "
+                        f"browser, or another program). Nothing was changed. Reload the page and try again.") from None
     # In-hand previews are named by shot number; they are remade on the next look.
     app = run_dir / "app"
     if app.is_dir():
