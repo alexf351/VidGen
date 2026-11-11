@@ -492,7 +492,7 @@ Rules enforced by the prompt and checked by the validator (the numbers and wordi
   the cast (marcus, jess, tyler, boss, sofia, iro) speak its big moments: the insult, the bet,
   "I'm good". A shot carries narration or one line of dialogue, never both; `speaker` names who
   says it (`narrator` or a character id), and a silent shot has an empty `vo_line` and `speaker`
-- total `vo_line` words across the script is 60 to 100, and most shots are silent
+- total `vo_line` words across the script is 80 to 130
 - the image model never draws the Iro app: a character using a phone is shown with the back
   of the phone toward camera and the screen glow on their face, and an `image_prompt` that
   names "Iro AI", the app's UI, a logo or what a screen shows fails validation (the mascot's
