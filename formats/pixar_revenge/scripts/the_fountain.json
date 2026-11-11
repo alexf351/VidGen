@@ -1,0 +1,316 @@
+{
+  "title": "The fountain proposal",
+  "premise": "Marcus proposes in front of a crowd, she says no and drives off with the man with the gold watch. Two years later his car pulls up beside theirs.",
+  "shots": [
+    {
+      "characters": [
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, a fountain square in front of a grand old hotel, a crowd of adult onlookers in their thirties holding up phones, warm orange sunset light, {jess}, in a short red dress with a small white handbag, recoiling with both palms up in front of her and her head pulled back, nose wrinkled, one eyebrow raised in disbelief, mouth open mid-word, the crowd behind her gasping. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess pulls her hands back as if from something hot and her mouth moves as she says it flat and loud, then she rolls her eyes. Fast push-in on her face as the crowd behind her gasps.",
+      "vo_line": "Not a chance.",
+      "speaker": "jess"
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "low medium shot, a fountain square in front of a grand old hotel, a crowd of adult onlookers in their thirties holding up phones, warm orange sunset light, {marcus}, in a cheap grey suit that is slightly too big, with a crooked tie, down on one knee on the cobblestones with a small open ring box tumbling out of his outstretched hand toward the ground, his hopeful smile freezing and cracking, eyes huge and wet, eyebrows shooting up. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "The ring box slips from Marcus's fingers and bounces on the cobblestones, the ring rolling away in a small circle; his smile breaks apart. The camera drops with the box to the ground.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, a fountain square in front of a grand old hotel, a crowd of adult onlookers in their thirties holding up phones, warm orange sunset light, {marcus}, in a cheap grey suit that is slightly too big, with a crooked tie, still on one knee and looking up, lower lip trembling, tears pooling, his empty hand still held out, the blurred crowd behind him pointing phones and laughing. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus's outstretched hand slowly closes on nothing and his chin starts to shake as the crowd behind him laughs. Slow push-in on his wet eyes.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "jess",
+        "tyler"
+      ],
+      "image_prompt": "medium two shot, a fountain square in front of a grand old hotel, a crowd of adult onlookers in their thirties holding up phones, warm orange sunset light, {jess}, in a short red dress with a small white handbag, hooking her arm through Tyler's and tossing her hair, looking back over her shoulder with a pitying little smile, mouth open mid-sentence; {tyler}, in a white dinner jacket with a chunky gold watch, leaning on the door of a gleaming red convertible with his chin up and a smug grin. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess struts over, slips her arm through Tyler's and her mouth moves as she calls it back over her shoulder; Tyler straightens his jacket and grins. The camera pans with her from the left to the car.",
+      "vo_line": "I told you. I like winners.",
+      "speaker": "jess",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "tyler"
+      ],
+      "image_prompt": "close shot, chest up, a fountain square in front of a grand old hotel, a crowd of adult onlookers in their thirties holding up phones, warm orange sunset light, {tyler}, in a white dinner jacket with a chunky gold watch, holding his wrist up beside his face to show off the chunky gold watch, winking, grin stretched wide, mouth open mid-word, the red convertible gleaming behind him. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler shakes his wrist so the gold watch flashes in the sun and his mouth moves as he says it with a wink. Quick push-in on the watch and his grin.",
+      "vo_line": "Bad luck, champ.",
+      "speaker": "tyler",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "tyler",
+        "jess"
+      ],
+      "image_prompt": "wide shot, a fountain square in front of a grand old hotel, a crowd of adult onlookers in their thirties holding up phones, warm orange sunset light, a gleaming red convertible pulling away across the frame, {tyler}, in a white dinner jacket with a chunky gold watch, at the wheel with one arm on the door, laughing; {jess}, in a short red dress with a small white handbag, in the passenger seat twisting round to wave back with her fingers, laughing with her head thrown back; the crowd turning to film the car. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "The red convertible roars across the frame from left to right with Jess waving back and Tyler laughing, and the crowd swings their phones to follow it. The camera pans with the car until it is gone.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "wide shot, a fountain square in front of a grand old hotel, cold blue dusk light, the square now empty, {marcus}, in a cheap grey suit that is slightly too big, with a crooked tie and the tie pulled loose, sitting hunched on the stone edge of the fountain holding the small ring box in both hands, head hanging, shoulders caved, a single street lamp above him. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus turns the ring box over in his hands and his shoulders shake once; a paper cup rolls past his feet in the wind. Slow pull-back leaving him tiny in the empty square."
+    },
+    {
+      "characters": [
+        "marcus",
+        "jess"
+      ],
+      "image_prompt": "close two shot, a small cosy living room in hazy golden afternoon light with soft glowing edges like a memory, {jess}, in an oversized cream sweater, curled against Marcus on a worn sofa with her head on his chest, smiling up at him with soft eyes, mouth open mid-whisper; {marcus}, in a faded blue tee, grinning down at her with his eyes shining. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess snuggles in and her mouth moves as she whispers it up at him; Marcus laughs softly and kisses the top of her head. Slow dreamy push-in with the light blooming.",
+      "vo_line": "I'll never leave you.",
+      "speaker": "jess",
+      "label": "PREVIOUSLY"
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, a fountain square in front of a grand old hotel, cold blue dusk light, the square now empty, {marcus}, in a cheap grey suit that is slightly too big, with a crooked tie and the tie pulled loose, lit from below by the fountain lights, tears on his cheeks, his broken expression tightening: jaw setting, nostrils flaring, brows coming down hard, eyes going cold and fixed. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus wipes his face once with the back of his hand, snaps the ring box shut in his fist and his broken look hardens into a stare. Slow push-in on his eyes."
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium two shot, a fountain square in front of a grand old hotel, cold blue dusk light, the square now empty, {iro}, standing on the fountain edge beside him with both flippers on its hips, glaring up at him, beak open mid-word, its orange core glowing on the wet stone; {marcus}, in a cheap grey suit that is slightly too big, with a crooked tie and the tie pulled loose, turning his head to look at it with his eyebrows raised, startled. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Iro hops up onto the fountain edge and its beak moves as it barks the two words; Marcus blinks, then slowly pushes himself up to his feet. The camera rises with him.",
+      "vo_line": "Get up.",
+      "speaker": "iro",
+      "same_scene": true
+    },
+    {
+      "app_screen": "assets/screens/building.jpg",
+      "label": "OPENS IRO"
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, centred, waist up, a dark messy bedroom at night with one desk lamp, {marcus}, in an old grey tee, in the exact centre of the frame facing the camera with his eyes down on his work, typing fast on a battered laptop, teeth gritted; {iro}, at his left shoulder, squinting at the laptop. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus keeps working without looking up and Iro leans in to watch. A tiny fast punch-in.",
+      "flash": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, centred, waist up, a dark messy bedroom at night with one desk lamp, {marcus}, in an old grey tee, in the exact centre of the frame facing the camera with his eyes down on his work, holding a phone in both hands with its back to us, the glow on his face, mouthing words; {iro}, at his left shoulder, nodding along. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus keeps working without looking up and Iro leans in to watch. A tiny fast punch-in.",
+      "flash": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, centred, waist up, a cramped desk in the corner of a small flat at dawn, {marcus}, in a plain black hoodie, in the exact centre of the frame facing the camera with his eyes down on his work, wearing big headphones and scribbling in a notebook; {iro}, at his left shoulder, holding the notebook steady with one flipper. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus keeps working without looking up and Iro leans in to watch. A tiny fast punch-in.",
+      "flash": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, centred, waist up, a cramped desk in the corner of a small flat at dawn, {marcus}, in a plain black hoodie, in the exact centre of the frame facing the camera with his eyes down on his work, gulping coffee from a chipped mug with one hand and typing with the other; {iro}, at his left shoulder, pushing a second mug toward him. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus keeps working without looking up and Iro leans in to watch. A tiny fast punch-in.",
+      "flash": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, centred, waist up, a small rented office with one window and a whiteboard, {marcus}, in a navy button-down shirt, in the exact centre of the frame facing the camera with his eyes down on his work, drawing arrows on a glass wall with a marker, sleeves rolled up; {iro}, at his left shoulder, pointing a flipper at the wall. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus keeps working without looking up and Iro leans in to watch. A tiny fast punch-in.",
+      "flash": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, centred, waist up, a small rented office with one window and a whiteboard, {marcus}, in a navy button-down shirt, in the exact centre of the frame facing the camera with his eyes down on his work, talking into a phone held to his ear while typing with his free hand, focused; {iro}, at his left shoulder, holding up a sticky note. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus keeps working without looking up and Iro leans in to watch. A tiny fast punch-in.",
+      "flash": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, centred, waist up, a bright open office with a few adult coworkers in their thirties working behind him, {marcus}, in a crisp white shirt, in the exact centre of the frame facing the camera with his eyes down on his work, typing on a slim laptop while two coworkers lean in behind him, impressed; {iro}, at his left shoulder, giving a thumbs up with one flipper. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus keeps working without looking up and Iro leans in to watch. A tiny fast punch-in.",
+      "flash": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, centred, waist up, a bright open office with a few adult coworkers in their thirties working behind him, {marcus}, in a crisp white shirt, in the exact centre of the frame facing the camera with his eyes down on his work, signing a document on a clipboard with a quick confident stroke; {iro}, at his left shoulder, stamping the page with a flipper. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus keeps working without looking up and Iro leans in to watch. A tiny fast punch-in.",
+      "flash": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, centred, waist up, a whole glass-walled office floor at golden hour with rows of busy adult staff behind him, {marcus}, in a fitted charcoal suit jacket over a black tee, in the exact centre of the frame facing the camera with his eyes down on his work, typing on a slim laptop with an easy half-smile, completely calm; {iro}, at his left shoulder, leaning back with its flippers behind its head. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus keeps working without looking up and Iro leans in to watch. A tiny fast punch-in.",
+      "flash": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, centred, waist up, a whole glass-walled office floor at golden hour with rows of busy adult staff behind him, {marcus}, in a fitted charcoal suit jacket over a black tee, in the exact centre of the frame facing the camera with his eyes down on his work, closing the laptop with one hand and finally lifting his eyes toward the camera, a slow grin starting; {iro}, at his left shoulder, throwing both flippers in the air. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus keeps working without looking up and Iro leans in to watch. A tiny fast punch-in.",
+      "flash": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "wide shot from inside, a glass penthouse high over a glittering city at night, {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, shoving both tall glass doors open with his palms and striding in, chin up, a calm sure smile, the city lights spread out behind him. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus shoves both glass doors open and walks straight toward the camera as the lights of the apartment come on one by one. The camera pulls back ahead of him."
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, a glass penthouse high over a glittering city at night, {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, fastening a slim steel watch on his wrist at chest height with two fingers, looking down at it with a small private smile, city lights blurred behind. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus clicks the watch clasp shut, turns his wrist once so it catches the light and shoots his cuff. Slow push-in on the watch.",
+      "same_scene": true
+    },
+    {
+      "card": "2 YEARS LATER"
+    },
+    {
+      "characters": [
+        "tyler",
+        "jess"
+      ],
+      "image_prompt": "wide shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, {tyler}, in the same white dinner jacket, now creased, with the chunky gold watch, arguing with a valet beside the red convertible, now dull and dented with steam rising from its hood, waving his arms, face red; {jess}, in a glittering silver dress, standing apart with her arms crossed, tapping her foot, eyes rolled to the sky, bored and annoyed. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler waves his arms at the steaming red convertible while the valet shrugs; Jess checks her nails and sighs. Slow push-in on the two of them."
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "low angle medium shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, a long black sports car gliding to a stop on the red carpet right beside the dented red convertible, {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, stepping out of the driver's door with one hand on the roof, relaxed, a small polite smile, a doorman in a long coat hurrying over. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "The black car glides in and stops beside the red one; Marcus steps out, buttons his jacket with one hand and nods to the doorman as heads turn. The camera rises from the wheel to his face.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, {jess}, in a glittering silver dress, frozen mid-step with her handbag slipping off her shoulder, eyes enormous, eyebrows shot up into her hair, jaw dropped, mouth open on a single word. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess's bored face snaps into shock, her bag slides off her shoulder and her mouth moves as she gasps his name. Fast push-in on her huge eyes.",
+      "vo_line": "Marcus?!",
+      "speaker": "jess",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, {jess}, in a glittering silver dress, stepping forward with both hands clasped under her chin and her head tilted, eyes shining and pleading, a trembling hopeful smile, mouth open mid-plea. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess steps toward him clasping her hands, her mouth moving as she pleads in a small sweet voice, lashes fluttering. Slow push-in.",
+      "vo_line": "Take me back. Please.",
+      "speaker": "jess",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, chest up, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, one hand lifted in a small apologetic wave, a warm easy smile, eyebrows raised kindly, head tipped a little to one side, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus gives a small friendly shrug and his mouth moves as he says it lightly, smiling the whole time. Small push-in on his easy smile.",
+      "vo_line": "Sorry. I'm fully booked.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "sofia"
+      ],
+      "image_prompt": "medium shot from behind and to the side, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, stepping out of the passenger door of the black car and taking his arm with a slow proud smile; {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, offering her his arm and turning toward the brass doors, laughing at something she said. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Sofia steps out of the black car and takes Marcus's arm, and the two of them walk up the red carpet as the doorman swings the brass doors open. The camera follows them from behind.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "jess",
+        "tyler"
+      ],
+      "image_prompt": "close shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, {jess}, in a glittering silver dress, staring after them with her mouth hanging open and her eyes glassy, one hand half raised and forgotten in the air; {tyler}, in the same white dinner jacket, now creased, with the chunky gold watch, small and blurred behind her, kicking the tyre of the steaming red convertible. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess's raised hand slowly sinks and her lip starts to wobble; behind her Tyler kicks the tyre and hops on one foot. Slow push-in on her stunned face.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "low angle medium shot, a coast road at sunset, {marcus}, in a fitted black tee and sunglasses, leaning on the open door of the long black sports car with one arm on the roof, grinning at the horizon. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus taps the roof of the car twice and laughs as the sun flares behind him. Fast punch-in.",
+      "montage": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, a rooftop pool over a neon city at night, {marcus}, in a black shirt with the collar open, raising a glass to a cheering crowd of adult friends in their thirties, head thrown back laughing; {iro}, on his shoulder raising a tiny glass too. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus raises his glass and the crowd roars as Iro lifts its tiny glass beside him. Fast punch-in.",
+      "montage": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "sofia"
+      ],
+      "image_prompt": "close two shot, the back seat of a car at night with city lights streaking past the window, {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, laughing with his eyes shut; {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, leaning on his shoulder laughing, her hand on his chest. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus and Sofia burst out laughing together as the city lights streak past. Fast punch-in.",
+      "montage": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "extreme close shot, a neon-lit street at night, {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, looking straight into the lens with one eyebrow raised and a slow lopsided smirk, neon reflecting in his eyes. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus's smirk spreads slowly and he gives the smallest nod. Fast punch-in on his eyes.",
+      "montage": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium close shot, a glass penthouse high over a glittering city at night, {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, holding a phone up beside his face with its BACK toward the camera, the glow from it lighting his cheek, grinning wide with his eyebrows up; {iro}, perched on his shoulder pointing a flipper at the phone, beak open in a grin. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus lifts the phone higher with its back to us and taps the back of it twice, grinning; Iro points at it and bounces. Slow push-in.",
+      "caption": "SEARCH IRO AI"
+    }
+  ]
+}

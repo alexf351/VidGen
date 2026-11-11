@@ -1,0 +1,307 @@
+{
+  "title": "The dead cafe",
+  "premise": "Two owners are screaming at each other in an empty cafe when a kid with a cracked laptop says he can fix it. He does, he gets paid, and every job after that is bigger than the last.",
+  "shots": [
+    {
+      "characters": [
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, a small corner cafe with empty chairs, bare grey walls and a crooked hand-painted sign of smeared shapes over the counter, flat grey daylight through dusty windows, {jess}, in a stained brown apron over a striped top, jabbing a finger at someone off camera with her other arm flung out toward the rows of empty chairs behind her, eyes blazing, teeth bared, mouth open mid-shout. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess sweeps her arm across the empty chairs and jabs her finger forward, her mouth moving as she yells the line. Fast push-in on her furious face.",
+      "vo_line": "You ruined our cafe!",
+      "speaker": "jess"
+    },
+    {
+      "characters": [
+        "tyler"
+      ],
+      "image_prompt": "close shot, chest up, a small corner cafe with empty chairs, bare grey walls and a crooked hand-painted sign of smeared shapes over the counter, flat grey daylight through dusty windows, {tyler}, in a stained brown apron over a rumpled blue shirt, throwing a dish towel down on the counter with both arms flung wide, face red, eyes bulging, mouth open mid-shout, the crooked sign hanging over his head. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler hurls the dish towel onto the counter and throws his arms wide, his mouth moving as he shouts back. Handheld shake with the throw.",
+      "vo_line": "Then you fix it!",
+      "speaker": "tyler",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "medium shot, a small corner cafe with empty chairs, bare grey walls and a crooked hand-painted sign of smeared shapes over the counter, flat grey daylight through dusty windows, {marcus}, in a worn olive hoodie with frayed cuffs, a battered backpack on one shoulder, leaning in through the open door with one hand raised and an old laptop with a cracked lid hugged under his other arm, eyebrows up, a hopeful crooked smile, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus pokes his head and shoulders through the doorway and raises a hand, his mouth moving as he offers it, then steps inside. Push-in as the door swings shut behind him.",
+      "vo_line": "I can fix that.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "tyler"
+      ],
+      "image_prompt": "close shot, chest up, a small corner cafe with empty chairs, bare grey walls and a crooked hand-painted sign of smeared shapes over the counter, flat grey daylight through dusty windows, {tyler}, in a stained brown apron over a rumpled blue shirt, looking someone off camera up and down with his chin pulled back, one eyebrow climbing, pointing a limp finger downward at something off camera, mouth open mid-scoff. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler's eyes travel down and back up, he points at the laptop off camera and his mouth moves as he scoffs the words. Small push-in on his raised eyebrow.",
+      "vo_line": "You? With that laptop?",
+      "speaker": "tyler",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, chest up, a small corner cafe with empty chairs, bare grey walls and a crooked hand-painted sign of smeared shapes over the counter, flat grey daylight through dusty windows, {marcus}, in a worn olive hoodie with frayed cuffs, a battered backpack on one shoulder, flipping the cracked laptop open on a cafe table with one hand and cracking his knuckles with the other, eyes narrowed and bright, a small confident grin, mouth open mid-word. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus flips the cracked laptop open, cracks his knuckles and his mouth moves as he says it without looking up. Quick push-in on his grin.",
+      "vo_line": "Just watch.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, a small corner cafe with empty chairs, bare grey walls and a crooked hand-painted sign of smeared shapes over the counter, flat grey daylight through dusty windows, {jess}, in a stained brown apron over a striped top, arms folded, shoulders lifted in a big tired shrug, eyes rolled toward the ceiling, mouth open mid-sigh. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess blows a strand of hair off her face, shrugs up to her ears and her mouth moves as she sighs it. Small push-in.",
+      "vo_line": "Let him try.",
+      "speaker": "jess",
+      "same_scene": true
+    },
+    {
+      "app_screen": "assets/screens/unit_done.jpg",
+      "label": "LEARNED IT ON IRO"
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "close shot on his hands and the cracked laptop on the cafe table, a small corner cafe with empty chairs, bare grey walls and a crooked hand-painted sign of smeared shapes over the counter, flat grey daylight through dusty windows mixing with cyan and gold glow, {marcus}, in a worn olive hoodie with frayed cuffs, a battered backpack on one shoulder, fingers flying over the keys, tongue between his teeth, eyes darting; {iro}, standing on the table beside the laptop conducting with both flippers; glowing translucent panels of soft abstract shapes and colour swatches, with no letters or numbers fanning up and out of the laptop like a hand of cards. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus's fingers fly and panel after glowing panel fans up out of the laptop and spreads through the air; Iro conducts them with both flippers. The camera rises with the panels.",
+      "same_scene": true
+    },
+    {
+      "characters": [],
+      "image_prompt": "close shot looking up at the wall above the counter, a small corner cafe with empty chairs, bare grey walls and a crooked hand-painted sign of smeared shapes over the counter, cyan and gold glow, the crooked hand-painted sign of smeared shapes breaking apart into glowing particles in the middle of the frame while a clean, elegant glowing sign of simple abstract shapes assembles itself in its place, with no letters or numbers. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "The crooked old sign crumbles into glowing dust that swirls once and snaps together into a clean bright new sign, which flickers and then glows steadily. Slow push-in on the new sign.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "wide shot, a small corner cafe with empty chairs, bare grey walls and a crooked hand-painted sign of smeared shapes over the counter, a wave of warm colour sweeping across the room from left to right, the bare grey walls behind the wave already painted deep green with hanging plants and strings of warm lights, the walls ahead of it still grey; {marcus}, in a worn olive hoodie with frayed cuffs, a battered backpack on one shoulder, standing in the middle swiping a glowing panel through the air with one arm like a painter, laughing; {iro}, riding on his shoulder pointing ahead. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus swipes his arm through the air and the wave of colour rolls across the walls, plants unfurling and lights blinking on behind it; Iro points to the next wall. The camera pans with the wave.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "wide shot from the doorway, the same corner cafe now glowing warm green and gold with hanging plants and strings of lights, every chair filled with laughing adult customers in their thirties and a queue running out of the door, {marcus}, in a worn olive hoodie with frayed cuffs, a battered backpack on one shoulder, closing the cracked laptop on the table with a satisfied grin and stretching his arms over his head; {iro}, taking a bow on the table. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Customers pour in through the door and fill the last seats as Marcus shuts the cracked laptop and stretches; Iro takes a deep bow. Slow pull-back out through the door past the queue.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "tyler"
+      ],
+      "image_prompt": "close shot, chest up, the same corner cafe now glowing warm green and gold and packed with customers, {tyler}, in a stained brown apron over a rumpled blue shirt, staring around with his jaw hanging open and both hands on top of his head, eyes like saucers, mouth open mid-gasp. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler turns on the spot with his hands on his head and his mouth moves as he gasps the words. Fast push-in on his dropped jaw.",
+      "vo_line": "Wait. What?!",
+      "speaker": "tyler",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "tyler"
+      ],
+      "image_prompt": "close shot, chest up, the same corner cafe now glowing warm green and gold and packed with customers, {tyler}, in a stained brown apron over a rumpled blue shirt, pulling a thick fold of banknotes out of the till and thrusting it forward at someone off camera with both hands, grinning from ear to ear, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler yanks a fold of banknotes from the till, shoves it forward with both hands and his mouth moves as he says the amount proudly. Push-in on the cash.",
+      "vo_line": "Five hundred. Take it.",
+      "speaker": "tyler",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, chest up, the same corner cafe now glowing warm green and gold and packed with customers, {marcus}, in a worn olive hoodie with frayed cuffs, a battered backpack on one shoulder, holding the fold of banknotes in both hands in front of his face, eyes enormous, eyebrows in his hairline, mouth open in a disbelieving squeak. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus stares at the cash, looks up, looks down again and his mouth moves as he squeaks it as a question. Fast push-in on his huge eyes.",
+      "vo_line": "Five hundred?!",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, the same corner cafe now glowing warm green and gold and packed with customers, {jess}, in a stained brown apron over a striped top, phone pressed to her ear with the back of it toward the camera, other hand cupped round her mouth, eyes wide and sparkling, mouth open mid-gossip. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess ducks behind the counter with the phone at her ear and her mouth moves as she whispers it urgently, glancing back at Marcus. Small push-in.",
+      "vo_line": "Girls, you need my guy.",
+      "speaker": "jess",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, a dull grey clothes boutique with empty rails, cyan and gold glow, {marcus}, in a clean denim jacket over a white tee, standing at a new slim laptop on the shop counter with one hand flinging glowing translucent panels of soft abstract shapes and colour swatches, with no letters or numbers across the room, grinning; {iro}, on the counter pushing a panel along with both flippers; the rails behind them filling with colourful clothes and the dull walls turning warm coral as the panels pass. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus flings a panel across the boutique and the empty rails fill with colour behind it while Iro shoves the next one along. The camera pans with the panel."
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "wide shot, a whole street of tired shopfronts at dusk, {marcus}, in a fitted charcoal blazer over a black tee, walking down the middle of the street with a tablet in one hand, sweeping his free arm out to the side, calm and sure; {iro}, trotting beside him; behind them each shopfront they have passed is lit up with clean glowing signs of abstract shapes and warm windows, and the ones ahead are still dark. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus walks down the street sweeping his arm and each shopfront lights up as he passes it, one after another, with Iro trotting alongside. The camera tracks backward ahead of them."
+    },
+    {
+      "characters": [
+        "sofia"
+      ],
+      "image_prompt": "close shot, chest up, a whole street of freshly lit shopfronts at dusk, {sofia}, in a sharp black trouser suit with a black corset belt and a black lanyard, standing on the pavement with her arms crossed and her head tilted, one eyebrow raised, lips pursed in an impressed half-smile, eyes following someone off camera, mouth open mid-murmur. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Sofia watches him go past with her arms crossed, her eyebrow climbing, and her mouth moves as she murmurs it to herself. Slow push-in on her narrowed eyes.",
+      "vo_line": "Who is this guy?",
+      "speaker": "sofia",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "sofia"
+      ],
+      "image_prompt": "close shot, chest up, a whole street of freshly lit shopfronts at dusk, {sofia}, in a sharp black trouser suit with a black corset belt and a black lanyard, stepping forward holding out a black business card between two fingers, chin lifted, a cool confident smile, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Sofia steps into his path, flicks a black business card up between two fingers and her mouth moves as she says it like a done deal. Push-in on the card.",
+      "vo_line": "Come work with us.",
+      "speaker": "sofia",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "sofia"
+      ],
+      "image_prompt": "medium two shot, a whole street of freshly lit shopfronts at dusk, {marcus}, in a fitted charcoal blazer over a black tee, shaking her hand with a huge surprised grin, eyebrows up; {sofia}, in a sharp black trouser suit with a black corset belt and a black lanyard, shaking his hand firmly with a slow approving nod. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus grabs Sofia's hand and shakes it a little too hard, grinning; she laughs and nods. The camera circles them a quarter turn.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "boss"
+      ],
+      "image_prompt": "low angle medium shot, the kerb outside a glass tower at night with a long black car at the pavement, {boss}, in a long dark overcoat over a three-piece suit, stepping out of the back door of the car and straightening his coat, looking up at something off camera with a thin impressed smile, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "The boss steps out of the long black car, straightens his coat and his mouth moves as he says it slowly. The camera rises from the car door to his face.",
+      "vo_line": "Heard you're the one everyone wants.",
+      "speaker": "boss"
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, the kerb outside a glass tower at night, {marcus}, in a sharp tailored navy suit with no tie and a slim steel watch, working at a wide curved glowing desk of glowing translucent panels of soft abstract shapes and colour swatches, with no letters or numbers on the pavement, eyes fixed on his work, completely calm, mouth open mid-word without looking up; {iro}, on the desk holding one flipper up toward someone off camera like a stop sign. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus keeps sliding panels into place without looking up and his mouth moves as he says it mildly; Iro holds up a flipper to keep the visitor waiting. Slow push-in.",
+      "vo_line": "Just let me work.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "wide low angle shot, a glass tower at night, the whole dark front of the tower lighting up floor by floor from the ground in warm gold and cyan, {marcus}, in a sharp tailored navy suit with no tie and a slim steel watch, small at the foot of it with one arm raised toward the top; {iro}, on his shoulder with both flippers up. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus raises his arm and the tower lights up floor by floor all the way to the top as Iro throws its flippers up. The camera tilts up the tower with the light.",
+      "same_scene": true
+    },
+    {
+      "card": "3 YEARS LATER"
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "medium shot, the street outside the corner cafe, a row of small shops in warm afternoon light, a sleek silver sports car pulling up to the kerb, {marcus}, in a sharp tailored navy suit with no tie and a slim steel watch, at the wheel with the window down and one elbow on the door, relaxed, sunglasses pushed up in his hair, a friendly grin toward the pavement. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "The silver sports car glides up to the kerb and stops; Marcus leans an elbow out of the window and grins. The camera pans with the car as it stops."
+    },
+    {
+      "characters": [
+        "tyler"
+      ],
+      "image_prompt": "close shot, chest up, the street outside the corner cafe, a row of small shops in warm afternoon light, {tyler}, in a stained brown apron over a rumpled blue shirt, frozen in the middle of an argument with a paint brush in his raised hand, staring past the camera, eyes bulging, mouth open mid-question. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler stops mid-shout with the paint brush in the air, his eyes go round and his mouth moves as he blurts the question. Fast push-in.",
+      "vo_line": "How'd you afford that?",
+      "speaker": "tyler",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, chest up, the street outside the corner cafe, a row of small shops in warm afternoon light, {marcus}, in a sharp tailored navy suit with no tie and a slim steel watch, leaning out of the car window with a warm easy smile and a small shrug, one hand open, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus shrugs with one hand out of the window and his mouth moves as he says it kindly, almost laughing. Small push-in on his smile.",
+      "vo_line": "You argued. I got paid.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, the street outside the corner cafe, a row of small shops in warm afternoon light, {jess}, in a stained brown apron over a striped top, doubled over laughing with one hand on her knee and the other pointing sideways at someone off camera, eyes squeezed shut, tears flying. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess bursts out laughing, bends double and points sideways at Tyler, slapping her knee. Handheld shake as she rocks.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "tyler"
+      ],
+      "image_prompt": "close shot, chest up, the street outside the corner cafe, a row of small shops in warm afternoon light, {tyler}, in a stained brown apron over a rumpled blue shirt, jaw hanging all the way open, the paint brush slipping from his limp fingers, eyes following something leaving the frame. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "The paint brush drops out of Tyler's hand and his jaw falls further as his head turns to follow the car driving off. Slow push-in on his open mouth.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "low angle medium shot, a hilltop road at sunset with the city below, {marcus}, in a fitted black tee and sunglasses, sitting on the hood of the sleek silver sports car with his arms spread along it, face to the sun, grinning. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus tips his head back to the sun and laughs as the wind moves his shirt. Fast punch-in.",
+      "montage": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, a huge bright studio with glass walls and a team of adult designers in their thirties working behind him, {marcus}, in a fitted charcoal blazer over a black tee, walking through the middle of it handing out high fives, laughing; {iro}, riding on his shoulder waving like royalty. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus walks through his own studio slapping high fives left and right while Iro waves from his shoulder. Fast punch-in.",
+      "montage": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "sofia"
+      ],
+      "image_prompt": "close two shot, a rooftop restaurant at night with city lights behind, {marcus}, in a sharp tailored navy suit with no tie and a slim steel watch, clinking a glass with her and laughing with his eyes shut; {sofia}, in a fitted black dress with sheer black sleeves, clinking back with a wide smile. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus and Sofia clink glasses and crack up laughing. Fast punch-in.",
+      "montage": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "extreme close shot, a neon-lit street at night, {marcus}, in a sharp tailored navy suit with no tie and a slim steel watch, looking straight into the lens over the top of his sunglasses with one eyebrow raised and a slow lopsided smirk. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus lowers his sunglasses with one finger and the smirk spreads. Fast punch-in on his eyes.",
+      "montage": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium close shot, a rooftop terrace over a glittering city at dusk, {marcus}, in a sharp tailored navy suit with no tie and a slim steel watch, holding a phone up beside his face with its BACK toward the camera, the glow from it lighting his cheek, grinning wide with his eyebrows up, mouth open mid-sentence; {iro}, perched on his shoulder pointing a flipper at the phone. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus lifts the phone with its back to us, taps the back of it and his mouth moves as he says it with a grin; Iro points at the phone and bounces. Slow push-in.",
+      "vo_line": "Five minutes a day.",
+      "speaker": "marcus",
+      "caption": "SEARCH IRO AI"
+    }
+  ]
+}
