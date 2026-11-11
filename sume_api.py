@@ -79,8 +79,13 @@ def _error_of(resp: requests.Response) -> tuple[str, str, bool | None, float | N
     if retry_after is None and isinstance(err.get("retry_after_seconds"), (int, float)):
         retry_after = float(err["retry_after_seconds"])
     message = err.get("message") or resp.text[:300]
+    details = err.get("details") if isinstance(err.get("details"), dict) else \
+        ({"details": err["details"]} if err.get("details") else {})
+    for key in ("param", "field", "errors", "issues", "request_id"):   # whatever says what was wrong
+        if err.get(key) and key not in details:
+            details[key] = err[key]
     return str(err.get("code") or f"http_{resp.status_code}"), message, err.get("retryable"), \
-        retry_after, err.get("details") or {}
+        retry_after, details
 
 
 def _backoff(attempt: int, cfg: dict) -> float:
@@ -128,7 +133,11 @@ def _call(method: str, url: str, label: str, cfg: dict, *, json: dict | None = N
             _sleep(max(0.5, wait))
             attempt += 1
             continue
-        raise StepError(f"{label}: Sume returned HTTP {resp.status_code} {code}: {message}")
+        more = ""
+        if details:
+            import json as _json
+            more = " " + _json.dumps(details, ensure_ascii=False, default=str)[:400]
+        raise StepError(f"{label}: Sume returned HTTP {resp.status_code} {code}: {message}{more}")
 
 
 # --------------------------------------------------------------- uploads ----

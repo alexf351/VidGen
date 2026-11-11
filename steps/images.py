@@ -119,14 +119,10 @@ def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False) -> str:
     if scene:
         which = f"Reference image {len(ref_ids) + 1}" if ref_ids else "The reference image"
         parts.append(
-            f"{which} is an earlier shot of this same scene. Keep the same place, time of day and "
-            "lighting, and dress every character exactly as they are dressed in it; if the "
-            "description above names different clothes or a different background, the reference "
-            "image wins. It is a guide to the place and the clothes only: every character's face, "
-            "body and design still come from their own character sheet, and a character who is not "
-            "in that earlier shot must look exactly like their own sheet. Do not copy its framing "
-            "or poses: this is a new camera angle on the same moment, showing what the description "
-            "above says.")
+            f"{which} is an earlier shot of this same scene: keep its place, time of day, lighting "
+            "and everyone's clothes (on those it wins over the description above). Faces, bodies "
+            "and designs still come from each character's own sheet, including anyone who is not "
+            "in that shot. New camera angle and poses, as described above.")
     return "\n".join(parts) if len(parts) > 2 else prompt
 
 
@@ -269,9 +265,25 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
     missing = [cid for cid in shot["characters"] if cid not in sheets]
     if missing:
         raise StepError(f"shot {n}: no reference sheet for {missing}")
-    refs = [sheets[cid] for cid in ref_ids] + ([scene_ref] if scene_ref else [])
-    _generate_image(config, shot_prompt(shot, ref_ids, scene=scene_ref is not None), SHOT_ASPECT,
-                    refs, f"shot {n}", dest)
+    own = [sheets[cid] for cid in ref_ids]
+    limit = int(config[image_provider(config)].get("max_reference_images") or 0)
+    if scene_ref is not None and limit and len(own) + 1 > limit:
+        print(f"  shot {n}: {len(own)} characters plus the scene picture is more reference pictures than "
+              f"{image_provider(config)} takes ({limit}), so the scene picture is left out")
+        scene_ref = None
+    if scene_ref is not None:
+        try:
+            _generate_image(config, shot_prompt(shot, ref_ids, scene=True), SHOT_ASPECT,
+                            own + [scene_ref], f"shot {n}", dest)
+        except StepError as e:
+            # A refused request costs nothing. Draw the shot the way it was drawn before scene
+            # references existed, rather than failing the step.
+            if "HTTP 400" not in str(e):
+                raise
+            print(f"  shot {n}: the scene picture was refused ({e}); drawing this shot without it")
+            scene_ref = None
+    if scene_ref is None:
+        _generate_image(config, shot_prompt(shot, ref_ids), SHOT_ASPECT, own, f"shot {n}", dest)
 
     video = dest.with_suffix(".mp4")
     if (shot.get("animate") or shot.get("talk")) and video.exists():
