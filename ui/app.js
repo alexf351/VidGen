@@ -27,6 +27,7 @@ const S = {
   lookOpen: new Set(),         // shots whose Picture and motion editor is open
   runTab: {},                  // run id -> "shots" | "script": the tab open on that video's page
   studioQuery: "",             // what is typed in the format search box
+  screens: [], screenGroups: [],   // the app screenshot library (GET /api/screens)
 };
 const CODE_STEPS = ["story", "scenes", "voice", "render"];
 
@@ -62,6 +63,7 @@ const ICONS = {
   star: ["M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"],
   grid: ["M3 3h7v7H3z", "M14 3h7v7h-7z", "M14 14h7v7h-7z", "M3 14h7v7H3z"],
   text: ["M4 6h16", "M4 12h16", "M4 18h10"],
+  phone: ["M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z", "M11 18h2"],
 };
 function icon(name, size = 16) {
   const NS = "http://www.w3.org/2000/svg";
@@ -340,8 +342,201 @@ async function recast(run) {
 async function loadBasics() {
   const [config, formats] = await Promise.all([api("GET", "/api/config"), api("GET", "/api/formats")]);
   S.config = config; S.formats = formats;
-  await loadChars();
+  await Promise.all([loadChars(), loadScreens()]);
 }
+// ------------------------------------------------------------ app screens
+// The app screenshot library (app_assets.py): the real screens a video's demo beat can show.
+async function loadScreens() {
+  try { const r = await api("GET", "/api/screens"); S.screens = r.screens; S.screenGroups = r.groups; }
+  catch { S.screens = S.screens || []; S.screenGroups = S.screenGroups || []; }
+  const n = $("#screen-count"); if (n) n.textContent = S.screens.length ? String(S.screens.length) : "";
+}
+function screenFor(path) { return (S.screens || []).find((x) => x.path === path) || null; }
+function screenTitle(path) { const e = screenFor(path); return e ? e.title : String(path || "").split("/").pop(); }
+
+// The library as groups of tiles. opts: isOn(path), orderOf(path), onPick(entry) for a picker;
+// onGone(path) after one of your own screenshots is removed. Returns the element; it redraws itself.
+function screenGrid(opts = {}) {
+  const box = h("div", { class: "sgroups" });
+  let adding = false, removing = null, busy = false, error = "";
+  const tile = (e) => {
+    const on = opts.isOn ? opts.isOn(e.path) : false;
+    const order = on && opts.orderOf ? opts.orderOf(e.path) : 0;
+    const body = [
+      h("span", { class: "stile-pic" },
+        e.url ? h("img", { src: e.url, alt: "", loading: "lazy" }) : h("span", { class: "stile-none" }, "missing"),
+        on ? h("span", { class: "stile-check" }, order ? String(order) : icon("check", 13)) : null),
+      h("span", { class: "stile-title" }, e.title),
+      h("span", { class: "stile-shows" }, e.shows || "No description yet")];
+    const main = opts.onPick
+      ? h("button", { class: `stile${on ? " on" : ""}`, type: "button", title: e.shows || e.title, "aria-pressed": on ? "true" : "false",
+        onclick: () => { opts.onPick(e); draw(); } }, body)
+      : h("div", { class: "stile", title: e.shows || e.title }, body);
+    if (!e.mine) return main;
+    if (removing === e.path) {
+      return h("div", { class: "stile-wrap" }, main, h("div", { class: "stile-ask" },
+        h("span", {}, "Remove it?"),
+        h("button", { class: "btn small danger", type: "button", disabled: busy, onclick: async () => {
+          busy = true; draw();
+          try {
+            await api("DELETE", `/api/screens/mine/${encodeURIComponent(e.path.split("/").pop())}`);
+            await loadScreens();
+            if (opts.onGone) opts.onGone(e.path);
+          } catch (err) { toast(err.message, "bad"); }
+          busy = false; removing = null; draw();
+        } }, "Remove"),
+        h("button", { class: "btn small ghost", type: "button", onclick: () => { removing = null; draw(); } }, "Keep")));
+    }
+    return h("div", { class: "stile-wrap" }, main,
+      h("button", { class: "stile-del", type: "button", title: "Remove this screenshot", "aria-label": `Remove ${e.title}`,
+        onclick: () => { removing = e.path; draw(); } }, icon("x", 13)));
+  };
+  const addForm = () => {
+    const file = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp", "aria-label": "Screenshot file" });
+    const title = h("input", { type: "text", maxlength: "60", placeholder: "Streak screen", "aria-label": "Name" });
+    const shows = h("input", { type: "text", maxlength: "240", placeholder: "a 30-day streak with the flame and the week row", "aria-label": "What it shows" });
+    const go = h("button", { class: "btn primary small", type: "submit", disabled: busy }, busy ? "Adding…" : "Add screenshot");
+    file.addEventListener("change", () => {
+      const f = file.files[0];
+      if (f && !title.value.trim()) title.value = f.name.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").slice(0, 60);
+    });
+    return h("form", { class: "sadd", onsubmit: async (ev) => {
+      ev.preventDefault();
+      const f = file.files[0];
+      if (!f) { error = "Choose a screenshot file first."; draw(); return; }
+      if (!title.value.trim()) { error = "Give it a short name."; draw(); return; }
+      busy = true; error = ""; go.disabled = true; go.textContent = "Adding…";
+      try {
+        const added = await api("POST", "/api/screens", { title: title.value, shows: shows.value, image: await readFile(f) });
+        await loadScreens();
+        adding = false;
+        toast(`Added ${added.title}`, "ok");
+      } catch (err) { error = err.message; }
+      busy = false; draw();
+    } },
+      h("div", { class: "sadd-title" }, "Add your own screenshot"),
+      h("label", { class: "sadd-field" }, "Screenshot (an upright phone screenshot, PNG or JPG)", file),
+      h("label", { class: "sadd-field" }, "Name", title),
+      h("label", { class: "sadd-field" }, "What it shows, so the script writer knows when to use it", shows),
+      error ? h("div", { class: "field-note warn" }, error) : null,
+      h("div", { class: "sadd-actions" }, go,
+        h("button", { class: "btn ghost small", type: "button", onclick: () => { adding = false; error = ""; draw(); } }, "Cancel")));
+  };
+  function draw() {
+    const kids = [];
+    for (const g of S.screenGroups || []) {
+      const rows = (S.screens || []).filter((e) => e.group === g.id);
+      if (!rows.length && g.id !== "mine") continue;
+      kids.push(h("section", { class: "sgroup" },
+        h("h3", { class: "sgroup-title" }, g.title, rows.length ? h("span", { class: "muted" }, String(rows.length)) : null),
+        g.id === "mine" && !rows.length && !adding ? h("p", { class: "sgroup-note" },
+          "Nothing here yet. Add a screenshot from your phone and it can go in any video.") : null,
+        h("div", { class: "sgrid" }, rows.map(tile),
+          g.id === "mine" && !adding ? h("button", { class: "stile add", type: "button", onclick: () => { adding = true; error = ""; draw(); } },
+            h("span", { class: "stile-pic" }, icon("plus", 24)),
+            h("span", { class: "stile-title" }, "Add a screenshot"),
+            h("span", { class: "stile-shows" }, "From your phone, any app screen")) : null),
+        g.id === "mine" && adding ? addForm() : null));
+    }
+    box.replaceChildren(...kids);
+  }
+  draw();
+  return box;
+}
+
+// Choose app screens in a dialog. max 1: one screen (always returns one). max > 1: up to max,
+// and none is a fine answer ("let the writer choose"). Resolves to the paths, or null on cancel.
+function screenPicker({ title, text, max = 1, selected = [], allowEmpty = false }) {
+  return new Promise((resolve) => {
+    const root = $("#modal-root");
+    let picks = selected.filter((p) => screenFor(p));
+    const close = (v) => { root.replaceChildren(); document.removeEventListener("keydown", key); resolve(v); };
+    const key = (e) => { if (e.key === "Escape") close(null); };
+    document.addEventListener("keydown", key);
+    const count = h("span", { class: "spick-count" });
+    const okBtn = h("button", { class: "btn primary", type: "button", onclick: () => close(picks) });
+    const clearBtn = allowEmpty ? h("button", { class: "btn ghost", type: "button", onclick: () => { picks = []; sync(); gridBox.replaceChildren(makeGrid()); } }, "Clear") : null;
+    const sync = () => {
+      if (clearBtn) clearBtn.classList.toggle("hidden", !picks.length);
+      count.textContent = max > 1 ? `${picks.length} of ${max} picked` : picks.length ? screenTitle(picks[0]) : "";
+      okBtn.textContent = !picks.length ? "Let the writer choose" : picks.length === 1 ? "Use this screen" : `Use these ${picks.length}`;
+      okBtn.disabled = !picks.length && !allowEmpty;
+    };
+    const makeGrid = () => screenGrid({
+      isOn: (p) => picks.includes(p),
+      orderOf: (p) => (max > 1 ? picks.indexOf(p) + 1 : 0),
+      onPick: (e) => {
+        if (picks.includes(e.path)) picks = allowEmpty || max > 1 ? picks.filter((p) => p !== e.path) : picks;
+        else if (max === 1) picks = [e.path];
+        else if (picks.length < max) picks = [...picks, e.path];
+        else toast(`This format shows at most ${max}. Unpick one first.`, "bad");
+        sync();
+      },
+      onGone: (p) => { picks = picks.filter((x) => x !== p); sync(); },
+    });
+    const gridBox = h("div", {}, makeGrid());
+    sync();
+    root.replaceChildren(h("div", { class: "modal-back", onclick: (e) => e.target === e.currentTarget && close(null) },
+      h("div", { class: "modal wide", role: "dialog", "aria-modal": "true", "aria-label": title },
+        h("div", { class: "modal-head" }, h("div", {}, h("h2", {}, title), text ? h("p", {}, text) : null),
+          h("button", { class: "icon-btn", type: "button", title: "Close", "aria-label": "Close", onclick: () => close(null) }, icon("x", 16))),
+        h("div", { class: "modal-scroll" }, gridBox),
+        h("div", { class: "actions" }, count, h("span", { style: "flex:1" }), clearBtn,
+          h("button", { class: "btn ghost", type: "button", onclick: () => close(null) }, "Cancel"), okBtn))));
+  });
+}
+
+// The create screen's "App screens" card: pin the screenshots this video shows, or leave it open.
+function screensSection(f, st) {
+  const max = (f.limits || {}).app_screens || 0;
+  if (!max || !(S.screens || []).length) return null;
+  const body = h("div", { class: "spicked" });
+  const note = h("span", { class: "count-note" });
+  const choose = async () => {
+    const r = await screenPicker({ title: max === 1 ? "Which app screen should this video show?" : `Which app screens should this video show? Up to ${max}.`,
+      text: "These are real screenshots. The video shows them on a phone, in the hero's hand.", max, selected: st.screens, allowEmpty: true });
+    if (r) { st.screens = r; draw(); }
+  };
+  function draw() {
+    st.screens = st.screens.filter((p) => screenFor(p));
+    note.textContent = st.screens.length ? `${st.screens.length} of ${max} picked` : "The writer chooses";
+    const kids = st.screens.map((p) => {
+      const e = screenFor(p);
+      return h("div", { class: "spick" }, h("img", { src: e.url, alt: "" }),
+        h("span", { class: "spick-text" }, h("b", {}, e.title), h("span", {}, e.shows)),
+        h("button", { class: "icon-btn", type: "button", title: "Do not pin this screen", "aria-label": `Unpin ${e.title}`,
+          onclick: () => { st.screens = st.screens.filter((x) => x !== p); draw(); } }, icon("x", 14)));
+    });
+    if (!st.screens.length) {
+      const some = S.screens.slice(0, 6);
+      kids.push(h("button", { class: "spreview", type: "button", onclick: choose, "aria-label": "Choose app screens" },
+        some.map((e) => h("img", { src: e.url, alt: "", loading: "lazy" })),
+        S.screens.length > some.length ? h("span", { class: "spreview-more" }, `+${S.screens.length - some.length}`) : null));
+    }
+    kids.push(h("button", { class: "btn small", type: "button", onclick: choose }, icon("phone", 14),
+      st.screens.length ? "Change" : max === 1 ? "Choose the screen" : "Choose screens"));
+    body.replaceChildren(...kids);
+  }
+  draw();
+  return h("section", { class: "card-sec", id: "sec-screens" },
+    h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "App screens"), note), body,
+    h("div", { class: "field-note" }, max === 1
+      ? "The demo beat shows one real screenshot on a phone. Pick it here, or leave it to the script writer. You can swap it after, for free."
+      : `The demo beat shows real screenshots on a phone. Pick up to ${max} here, or leave it to the script writer. You can swap them after, for free.`));
+}
+
+// The library on its own page: everything a video can show, and where you add your own.
+function renderScreens() {
+  const draw = () => $("#main").replaceChildren(h("div", { class: "view studio" },
+    h("div", { class: "studio-head" },
+      h("div", {}, h("h1", {}, "App screens"),
+        h("p", { class: "lede" }, "Real screenshots of the app. A video shows them on a phone in its demo beat. Pick which ones when you make a video, or swap one later in the script editor.")),
+      h("span", { class: "muted", style: "font-size:12px;white-space:nowrap" }, plural((S.screens || []).length, "screen"))),
+    screenGrid()));
+  draw();
+  loadScreens().then(() => { if (location.hash === "#/screens") draw(); });
+}
+
 
 // The ElevenLabs voice list (free, cached on the server). Loaded once; "refresh" asks again.
 async function loadVoices(refresh) {
@@ -708,7 +903,7 @@ function chips(options, value, onChange, label) {
 function renderCreate(formatName) {
   const f = S.formats.find((x) => x.name === formatName && !x.error);
   if (!f) { $("#main").replaceChildren(h("div", { class: "empty" }, `No format called "${formatName}". `, h("a", { href: "#/new", class: "muted" }, "Back to Studio"))); return; }
-  const st = { provider: "", dry: false, engine: "ai", cast: [], captions: S.config.caption_style || "format" };
+  const st = { provider: "", dry: false, engine: "ai", cast: [], captions: S.config.caption_style || "format", screens: [] };
   const hasCode = (f.engines || []).includes("claude_code");
   const d = S.config.providers.default;
   const premise = h("textarea", { class: "premise-box", id: "f-premise", rows: "6", maxlength: String(PREMISE_MAX),
@@ -730,6 +925,7 @@ function renderCreate(formatName) {
     keyWarn.textContent = missing.length ? `No API key set for ${missing.join(", ")}.` : "";
     provSec.classList.toggle("hidden", st.engine === "claude_code");
     capSec.classList.toggle("hidden", st.engine === "claude_code");
+    if (scrSec) scrSec.classList.toggle("hidden", st.engine === "claude_code");
     codeWarn.textContent = st.engine === "claude_code" ? codeEngineProblem() : "";
     if (st.engine === "claude_code") {
       const est = estimateCode(f.name);
@@ -780,6 +976,7 @@ function renderCreate(formatName) {
     h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Captions")),
     captionPicker(f.name, st.captions, (v) => { st.captions = v; }),
     h("div", { class: "field-note" }, "You can change this after the video is made, for free."));
+  const scrSec = screensSection(f, st);
   S.onDoctor = update;
   const form = h("form", { class: "create-left", onsubmit: async (e) => {
     e.preventDefault();
@@ -801,7 +998,8 @@ function renderCreate(formatName) {
     }
     go.disabled = true;
     const r = await submit(api("POST", "/api/runs", { premise: text, format: f.name, provider: st.engine === "ai" ? (st.provider || null) : null,
-      dry_run: st.dry, engine: st.engine, cast: st.cast, captions: st.engine === "ai" ? st.captions : null }),
+      dry_run: st.dry, engine: st.engine, cast: st.cast, captions: st.engine === "ai" ? st.captions : null,
+      screens: st.engine === "ai" ? st.screens : [] }),
       st.dry ? (st.engine === "claude_code" ? "story" : "script") : `${formatTitle(f)} video`);
     go.disabled = false;
     if (r) { await refreshRuns(); location.hash = `#/run/${encodeURIComponent(r.run_id)}`; }
@@ -813,6 +1011,7 @@ function renderCreate(formatName) {
       h("div", { class: "field-note" }, "Claude Code codes every scene in this style and renders it here, with no image or video model."),
       codeWarn) : null,
     h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Output")), outputBox),
+    scrSec,
     provSec,
     capSec,
     castSection(f, st, update),
@@ -1091,7 +1290,9 @@ function shotCard(run, s, busy) {
   if (s.kind === "card") {
     thumb.append(h("div", { class: "card-text" }, shot.card));
   } else if (s.kind === "app_screen") {
-    thumb.append(h("div", { class: "placeholder" }, "App screen", h("br"), (shot.app_screen || "").split("/").pop()));
+    const scr = screenFor(shot.app_screen);
+    if (scr && scr.url) thumb.append(h("img", { class: "app-pic", src: scr.url, alt: `App screen: ${scr.title}`, loading: "lazy" }));
+    else thumb.append(h("div", { class: "placeholder" }, "App screen", h("br"), (shot.app_screen || "").split("/").pop()));
   } else if (s.image) {
     thumb.append(h("img", { src: bust(s.image, run.run_id), alt: `Shot ${s.n}`, loading: "lazy" }));
     if (!spoken && shot.caption) thumb.append(h("div", { class: "cap" }, shot.caption));
@@ -1144,7 +1345,7 @@ function shotCard(run, s, busy) {
   }
   const info = h("div", { class: "shot-info" },
     spoken ? [h("div", { class: "speaker" }, shot.speaker), h("div", { class: "line" }, shot.vo_line)]
-      : h("div", { class: "line silent" }, s.kind === "card" ? "time card" : s.kind === "app_screen" ? "real screenshot" :
+      : h("div", { class: "line silent" }, s.kind === "card" ? "time card" : s.kind === "app_screen" ? `App screen: ${screenTitle(shot.app_screen)}` :
         shot.caption ? `caption: ${shot.caption}` : "silent"));
   const actions = h("div", { class: "shot-actions" },
     h("button", { disabled: busy || !drawable, title: shot.talk ? "New keyframe and talking clip" : shot.animate ? "New keyframe and clip" : "New keyframe", onclick: () => reroll(run, s) }, "Reroll"),
@@ -1236,7 +1437,7 @@ function draftChanged() {
   if (!S.run || !S.run.script || !S.draft) return out;
   S.draft.shots.forEach((s, i) => {
     const o = S.run.script.shots[i] || {};
-    for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt", "same_scene", "sfx", "label"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
+    for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt", "same_scene", "sfx", "label", "app_screen"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
     if (JSON.stringify(s.stat ?? null) !== JSON.stringify(o.stat ?? null)) out.add(s.n);
   });
   return out;
@@ -1310,7 +1511,15 @@ function scriptPanel(run, busy) {
       fields.append(h("span", { class: "kind" }, "time card"),
         h("input", { type: "text", value: s.card, "aria-label": `Shot ${s.n} card text`, oninput: (e) => update(i, "card", e.target.value, row) }));
     } else if (s.app_screen) {
-      fields.append(h("span", { class: "kind" }, "app screen"), h("span", { class: "ro" }, s.app_screen));
+      const scr = screenFor(s.app_screen);
+      fields.append(h("span", { class: "kind" }, "app screen"),
+        h("div", { class: "screen-row" },
+          h("span", { class: "screen-text" }, h("b", {}, screenTitle(s.app_screen)), scr && scr.shows ? h("span", { class: "ro" }, scr.shows) : null),
+          h("button", { class: "btn small", type: "button", disabled: busy, onclick: async () => {
+            const r = await screenPicker({ title: `Shot ${s.n}: which app screen?`, text: "Swapping the screen is free. Assemble again to see it in the video.",
+              max: 1, selected: [s.app_screen] });
+            if (r && r[0] && r[0] !== s.app_screen) { S.draft.shots[i].app_screen = r[0]; renderMain(); }
+          } }, icon("phone", 14), "Change screen")));
       // A line said over the phone (formats that allow it): the speaker and the words can be changed.
       if (((run.script.shots[i] || {}).vo_line || "").trim()) {
         fields.append(h("div", { class: "pair" },
@@ -1336,7 +1545,9 @@ function scriptPanel(run, busy) {
       if ((s.image_prompt || "").trim()) fields.append(lookEditor(s, i, row));
     }
     const meta = run.shots.find((x) => x.n === s.n);
-    const pic = meta && meta.image
+    const shown = s.app_screen ? screenFor(s.app_screen) : null;
+    const pic = shown && shown.url ? h("img", { class: "srow-thumb", src: shown.url, alt: "", loading: "lazy" })
+      : meta && meta.image
       ? h("img", { class: "srow-thumb", src: bust(meta.image, run.run_id), alt: "", loading: "lazy" })
       : h("div", { class: "srow-thumb none" }, s.card ? "card" : s.app_screen ? "app" : "no picture");
     row.append(h("div", { class: "srow-side" }, h("span", { class: "num" }, `#${s.n}`), pic), fields);
@@ -1354,6 +1565,11 @@ function scriptPanel(run, busy) {
     const ns = S.afterSave.sound;
     panel.append(h("div", { class: "notice" }, `Saved. The sound changed on ${ns.length === 1 ? "shot" : "shots"} ${ns.join(", ")}. `,
       h("button", { class: "btn small", disabled: busy, onclick: () => { S.afterSave.sound = []; runStep(run, "assemble"); } }, "Assemble again to hear it")));
+  }
+  if (S.afterSave && S.afterSave.run === run.run_id && (S.afterSave.screen || []).length) {
+    const ns = S.afterSave.screen;
+    panel.append(h("div", { class: "notice" }, `Saved. ${ns.length === 1 ? `Shot ${ns[0]} shows` : `Shots ${ns.join(", ")} show`} a different app screen. `,
+      h("button", { class: "btn small", disabled: busy, onclick: () => { S.afterSave.screen = []; runStep(run, "assemble"); } }, "Assemble again to see it")));
   }
   if (S.afterSave && S.afterSave.run === run.run_id && (S.afterSave.overlay || []).length) {
     const ns = S.afterSave.overlay;
@@ -1405,12 +1621,13 @@ async function saveScript(run) {
     const a = S.draft.shots.find((s) => s.n === n), b = run.script.shots.find((s) => s.n === n) || {};
     return JSON.stringify(a.stat ?? null) !== JSON.stringify(b.stat ?? null) || (a.label || "") !== (b.label || "");
   });
+  const screen = differs("app_screen");
   const clipped = new Set(run.shots.filter((s) => s.shot.animate || s.shot.talk).map((s) => s.n));
   const video = differs("motion_prompt").filter((n) => clipped.has(n) && !images.includes(n));
   try {
     await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/script`, S.draft);
     S.saveErrors = null;
-    S.afterSave = { run: run.run_id, voice, images, sound, overlay, video: [...video, ...images.filter((n) => clipped.has(n))].sort((a, b) => a - b) };
+    S.afterSave = { run: run.run_id, voice, images, sound, overlay, screen, video: [...video, ...images.filter((n) => clipped.has(n))].sort((a, b) => a - b) };
     toast("Script saved", "ok");
     await loadRun(run.run_id, { keepDraft: false });
   } catch (e) {
@@ -1849,6 +2066,7 @@ function route() {
   renderSidebar();
   const nf = location.hash.match(/^#\/new\/(.+)$/);
   const ch = location.hash.match(/^#\/characters(?:\/(.+))?$/);
+  const link = $("#screens-link"); if (link) link.classList.toggle("active", location.hash === "#/screens");
   if (runId) {
     if (!S.run) $("#main").replaceChildren(h("div", { class: "empty" }, h("span", { class: "spin" }), "  Loading…"));
     loadRun(runId);
@@ -1856,6 +2074,8 @@ function route() {
     renderCreate(decodeURIComponent(nf[1]));
   } else if (ch) {
     if (ch[1]) renderCharEditor(decodeURIComponent(ch[1])); else renderChars();
+  } else if (location.hash === "#/screens") {
+    renderScreens();
   } else {
     renderStudio();
   }

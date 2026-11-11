@@ -46,7 +46,11 @@ def _cast_block(locked: list[dict]) -> str:
     return "\n".join(lines) if lines else "  (none)"
 
 
-def _app_screens_block(screens: list[dict], fmt: dict | None = None) -> str:
+REQUIRED_SCREENS_NOTE = ("- The screenshots listed above were picked for this video by its maker. "
+                         "Use every one of them, each in exactly one app screen shot, and no other.")
+
+
+def _app_screens_block(screens: list[dict], fmt: dict | None = None, required: bool = False) -> str:
     fmt = _format(fmt)
     blocks, prompt = fmt["blocks"], fmt["prompt"]
     where = f"formats/{fmt['name']}/blocks"
@@ -56,7 +60,12 @@ def _app_screens_block(screens: list[dict], fmt: dict | None = None) -> str:
                              {"PATH": e["path"], "SHOWS": e["shows"] or prompt["app_screen_unknown"]},
                              f"{fmt['file']}: prompt.app_screen_line") for e in screens)
     values = {"SCREEN_LIST": lines, "APP_SCREENS_MAX": fmt["rules"]["app_screens"]["max"]}
-    return render(blocks.get("app_screens", ""), values, where) + "\n"
+    block = render(blocks.get("app_screens", ""), values, where)
+    if required and block.strip():
+        # Match the block's own indentation so the note reads as one more rule of the list.
+        first = next((ln for ln in block.splitlines() if ln.strip()), "")
+        block = block.rstrip("\n") + "\n" + first[:len(first) - len(first.lstrip())] + REQUIRED_SCREENS_NOTE
+    return block + "\n"
 
 
 def prompt_values(fmt: dict) -> dict:
@@ -170,8 +179,10 @@ def apply_animate_all(script: dict | None, config: dict | None) -> int:
 
 def build_system_prompt(style: str, max_animated: int, locked: list[dict],
                         app_screens: list[dict] | None = None, fmt: dict | None = None,
-                        animate_all: bool = False, sfx: bool = False) -> str:
-    """The format's script_prompt.md with shot_rules.md and the cast / app screens filled in."""
+                        animate_all: bool = False, sfx: bool = False,
+                        required_screens: bool = False) -> str:
+    """The format's script_prompt.md with shot_rules.md and the cast / app screens filled in.
+    required_screens: the app screens offered were picked for this video and must all be used."""
     fmt = _format(fmt)
     values = prompt_values(fmt)
     values.update({
@@ -179,7 +190,7 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict],
         "MAX_ANIMATED": max_animated,
         "CAST": _cast_block(locked),
         "SPEAKERS": ", ".join(c["id"] for c in locked) or "the cast",
-        "APP_SCREENS": _app_screens_block(app_screens or [], fmt)[:-1],
+        "APP_SCREENS": _app_screens_block(app_screens or [], fmt, required=required_screens)[:-1],
     })
     values["SHOT_RULES"] = render(fmt["shot_rules"], values, f"formats/{fmt['name']}/shot_rules.md")
     prompt = render(fmt["script_prompt"], values, f"formats/{fmt['name']}/script_prompt.md")
@@ -296,8 +307,11 @@ def same_line_key(line) -> str:
 def validate_and_normalize(data: dict, style: str, max_animated: int,
                            locked: list[dict] | None = None,
                            app_screens: list[dict] | None = None,
-                           rules: dict | None = None, animate_all: bool = False) -> dict:
+                           rules: dict | None = None, animate_all: bool = False,
+                           require_screens: list[str] | None = None) -> dict:
     """Raise ValueError listing every schema problem. Returns a normalized copy on success.
+
+    require_screens: app screenshots picked for this video; each must be shown by one shot.
 
     animate_all: every drawn shot is a clip, so the cap on animated shots does not apply and
     every such shot comes back with "animate": true.
@@ -805,6 +819,13 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         errors.append(f"this format uses no app_screen shots, so remove the {app_shots} app_screen shot(s)")
     if not app_paths and app_shots:
         errors.append(f"no app screenshots are available, so remove the {app_shots} app_screen shot(s)")
+    if require_screens:
+        shown = [str(s.get("app_screen") or "").strip() for s in shots if isinstance(s, dict)]
+        for path in require_screens:
+            if path not in shown:
+                errors.append(f"add an app_screen shot showing {path!r}: it was picked for this video")
+            elif shown.count(path) > 1:
+                errors.append(f"show the app screen {path!r} in one shot only, got {shown.count(path)}")
     if normalized_shots and CTA_CAPTION:
         last = normalized_shots[-1]
         if last.get("caption") != CTA_CAPTION:
@@ -855,7 +876,24 @@ def print_shot_table(script: dict, style: str) -> None:
 
 # ------------------------------------------------------------------- run ----
 
-def generate_script(premise: str, config: dict, client=None) -> dict:
+def pinned_screens(config: dict, screens: list[dict], picks: list[str] | None) -> tuple[list[dict], list[str] | None]:
+    """A video's picked app screens: (the screens to offer, the ones that must all be shown).
+    Nothing picked, or nothing picked still exists: every screen is offered and none is forced."""
+    if not picks:
+        return screens, None
+    by_path = {e["path"]: e for e in screens}
+    for p in picks:
+        if p not in by_path:
+            print(f"[script] picked app screen {p} is no longer in the library; leaving it out")
+    chosen = [by_path[p] for p in picks if p in by_path]
+    if not chosen:
+        return screens, None
+    cap = int(config["format"]["rules"]["app_screens"]["max"])
+    print(f"[script] app screens picked for this video: {', '.join(Path(e['path']).stem for e in chosen)}")
+    return chosen, ([e["path"] for e in chosen] if len(chosen) <= cap else None)
+
+
+def generate_script(premise: str, config: dict, client=None, picks: list[str] | None = None) -> dict:
     style = config["style"]
     max_animated = int(config["max_animated_shots"])
     model = config["script"]["model"]
@@ -866,12 +904,13 @@ def generate_script(premise: str, config: dict, client=None) -> dict:
     for e in config.get("app_screens", []):
         if e not in screens:
             print(f"[script] app screenshot {e['path']} is listed in config but missing; not offering it")
+    screens, required = pinned_screens(config, screens, picks)
     client = client or create_client()
 
     animate_all = bool(config.get("animate_all"))
     import sfx as sound
     system = build_system_prompt(style, max_animated, locked, screens, fmt, animate_all=animate_all,
-                                 sfx=sound.enabled(config))
+                                 sfx=sound.enabled(config), required_screens=bool(required))
     messages = [{"role": "user", "content": build_user_prompt(premise)}]
 
     last_error = None
@@ -882,7 +921,7 @@ def generate_script(premise: str, config: dict, client=None) -> dict:
         text = response_text(response)
         try:
             return validate_and_normalize(parse_json(text), style, max_animated, locked, screens,
-                                          fmt["rules"], animate_all=animate_all)
+                                          fmt["rules"], animate_all=animate_all, require_screens=required)
         except ValueError as e:
             last_error = e
             print(f"[script] attempt {attempt} failed validation:\n{e}")
@@ -903,7 +942,8 @@ def run(run_dir: Path, config: dict) -> None:
     premise = read_premise(run_dir)
     print(f"[script] premise: {premise}")
     print(f"[script] format: {config['format']['name']}")
-    script = generate_script(premise, config)
+    import app_assets
+    script = generate_script(premise, config, picks=app_assets.run_picks(run_dir))
     out = run_dir / "script.json"
     write_json(out, script)
     print(f"[script] saved {out}")

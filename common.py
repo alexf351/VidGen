@@ -179,7 +179,9 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
         raise StepError(f"{fmt['file']} is missing the 'style' line")
     cfg["format"] = {k: v for k, v in fmt.items() if k != "overlay"}
     cfg["locked_characters"] = _check_locked_characters(cfg.get("locked_characters") or [], fmt["file"])
-    cfg["app_screens"] = _check_app_screens(cfg.get("app_screens") or [], fmt["file"])
+    # The format's own screenshots first, then the rest of the library (app_assets.py).
+    import app_assets
+    cfg["app_screens"] = app_assets.merged(_check_app_screens(cfg.get("app_screens") or [], fmt["file"]))
     cfg.setdefault("characters_cache_dir", "characters_cache")
     cfg["cast"] = []
     fal = cfg.setdefault("fal", {})
@@ -342,7 +344,8 @@ def _check_app_screens(raw, where: str = "config.yaml") -> list[dict]:
         if path in seen:
             raise StepError(f"{where}: app_screens lists {path!r} twice")
         seen.add(path)
-        out.append({"path": path, "shows": str(e.get("shows") or "").strip()})
+        out.append({"path": path, "shows": str(e.get("shows") or "").strip(),
+                    "title": str(e.get("title") or "").strip()})
     return out
 
 
@@ -401,7 +404,8 @@ def run_dir_for(run_id: str, must_exist: bool = True) -> Path:
 
 
 def create_run(premise: str, format_name: str, cast: list | None = None,
-               engine: str | None = None, captions: str | None = None) -> Path:
+               engine: str | None = None, captions: str | None = None,
+               screens: list[str] | None = None) -> Path:
     run_id = new_run_id(premise)
     run_dir = RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
@@ -418,6 +422,8 @@ def create_run(premise: str, format_name: str, cast: list | None = None,
         meta["engine"] = engine
     if captions:
         meta["captions"] = captions          # a caption style id, see caption_styles.py
+    if screens:
+        meta["screens"] = list(screens)      # app screenshots pinned for this video (app_assets.py)
     write_json(run_dir / "run.json", meta)
     return run_dir
 

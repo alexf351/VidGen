@@ -41,12 +41,32 @@ def run_step(name: str, run_dir: Path, config: dict, only: str | None = None) ->
         raise StepError(f"--only is supported for {sorted(STEPS_WITH_ONLY)}, not '{name}'")
 
 
+def pick_screens(config: dict, screens) -> list[str]:
+    """The app screenshots a new video pins, checked against the library and the format."""
+    if not screens:
+        return []
+    import app_assets
+    from common import available_app_screens
+    picks = app_assets.resolve_picks(screens, available_app_screens(config))
+    cap = int(config["format"]["rules"]["app_screens"]["max"])
+    title = config["format"].get("title") or config["format"]["name"]
+    if not cap:
+        raise StepError(f"the {title} format shows no app screens, so none can be picked for it")
+    if len(picks) > cap:
+        raise StepError(f"the {title} format shows at most {cap} app screen{'s' if cap != 1 else ''}; "
+                        f"pick {cap} or fewer, got {len(picks)}")
+    return picks
+
+
 def create_new_run(premise: str, config: dict, log=print, engine: str | None = None,
-                   captions: str | None = None) -> Path:
-    """Make the run folder for `new` (premise.txt, run.json with the format, cast, engine and
-    caption style)."""
+                   captions: str | None = None, screens=None) -> Path:
+    """Make the run folder for `new` (premise.txt, run.json with the format, cast, engine,
+    caption style and any pinned app screens)."""
     import caption_styles
     captions = caption_styles.check(captions) if captions else None
+    screens = pick_screens(config, screens)
+    if screens and engine == "claude_code":
+        raise StepError("app screens are for the image pipeline; the Claude Code engine does not show them")
     if engine not in (None, "ai", "claude_code"):
         raise StepError(f"engine must be ai or claude_code, got {engine!r}")
     if engine == "claude_code":
@@ -55,10 +75,12 @@ def create_new_run(premise: str, config: dict, log=print, engine: str | None = N
             raise StepError(f"the {config['format']['name']} format does not offer the Claude Code "
                             f"engine (its format.yaml has no code_render block)")
     run_dir = create_run(premise, config["format"]["name"], cast=config.get("cast") or None,
-                         engine=engine, captions=captions)
+                         engine=engine, captions=captions, screens=screens)
     log(f"created run {run_dir.name} (format {config['format']['name']}"
         + (", Claude Code engine)" if engine == "claude_code" else ")"))
     log(f"  {run_dir}")
+    if screens:
+        log(f"  app screens: {', '.join(Path(p).stem for p in screens)}")
     return run_dir
 
 

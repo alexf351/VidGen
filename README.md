@@ -72,6 +72,9 @@ python main.py new "A laid-off line cook opens a food truck and nobody shows up 
 python main.py new "A laid-off line cook opens a food truck" --format pixar_arc
 python main.py formats
 
+# choose the app screenshots the video shows (list them with: python main.py screens)
+python main.py new "A laid-off line cook opens a food truck" --screens streak,rank_up
+
 # script only: write and print the shot list, nothing sent to fal, Sume or ElevenLabs
 # (it still calls Claude to write the script, a few cents)
 python main.py new "A laid-off line cook opens a food truck" --dry-run
@@ -236,6 +239,49 @@ time it is used in that format (cached in `characters_cache/` as `lib-<id>@<form
 editing the picture or description draws a fresh one). Tick "Use my picture exactly as it is"
 to skip that and use the picture itself as the reference.
 
+### App screens
+
+The demo beat of a video shows the real app: a screenshot on a phone in the hero's hand, never
+a drawing of the app. VidGen ships a library of 23 Iro screens in `assets/screens/`, described in
+`assets/screens/library.yaml`:
+
+| group | screens |
+|---|---|
+| Opening the app | first rank (Bronze III), learning path, choose a path |
+| Learning | lesson card, lesson question, correct answer, match the tools, lesson podcast |
+| Coach and practice | Ask Iro, Prompt Lab, duels |
+| Wins and rewards | lesson complete, streak, reward chest, rank up, unit complete, certificate |
+| Progress and rank | after a lesson, progress, weekly league, quests, awards |
+| More of the app | create a path |
+
+```bash
+python main.py screens                                   # the library, with the names below
+python main.py new "premise" --screens streak,rank_up    # this video shows exactly these
+```
+
+Every format can use every screen. The script writer reads each screen's `shows` line and
+picks the one that fits the moment. To decide yourself, pin them: `--screens` on the command
+line, or the **App screens** card on the create screen in the UI, which opens a picker with a
+thumbnail of every screen. A format shows a fixed number (Pixar Arc and Pixar Steps two, the
+other Pixar shapes one), so that is how many you can pin. Pinned screens are saved in the run's
+`run.json` (`"screens"`); the script step then offers only those and refuses a script that leaves
+one out or shows one twice.
+
+After the script is written you can still swap a screen: in **Script and editing**, an app
+screen row shows its picture and a **Change screen** button. Swapping is free, because only the
+assemble step uses the screenshot; save, then assemble again.
+
+**Your own screenshots.** In the UI, **App screens** in the sidebar lists the library, and
+"Add a screenshot" under *Your own* takes a phone screenshot (PNG or JPG, upright), a name and
+a line saying what it shows. You can also drop pictures straight into `assets/screens/mine/`;
+they are listed under their file names. Yours are offered to every format next to the shipped
+ones, can be pinned and swapped the same way, and are not in git. Give each one a real `shows`
+line: it is all the script writer knows about the picture.
+
+To change the shipped set, replace a picture in `assets/screens/` (860 x 1864 JPEG works well)
+or edit `library.yaml`: `file`, `title`, `shows`, `group`. A format's own `app_screens` list
+still works and comes first in the prompt with its own wording; the library follows.
+
 ### Voices
 
 A speaker with a voice id in `voices:` (config.local.yaml), or a library character with its own
@@ -334,13 +380,14 @@ through `progress.py`; `GET /api/jobs` returns it as `progress` on the running j
 
 The editor (`ui/`: `index.html`, `app.css`, `app.js`; plain HTML/CSS/JS, no build step) has:
 
-- **Sidebar**: New video, Characters, and every run with its format and state (video ready,
-  script only, in progress, running, last job failed).
+- **Sidebar**: New video, Characters, App screens (the screenshot library, see App screens),
+  and every run with its format and state (video ready, script only, in progress, running,
+  last job failed).
 - **Studio** (New video): the formats grouped by kind (Pixar stories, People talking, Animated
   looks, Letters and songs) with a search box. Each card shows its cover, description, length
   and an "about $X a video" estimate from the format's own limits. Pick one to open its create
-  screen: premise, output (full video or script only), provider, and the Generate button with the
-  cost, which stays in view as you scroll. Beside it, "How this video goes": length, shots, clips,
+  screen: premise, output (full video or script only), the app screens to show, provider, and
+  the Generate button with the cost, which stays in view as you scroll. Beside it, "How this video goes": length, shots, clips,
   cast, the beats in order, and the reference videos the format is modelled on. Setup problems
   from `doctor` show in one line on top; open Details for the list.
 - **Run**: one bright button top right is always the next thing to do ("Make the images",
@@ -349,7 +396,8 @@ The editor (`ui/`: `index.html`, `app.css`, `app.js`; plain HTML/CSS/JS, no buil
   - **Shots**: the cast sheets and a 9:16 card per shot (keyframe, clip plays on hover, play
     button for the line, Reroll / Image / Voice, the star to use it as the format's cover).
     Select several shots to redo images, video or voice for just those.
-  - **Script and editing**: every shot as a row with its picture, speaker, caption and line.
+  - **Script and editing**: every shot as a row with its picture, speaker, caption and line
+    (an app screen row has a Change screen button).
     "Picture, motion and sound" under a row opens the rest (scene description, motion, sound
     effect, progress number, time-card text). Save with the button or Ctrl+S (Cmd+S on a Mac);
     it validates and offers to redo only what changed. A dot on the tab means unsaved edits.
@@ -447,7 +495,7 @@ Set by the format (`formats/<name>/format.yaml`), overridable in `config.local.y
 | `animate_all`        | `true`: every drawn shot becomes a video clip (set by the format; Pixar Arc: on) |
 | `sfx`                | `true`: sound effects under the cut (set by the format; Pixar Arc: on). `sfx: false` or `sfx: {enabled: true}` in `config.local.yaml` decides for every format |
 | `assemble.caption_style` | caption style for new videos (see Caption styles); empty = the format's own |
-| `app_screens`        | real Iro app screenshots (`path`, `shows`) the script may put in app_screen shots |
+| `app_screens`        | a format's own app screenshots (`path`, `shows`); every format also gets the whole library (see App screens) |
 | `locked_characters` (with `cast: locked`) | recurring cast: `id`, `role`, `description`, `image_path` |
 | `resolution`, `fps`  | `assemble.width` / `height` / `fps`                            |
 | `clip_seconds`       | `fal.video_seconds` and `sume.video_seconds`                   |
@@ -518,7 +566,7 @@ Rules enforced by the prompt and checked by the validator (the numbers and wordi
   own name is fine). The closing CTA shot is a back-of-phone shot under `SEARCH IRO AI`
 - the real app appears in `app_screen` shots (optional `"app_screen": "assets/screens/lesson.jpg"`
   field): exactly one right after the hero opens the app in the mentor beat and optionally one
-  in the grind, using a path from the format's `app_screens`. An app_screen shot has no
+  in the grind, using a path from the app screen library (see App screens). An app_screen shot has no
   characters, no `vo_line`, `animate: false`, and is never the first or last shot. If no listed
   screenshot exists, none are asked for
 - a FLEX MONTAGE of 6 to 8 consecutive shots right before the CTA (after the "that's my boy"

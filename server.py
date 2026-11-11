@@ -28,6 +28,7 @@ from sse_starlette.sse import EventSourceResponse
 import characters as lib
 import commands
 import run_status
+import app_assets
 import caption_styles
 import code_engine
 import progress
@@ -60,6 +61,13 @@ class NewRun(BaseModel):
     cast: list[CastEntry] = []
     engine: str = "ai"                # "ai" or "claude_code"
     captions: str | None = None       # a caption style id (caption_styles.py); None = the default
+    screens: list[str] = []           # app screenshots this video must show (library paths)
+
+
+class ScreenIn(BaseModel):
+    title: str
+    shows: str = ""
+    image: str                        # data: URL of the screenshot
 
 
 class CharacterIn(BaseModel):
@@ -249,6 +257,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                                    "animate_all": animate_all_for(f),
                                    "narrator": r["narrator"], "cta_caption": r["cta_caption"],
                                    "talking": r["talking"]["max"] if r.get("talking") else None,
+                                   "app_screens": int(r["app_screens"]["max"]),
                                    "song": bool(r.get("song")), "letter": bool(r.get("letter"))}})
         return out
 
@@ -346,6 +355,43 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         shutil.copyfile(final, f["dir"] / "example.mp4")
         return {"example_video": media_url(name, "example", f["dir"] / "example.mp4")}
 
+    # ------------------------------------------------------- app screens --
+    def screen_out(e: dict) -> dict:
+        p = app_assets.file_for(e["path"])
+        rel = e["path"][len("assets/screens/"):] if e["path"].startswith("assets/screens/") else None
+        url = f"/screen-media/{rel}?v={int(p.stat().st_mtime)}" if p and rel else None
+        return {**e, "url": url}
+
+    @app.get("/api/screens")
+    def list_screens(format: str | None = None) -> dict:
+        """The app screenshots a format can show: its own, then the library and yours."""
+        cfg = config_for(format)
+        return {"groups": [{"id": g, "title": t} for g, t in app_assets.GROUPS],
+                "max": int(cfg["format"]["rules"]["app_screens"]["max"]),
+                "screens": [screen_out(e) for e in app_assets.in_library_order(available_app_screens(cfg))]}
+
+    @app.post("/api/screens", status_code=201)
+    def add_screen(body: ScreenIn) -> dict:
+        try:
+            return screen_out(app_assets.add(body.title, body.shows, app_assets.decode_upload(body.image)))
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.delete("/api/screens/mine/{name}")
+    def delete_screen(name: str) -> dict:
+        try:
+            app_assets.remove(f"assets/screens/mine/{name}")
+        except StepError as e:
+            raise HTTPException(404, str(e)) from e
+        return {"deleted": name}
+
+    @app.get("/screen-media/{rel:path}")
+    def screen_media(rel: str):
+        p = app_assets.file_for(f"assets/screens/{rel}")
+        if p is None:
+            raise HTTPException(404, "not found")
+        return FileResponse(p)
+
     @app.get("/api/config")
     def config_info() -> dict:
         cfg = config_for()
@@ -425,8 +471,11 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         except StepError as e:
             raise HTTPException(400, str(e)) from e
         preface: list[str] = []
-        run_dir = commands.create_new_run(premise, cfg, log=preface.append, engine=body.engine,
-                                          captions=captions)
+        try:
+            run_dir = commands.create_new_run(premise, cfg, log=preface.append, engine=body.engine,
+                                              captions=captions, screens=body.screens)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
         if captions and captions != caption_styles.FORMAT:
             preface.append(f"  captions: {caption_styles.title(captions)}")
         for line in lib.describe_cast(cfg):

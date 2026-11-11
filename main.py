@@ -8,6 +8,7 @@ Commands:
   python main.py new "<premise>" --dry-run  script step only: print the shot list, nothing else
       ... --engine claude_code              Claude Code codes the scenes and renders locally
   python main.py formats                    list the installed video formats
+  python main.py screens                    list the app screenshots a video can show
   python main.py ui [--port 8765]           local web UI + HTTP API on 127.0.0.1 (opens the browser)
   python main.py import-skill <skill>       turn a Claude skill folder (or its SKILL.md) into a format
       ... --name <name> --force             format name / replace an existing format
@@ -27,6 +28,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -44,8 +46,9 @@ run_step = commands.run_step
 
 
 def cmd_new(args, config) -> None:
+    picks = [x.strip() for x in (getattr(args, "screens", None) or "").split(",") if x.strip()]
     run_dir = commands.create_new_run(args.premise, config, engine=getattr(args, "engine", None),
-                                      captions=getattr(args, "captions", None))
+                                      captions=getattr(args, "captions", None), screens=picks)
     commands.execute_new(run_dir, config, args.dry_run)
 
 
@@ -95,6 +98,9 @@ def build_parser() -> argparse.ArgumentParser:
                        help="ai: image + video models (default). claude_code: Claude Code codes every "
                             "scene and renders on this computer with your Claude login (formats with "
                             "a code_render block)")
+    p_new.add_argument("--screens", default=None, metavar="NAMES",
+                       help="app screenshots this video must show, by name and comma-separated "
+                            "(--screens learn,certificate); see: python main.py screens")
     p_new.add_argument("--captions", default=None, metavar="STYLE",
                        help="caption style: format (the format's own look), classic, outline, "
                             "yellow_pop, comic, headline, banner or off")
@@ -129,6 +135,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_formats = sub.add_parser("formats", help="list the installed video formats")
     p_formats.set_defaults(func=None)
+
+    p_screens = sub.add_parser("screens", help="list the app screenshots a video can show")
+    p_screens.set_defaults(func=None)
 
     p_ui = sub.add_parser("ui", help="start the local web UI and HTTP API on 127.0.0.1")
     p_ui.add_argument("--port", type=int, default=8765, help="port (default 8765)")
@@ -175,6 +184,25 @@ def cmd_import_skill(args, config) -> int:
         return 1
     print(f"\n[import] formats/{name} produced a shot list. Make a video with:\n"
           f"  python main.py new \"<premise>\" --format {name}")
+    return 0
+
+
+def list_screens() -> int:
+    """screens: the app screenshot library, by group, with the names --screens takes."""
+    import app_assets
+    screens = app_assets.everything()
+    if not screens:
+        print("no app screenshots found (expected pictures in assets/screens/)")
+        return 1
+    for gid, gtitle in app_assets.GROUPS:
+        rows = [e for e in screens if e["group"] == gid]
+        if not rows:
+            continue
+        print(f"\n{gtitle}")
+        for e in rows:
+            print(f"  {Path(e['path']).stem:<14} {e['title']}: {e['shows'] or '(no description)'}")
+    print("\npin some for one video:  python main.py new \"premise\" --screens learn,certificate")
+    print("add your own: drop phone screenshots in assets/screens/mine/, or use the UI")
     return 0
 
 
@@ -274,6 +302,8 @@ def main(argv=None) -> int:
     try:
         if args.command == "formats":
             return list_formats()
+        if args.command == "screens":
+            return list_screens()
         config = load_config(format_name=format_for(args), cast=cast_for(args))
         key_sources = _key_sources(config, from_dotenv)
         print_config_sources(config, key_sources)

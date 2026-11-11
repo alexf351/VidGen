@@ -14,3 +14,5 @@ skills/**/*.m4a
 library/
 # shared node packages for the Claude Code engine (npm install happens once, here)
 cache/
+# your own app screenshots (added in the UI or dropped in by hand)
+assets/screens/mine/

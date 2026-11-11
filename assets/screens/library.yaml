@@ -1,0 +1,116 @@
+# The app screenshot library: the real Iro screens a video can show in its demo beat.
+#
+#   file    a picture in this folder (an upright phone screenshot)
+#   title   the short name shown in the UI
+#   shows   what is on the screen. The script writer reads this to choose the screenshot that
+#           fits the moment, so say what the viewer sees, not what the feature is called.
+#   group   start | learn | coach | wins | progress | more   (the headings in the UI)
+#
+# Every format can use every screenshot here (see app_assets.py). To add your own without
+# editing this file, drop pictures in assets/screens/mine/ or use "App screens" in the UI.
+# These were captured from the app with scripts/i18n/intro-shots in the Iro repo.
+
+screens:
+  # ---- opening the app
+  - file: first_rank.jpg
+    title: "First rank"
+    group: start
+    shows: "the first screen a new learner gets: 'You're starting at Bronze III' with the bronze rank emblem and the six ranks up to Iridescent"
+  - file: learn.jpg
+    title: "Learning path"
+    group: start
+    shows: "the learning path map with the next lesson card and a START button (a first lesson)"
+  - file: paths.jpg
+    title: "Choose a path"
+    group: start
+    shows: "the list of paths to learn: AI Foundations with a Continue button, Prompt Engineering and more below"
+
+  # ---- learning
+  - file: lesson_card.jpg
+    title: "Lesson card"
+    group: learn
+    shows: "the start of a lesson called How AI Learns: a picture and one big idea, 'AI learns from examples, not rules', with a Play podcast button"
+  - file: question.jpg
+    title: "Lesson question"
+    group: learn
+    shows: "Iro the penguin asks 'What does modern AI fundamentally do?' above four answers to tap"
+  - file: correct.jpg
+    title: "Correct answer"
+    group: learn
+    shows: "the same question answered: the right answer lit green and a big green 'Correct!' with a CONTINUE button"
+  - file: lesson.jpg
+    title: "Match the tools"
+    group: learn
+    shows: "a lesson in progress: Iro asks the learner to match AI tools to what they do best"
+  - file: podcast.jpg
+    title: "Lesson podcast"
+    group: learn
+    shows: "a lesson playing as a podcast: cover art, the title 'Use AI as Your Daily Assistant' and a big pause button"
+
+  # ---- coach and practice
+  - file: ask_iro.jpg
+    title: "Ask Iro"
+    group: coach
+    shows: "a chat with Iro the AI coach: Iro quizzes the learner, says 'Exactly' to the answer and offers the next step"
+  - file: prompt_lab.jpg
+    title: "Prompt Lab"
+    group: coach
+    shows: "the practice tab: Prompt Lab scores a written prompt out of 10, next to Duel and a prompt Library"
+  - file: duels.jpg
+    title: "Duels"
+    group: coach
+    shows: "the duel arena: You versus an Opponent with ratings and an orange Find Opponent button"
+
+  # ---- wins and rewards
+  - file: lesson_done.jpg
+    title: "Lesson complete"
+    group: wins
+    shows: "a finished lesson: 'Locked it in.', three gold stars, +88 XP, 100% accuracy"
+  - file: streak.jpg
+    title: "Streak"
+    group: wins
+    shows: "a big flame and '5 day streak!' with the week's days ticked off"
+  - file: reward.jpg
+    title: "Reward chest"
+    group: wins
+    shows: "an opened reward chest: '+100 gems', three blue gems, LEGENDARY CACHE"
+  - file: rank_up.jpg
+    title: "Rank up"
+    group: wins
+    shows: "a rank-up celebration: 'EVOLUTION UNLOCKED', Silver to GOLD, the penguin mascot in gold armour with confetti"
+  - file: unit_done.jpg
+    title: "Unit complete"
+    group: wins
+    shows: "'Unit 1 of 6 complete' with a checklist headed WHAT YOU CAN DO NOW: five real skills just learned"
+  - file: certificate.jpg
+    title: "Certificate"
+    group: wins
+    shows: "an earned certificate of completion for the AI Foundations path, with a Share certificate button"
+
+  # ---- progress and rank
+  - file: after_lesson.jpg
+    title: "After a lesson"
+    group: progress
+    shows: "progress after a lesson: the rank bar moving toward the next rank, lessons left to the certificate, 'You moved from #12 to #9' in the weekly league"
+  - file: progress.jpg
+    title: "Progress"
+    group: progress
+    shows: "the progress screen: Gold II rank, XP bar and the six-skill operator build"
+  - file: league.jpg
+    title: "Weekly league"
+    group: progress
+    shows: "the weekly league leaderboard: the learner at #12, '71 XP to pass Mateo', gold, silver and bronze at the top"
+  - file: quests.jpg
+    title: "Quests"
+    group: progress
+    shows: "the quest board: a monthly quest to finish 30 lessons, daily quests and treasure chests to win"
+  - file: awards.jpg
+    title: "Awards"
+    group: progress
+    shows: "certificates and achievement badges: one certificate earned, 'Bookworm: complete 25 lessons' almost done"
+
+  # ---- more of the app
+  - file: create.jpg
+    title: "Create a path"
+    group: more
+    shows: "the create screen for building a custom learning path on any topic"
