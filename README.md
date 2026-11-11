@@ -75,6 +75,9 @@ python main.py formats
 # choose the app screenshots the video shows (list them with: python main.py screens)
 python main.py new "A laid-off line cook opens a food truck" --screens streak,rank_up
 
+# skip the script step: use a script that is already written (list them with: python main.py ready)
+python main.py new --format pixar_mirror --ready the_standup
+
 # script only: write and print the shot list, nothing sent to fal, Sume or ElevenLabs
 # (it still calls Claude to write the script, a few cents)
 python main.py new "A laid-off line cook opens a food truck" --dry-run
@@ -426,7 +429,8 @@ The editor (`ui/`: `index.html`, `app.css`, `app.js`; plain HTML/CSS/JS, no buil
 - **Studio** (New video): the formats grouped by kind (Pixar stories, People talking, Animated
   looks, Letters and songs) with a search box. Each card shows its cover, description, length
   and an "about $X a video" estimate from the format's own limits. Pick one to open its create
-  screen: premise, output (full video or script only), the app screens to show, provider, and
+  screen: a ready-made story to pick (when the format has any) or your own premise, output
+  (full video or script only), the app screens to show, provider, and
   the Generate button with the cost, which stays in view as you scroll. Beside it, "How this video goes": length, shots, clips,
   cast, the beats in order, and the reference videos the format is modelled on. Setup problems
   from `doctor` show in one line on top; open Details for the list.
@@ -565,6 +569,62 @@ this schema:
   }]
 }
 ```
+
+### Ready-made scripts
+
+A format can ship scripts that are already written, shot by shot. A run made from one skips
+the script step: Claude is not called, the script costs nothing, and you get the same video
+every time apart from what the image and video models draw.
+
+```bash
+python main.py ready                                        # what is there, with the command for each
+python main.py new --format pixar_steps --ready the_cactus  # make the video
+python main.py new --format pixar_steps --ready the_cactus --dry-run   # only write script.json, to read or edit first
+```
+
+In the UI the create screen shows them in a **Story** card above the premise. Pick one and
+the premise fills in; pick "Write my own" to go back to Claude writing it.
+
+| Format          | Script           | Story                                                                    |
+| --------------- | ---------------- | ------------------------------------------------------------------------ |
+| `pixar_mirror`  | `the_standup`    | laughed at in the Monday meeting; six months later they bring him coffee |
+| `pixar_mirror`  | `two_minute_fix` | sent to another table in a coffee shop; later she slides him the laptop   |
+| `pixar_revenge` | `the_fountain`   | she says no at the fountain; two years later his car pulls up beside theirs |
+| `pixar_ladder`  | `the_cafe`       | his cafe is dead; the app he builds for it fills the room                |
+| `pixar_steps`   | `the_cactus`     | four steps to a first client, and the line he used is the last step      |
+
+After the run is made it is an ordinary run: edit lines, swap app screens, redo shots and
+recast voices on the run page as usual. App screens cannot be pinned on a ready-made script
+(it already says which ones it shows), and the Claude Code engine does not use them.
+
+To write your own, add `formats/<format>/scripts/<name>.json`:
+
+```json
+{
+  "title": "The Monday meeting",
+  "premise": "One or two sentences. Saved as the run's premise.",
+  "shots": [
+    {
+      "characters": ["tyler"],
+      "image_prompt": "close shot, chest up, a glass-walled meeting room, {tyler}, in a navy waistcoat, leaning back with a lazy smirk. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler waves his hand without looking up, his mouth moving as he drawls the line. Slow push-in on his smirk.",
+      "vo_line": "That's cute, Marcus.",
+      "speaker": "tyler"
+    },
+    { "app_screen": "assets/screens/learn.jpg", "label": "OPENS IRO" }
+  ]
+}
+```
+
+It is the script schema above with three shortcuts. Leave the style line off `image_prompt`;
+it is put in front. Write `{tyler}` (a locked character's id in braces) where the character's
+description goes, and the format's own wording is filled in, so recasting a role does not
+break the script. Leave out `n`, the top `characters` list and any field that would be empty.
+The name is lower case letters, digits and underscores.
+
+The built script goes through the same check as one Claude wrote, so a script that breaks the
+format's rules (too few shots, too many words, a line that does not come back) is refused with
+the reason, and `python main.py ready` only lists files it can read.
 
 ### Story formula
 

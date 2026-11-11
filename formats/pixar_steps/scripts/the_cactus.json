@@ -1,0 +1,363 @@
+{
+  "title": "The cactus",
+  "premise": "Marcus waits at the station with sunflowers and a cactus; she tells him he is going nowhere and leaves with a show-off. Two years later he has the usual table at the best restaurant in town, and he tells the show-off exactly how in four steps.",
+  "shots": [
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "medium close shot, a bright busy train station concourse with a big glass roof, bright midday light pouring through the glass roof, {marcus}, in a too-big brown corduroy jacket over a striped shirt, up on his toes waving a big bunch of sunflowers over his head with one hand and hugging a tiny potted cactus with a red bow against his chest with the other, a huge hopeful grin that is just starting to falter, eyes fixed on someone off camera, mouth open mid-call. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus bounces on his toes waving the sunflowers and his mouth moves as he calls her name, then his grin wobbles as he sees who is with her. Push-in on his faltering smile.",
+      "vo_line": "Jess? Over here!",
+      "speaker": "marcus"
+    },
+    {
+      "characters": [
+        "jess",
+        "tyler"
+      ],
+      "image_prompt": "medium two shot, a bright busy train station concourse with a big glass roof, bright midday light pouring through the glass roof, {jess}, in a yellow summer dress with a denim jacket, arm in arm with Tyler and slowing to a stop, head tilted, a soft pained smile, eyebrows pinched with pity, mouth open mid-sentence; {tyler}, in a shiny silver bomber jacket with mirrored sunglasses pushed up in his hair, chewing gum beside her and looking the other way, bored. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess slows down and squeezes Tyler's arm, her mouth moving as she says it gently; Tyler blows a gum bubble and looks around. Slow push-in on her kind, sorry face.",
+      "vo_line": "Marcus. You're sweet, really.",
+      "speaker": "jess",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, a bright busy train station concourse with a big glass roof, bright midday light pouring through the glass roof, {jess}, in a yellow summer dress with a denim jacket, one hand pressed to her chest, shoulders lifted in a small helpless shrug, eyes soft and sad, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess lifts her shoulders in a tiny shrug and her mouth moves as she says it softly, like bad news to a child. Small push-in.",
+      "vo_line": "But you're going nowhere.",
+      "speaker": "jess",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "tyler",
+        "marcus"
+      ],
+      "image_prompt": "medium two shot, a bright busy train station concourse with a big glass roof, bright midday light pouring through the glass roof, {tyler}, in a shiny silver bomber jacket with mirrored sunglasses pushed up in his hair, plucking the big bunch of sunflowers straight out of Marcus's raised hand with a wide friendly grin, mouth open mid-word; {marcus}, in a too-big brown corduroy jacket over a striped shirt, hand still in the air and now empty, staring at it, the tiny cactus still hugged to his chest. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler plucks the sunflowers out of Marcus's hand without breaking stride and his mouth moves as he says it brightly; Marcus stares at his empty hand. The camera follows the flowers.",
+      "vo_line": "Thanks, man.",
+      "speaker": "tyler",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "tyler",
+        "jess"
+      ],
+      "image_prompt": "medium two shot, a bright busy train station concourse with a big glass roof, bright midday light pouring through the glass roof, {tyler}, in a shiny silver bomber jacket with mirrored sunglasses pushed up in his hair, presenting the sunflowers to Jess with a flourish and a wink, mouth open mid-word; {jess}, in a yellow summer dress with a denim jacket, taking them with a guilty little smile and a glance back over her shoulder. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler hands Jess the sunflowers with a flourish, his mouth moving as he says it smoothly; she takes them and glances back, guilty. Small push-in.",
+      "vo_line": "For you, babe.",
+      "speaker": "tyler",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, chest up, a bright busy train station concourse with a big glass roof, bright midday light pouring through the glass roof, {marcus}, in a too-big brown corduroy jacket over a striped shirt, holding the tiny potted cactus with the red bow out in front of him in both hands like an offering, eyes wide and wet, chin wobbling, mouth open mid-sentence, the blurred backs of two people walking away behind him. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus holds the little cactus out with both hands toward their backs and his mouth moves as he says it in a small cracked voice. Slow push-in on his wet eyes.",
+      "vo_line": "I got you a cactus too.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [],
+      "image_prompt": "low close shot at floor level, a bright busy train station concourse with a big glass roof, bright midday light pouring through the glass roof, a tiny potted cactus with a red bow lying on its side on the polished floor with a crack in its pot and a little spilled soil, the blurred legs of the crowd hurrying past it. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "The little cactus rocks once on its side and lies still as a few grains of soil roll out and the crowd's legs hurry past without stopping. Slow push-in on the cracked pot.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium two shot, the back seat of a night bus with rain streaming down the window and blue street light sliding past, {iro}, sitting on the seat beside him with its flippers folded and its head tilted, one eye narrowed, beak open mid-question, its orange core glowing; {marcus}, in a too-big brown corduroy jacket over a striped shirt, slumped against the window with the cracked cactus pot in his lap, staring at the rain with red eyes. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Iro appears on the seat beside him, tilts its head and its beak moves as it asks it dryly; Marcus keeps staring at the rain. Slow push-in.",
+      "vo_line": "So. What's the plan?",
+      "speaker": "iro"
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, chest up, the back seat of a night bus with rain streaming down the window and blue street light sliding past, {marcus}, in a too-big brown corduroy jacket over a striped shirt, lifting his head off the window and wiping his nose on his sleeve, jaw tightening, eyes hardening and lifting to look straight ahead, mouth open mid-word. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus wipes his nose on his sleeve, sits up straight, sets the cactus upright on his knee and his mouth moves as he says it low and steady. Fast push-in on his hardening eyes.",
+      "vo_line": "Okay. Watch me.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "card": "THE NEXT 2 YEARS"
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, chest up, a small neighbourhood bakery with empty shelves and a flickering strip light, {marcus}, in a plain black hoodie, standing at the counter holding a tablet up toward someone off camera with its back to us, a nervous brave smile, eyebrows up, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus turns the tablet round toward the counter with its back to us and his mouth moves as he says it in one breath, then he holds his breath. Push-in on his nervous smile.",
+      "vo_line": "I rebuilt your website last night. Take a look.",
+      "speaker": "marcus"
+    },
+    {
+      "characters": [
+        "sofia"
+      ],
+      "image_prompt": "close shot, chest up, a small neighbourhood bakery with empty shelves and a flickering strip light, {sofia}, in a fitted black dress with sheer black sleeves under a black baker's apron, leaning over the counter with flour on her cheek and both hands gripping the edge, eyes huge, the glow of a tablet on her face, mouth dropped open mid-gasp. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Sofia leans in until her nose nearly touches the tablet, her eyes going wider and wider, and her mouth moves as she gasps it. Fast push-in on her huge eyes.",
+      "vo_line": "Wait. That's my bakery?!",
+      "speaker": "sofia",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "sofia"
+      ],
+      "image_prompt": "close shot, chest up, a small neighbourhood bakery with empty shelves and a flickering strip light, {sofia}, in a fitted black dress with sheer black sleeves under a black baker's apron, looking up from the tablet with her mouth still open and one flour-dusted finger pointing at someone off camera, eyebrows up, suspicious and amazed at once, mouth open mid-question. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Sofia looks up slowly, points a floury finger and her mouth moves as she asks it in disbelief. Small push-in.",
+      "vo_line": "You did this for free?",
+      "speaker": "sofia",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, a dark bedroom at night with one desk lamp, {marcus}, in a plain black hoodie, at a small desk with a laptop seen from behind its lid, spinning round in his chair with both fists in the air, mouth wide open in a silent whoop; {iro}, on the desk hugging a small glowing card of soft light that is floating up out of the laptop, with no letters or numbers on it. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "A small glowing card of light floats up from the laptop and Iro grabs it; Marcus spins his chair with both fists in the air. The camera rises with the glowing card."
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium shot, a wall covered in rows of yellow sticky notes in a small rented office in morning light, {marcus}, in a navy button-down shirt, slapping the last empty note with his palm so a green tick mark appears on it, grinning; {iro}, on his shoulder with a green marker held in its beak; every other note already carrying a green tick mark, with no letters or numbers anywhere. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Green tick marks pop onto the sticky notes row by row and Marcus slaps the last one with his palm; Iro punches the air with the marker in its beak. The camera pans along the wall with the ticks."
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "wide shot, a room caught halfway through changing: the left half a dark cramped bedroom with a desk lamp, the right half a bright glass-walled office with plants and a few adult staff in their thirties at long desks, a soft wave of golden light sweeping across the middle, {marcus}, in a fitted charcoal blazer over a black tee, standing in the middle with his arms spread, laughing; {iro}, on his shoulder with its flippers spread too. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "The wave of golden light sweeps across the room and the dark bedroom turns into a bright office with people at their desks; Marcus spreads his arms and laughs. The camera pans with the light."
+    },
+    {
+      "characters": [
+        "boss"
+      ],
+      "image_prompt": "close shot, chest up, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {boss}, in a black tailcoat with a white bow tie, a white napkin over one arm, standing at a polished wooden host stand with one hand resting on a leather menu, a perfectly polite small smile, eyebrows gently raised, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "The head waiter folds his hands on the leather menu and his mouth moves as he says the price with perfect politeness, not a muscle moving. Slow push-in on his polite smile.",
+      "vo_line": "Tonight's tasting menu is four hundred each.",
+      "speaker": "boss"
+    },
+    {
+      "characters": [
+        "tyler"
+      ],
+      "image_prompt": "close shot, chest up, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {tyler}, in the same shiny silver bomber jacket over a creased shirt, gone pale with a bead of sweat on his temple, tugging at his collar with one finger and jerking his thumb over his shoulder toward the exit, a sick wobbly grin, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler's grin goes green, he tugs his collar and jerks a thumb at the door, his mouth moving as he mutters it out of the side of it. Push-in on the bead of sweat.",
+      "vo_line": "Babe, let's just get wings.",
+      "speaker": "tyler",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {jess}, in a pale blue evening dress, turning on him with her arms crossed and her eyebrows drawn down, eyes narrowed, lips pressed thin, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess turns slowly to face him, folds her arms and her mouth moves as she says it flat and quiet. Slow push-in on her narrowed eyes.",
+      "vo_line": "You said you had money.",
+      "speaker": "jess",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "tyler"
+      ],
+      "image_prompt": "close shot, chest up, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {tyler}, in the same shiny silver bomber jacket over a creased shirt, holding the lapels of the shiny silver bomber jacket open with both hands like evidence, shoulders up by his ears, an honest helpless face, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler holds his jacket open by the lapels, shrugs up to his ears and his mouth moves as he admits it. Small push-in on the jacket.",
+      "vo_line": "I said I had a jacket.",
+      "speaker": "tyler",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "boss"
+      ],
+      "image_prompt": "close shot, chest up, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {boss}, in a black tailcoat with a white bow tie, a white napkin over one arm, his polite mask breaking into a huge delighted smile as he looks past the camera toward the door, bowing from the waist with one arm sweeping out in welcome, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "The head waiter's face lights up, he sweeps into a bow and his mouth moves as he says it warmly, already stepping out from behind the stand. Push-in on his delighted smile.",
+      "vo_line": "Welcome back, sir. Your usual table.",
+      "speaker": "boss",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "sofia"
+      ],
+      "image_prompt": "wide shot from inside the restaurant toward the entrance, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {marcus}, in a perfectly fitted midnight blue suit with an open collar, walking in with one hand in his pocket and a relaxed warm smile, nodding to the room; {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, on his arm, laughing at something he just said; heads turning at the tables they pass. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus and Sofia walk in through the entrance, he nods to the head waiter and heads turn at every table they pass. The camera pulls back ahead of them through the room.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {jess}, in a pale blue evening dress, mouth fallen open, eyes round, one hand lifted halfway to point and frozen there, eyebrows climbing, mouth open mid-stammer. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess's finger rises and freezes halfway, her eyes going round, and her mouth moves as she stammers it. Fast push-in on her stunned face.",
+      "vo_line": "Wait... you? How?",
+      "speaker": "jess",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, chest up, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {marcus}, in a perfectly fitted midnight blue suit with an open collar, pausing as he passes with a kind easy smile and a small one-shoulder shrug, eyes warm, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus pauses beside her, gives a small shrug and his mouth moves as he says it kindly, then walks on. Slow push-in on his easy smile.",
+      "vo_line": "Turns out nowhere was temporary.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "tyler"
+      ],
+      "image_prompt": "close shot, chest up, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {tyler}, in the same shiny silver bomber jacket over a creased shirt, leaning both hands on the edge of a white tablecloth and bending down toward someone seated off camera, eyebrows up, honestly curious, mouth open mid-question. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler plants both hands on the table, leans down and his mouth moves as he asks it, more curious than cocky now. Push-in on his curious face.",
+      "vo_line": "Bro. What do you even do?",
+      "speaker": "tyler",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "sofia"
+      ],
+      "image_prompt": "close shot, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {marcus}, in a perfectly fitted midnight blue suit with an open collar, seated at a corner table, chest up, looking straight into the camera, holding up four fingers, relaxed, a friendly half-smile, eyebrows up, mouth open mid-sentence; {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, soft and out of focus at the table behind him, smiling into her glass. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus holds up four fingers and his mouth moves as he says it straight to the camera, easy and clear, with a small nod at the end. Slow push-in.",
+      "vo_line": "Simple. Four steps.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "sofia"
+      ],
+      "image_prompt": "close shot, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {marcus}, in a perfectly fitted midnight blue suit with an open collar, seated at a corner table, chest up, looking straight into the camera, holding up one finger, calm and clear, eyebrows up, mouth open mid-sentence; {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, soft and out of focus at the table behind him, smiling into her glass. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus holds up one finger and his mouth moves as he says it straight to the camera, easy and clear, with a small nod at the end. Slow push-in.",
+      "vo_line": "Step one. Find a local shop with a bad website.",
+      "speaker": "marcus",
+      "same_scene": true,
+      "label": "STEP 1"
+    },
+    {
+      "characters": [
+        "marcus",
+        "sofia"
+      ],
+      "image_prompt": "close shot, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {marcus}, in a perfectly fitted midnight blue suit with an open collar, seated at a corner table, chest up, looking straight into the camera, holding up one finger, tipping it from side to side, a small grin, head tilted, mouth open mid-sentence; {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, soft and out of focus at the table behind him, smiling into her glass. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus holds up one finger, tipping it from side to side and his mouth moves as he says it straight to the camera, easy and clear, with a small nod at the end. Slow push-in.",
+      "vo_line": "A bakery. A barber. Anyone you'd actually help.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "sofia"
+      ],
+      "image_prompt": "close shot, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {marcus}, in a perfectly fitted midnight blue suit with an open collar, seated at a corner table, chest up, looking straight into the camera, holding up two fingers, calm and clear, leaning in a little, mouth open mid-sentence; {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, soft and out of focus at the table behind him, smiling into her glass. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus holds up two fingers and his mouth moves as he says it straight to the camera, easy and clear, with a small nod at the end. Slow push-in.",
+      "vo_line": "Step two. Open Claude and give it three things.",
+      "speaker": "marcus",
+      "same_scene": true,
+      "label": "STEP 2"
+    },
+    {
+      "characters": [
+        "marcus",
+        "sofia"
+      ],
+      "image_prompt": "close shot, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {marcus}, in a perfectly fitted midnight blue suit with an open collar, seated at a corner table, chest up, looking straight into the camera, holding up two fingers, tapping them against his other palm, serious and kind, nodding on each beat, mouth open mid-sentence; {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, soft and out of focus at the table behind him, smiling into her glass. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus holds up two fingers, tapping them against his other palm and his mouth moves as he says it straight to the camera, easy and clear, with a small nod at the end. Slow push-in.",
+      "vo_line": "A role. The goal. And what good looks like.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "app_screen": "assets/screens/correct.jpg",
+      "label": "STEP 3",
+      "vo_line": "Step three. Open Iro and do the prompting lesson.",
+      "speaker": "marcus"
+    },
+    {
+      "app_screen": "assets/screens/streak.jpg",
+      "vo_line": "Five minutes a day. That's it.",
+      "speaker": "marcus"
+    },
+    {
+      "characters": [
+        "marcus",
+        "sofia"
+      ],
+      "image_prompt": "close shot, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {marcus}, in a perfectly fitted midnight blue suit with an open collar, seated at a corner table, chest up, looking straight into the camera, holding up four fingers, calm and clear, a spark in his eyes, mouth open mid-sentence; {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, soft and out of focus at the table behind him, smiling into her glass. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus holds up four fingers and his mouth moves as he says it straight to the camera, easy and clear, with a small nod at the end. Slow push-in.",
+      "vo_line": "Step four. Build it for them before you say hello.",
+      "speaker": "marcus",
+      "same_scene": true,
+      "label": "STEP 4"
+    },
+    {
+      "characters": [
+        "marcus",
+        "sofia"
+      ],
+      "image_prompt": "close shot, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {marcus}, in a perfectly fitted midnight blue suit with an open collar, seated at a corner table, chest up, looking straight into the camera, holding up four fingers, then folding them down to one, a slow grin starting, mouth open mid-sentence; {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, soft and out of focus at the table behind him, smiling into her glass. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus holds up four fingers, then folding them down to one and his mouth moves as he says it straight to the camera, easy and clear, with a small nod at the end. Slow push-in.",
+      "vo_line": "Then walk in and say one sentence.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "sofia"
+      ],
+      "image_prompt": "close shot, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {marcus}, in a perfectly fitted midnight blue suit with an open collar, seated at a corner table, chest up, looking straight into the camera, both hands open on the white tablecloth, a wide warm grin, eyebrows up, mouth open mid-sentence; {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, behind him now leaning forward into focus and grinning at the back of his head, pointing at herself. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus opens both hands on the tablecloth and his mouth moves as he says the sentence straight to the camera; behind him Sofia leans in and points at herself, grinning. Slow push-in.",
+      "vo_line": "I rebuilt your website last night. Take a look.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "tyler"
+      ],
+      "image_prompt": "medium two shot, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {marcus}, in a perfectly fitted midnight blue suit with an open collar, seated and turning to look up at Tyler with a friendly wink, lifting a tiny potted cactus with a red bow and a mended crack in its pot off the white tablecloth between two fingers, mouth open mid-sentence; {tyler}, in the same shiny silver bomber jacket over a creased shirt, standing beside the table staring at the cactus with his jaw hanging open. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus lifts the little mended cactus off the table between two fingers and his mouth moves as he says it with a wink; Tyler's jaw drops as he recognises it. Push-in on the cactus.",
+      "vo_line": "That's how the guy with the cactus did it.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus",
+        "iro"
+      ],
+      "image_prompt": "medium close shot, a golden rooftop restaurant at night with white tablecloths, candles and the city lights behind, warm candlelight and golden lamps, {marcus}, in a perfectly fitted midnight blue suit with an open collar, holding a phone up beside his face with its BACK toward the camera, the glow from it lighting his cheek, grinning wide with his eyebrows up, mouth open mid-word; {iro}, perched on his shoulder pointing a flipper at the phone, beak open in a grin. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus lifts the phone with its back to us, taps the back of it and his mouth moves as he says it with a grin; Iro points at the phone and bounces. Slow push-in.",
+      "vo_line": "Search Iro AI.",
+      "speaker": "marcus",
+      "same_scene": true,
+      "caption": "SEARCH IRO AI"
+    }
+  ]
+}

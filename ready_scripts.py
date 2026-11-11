@@ -41,13 +41,20 @@ def _dirs(fmt: dict) -> list[Path]:
     return [ROOT / "formats" / fmt["name"] / "scripts"]
 
 
+def _rel(path: Path) -> str:
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return path.name
+
+
 def _load(path: Path) -> dict:
     try:
         data = read_json(path)
     except (OSError, ValueError) as e:
-        raise StepError(f"{path.relative_to(ROOT).as_posix()} could not be read: {e}") from None
+        raise StepError(f"{_rel(path)} could not be read: {e}") from None
     if not isinstance(data, dict) or not isinstance(data.get("shots"), list) or not data["shots"]:
-        raise StepError(f"{path.relative_to(ROOT).as_posix()} needs a \"shots\" list")
+        raise StepError(f"{_rel(path)} needs a \"shots\" list")
     return data
 
 
@@ -100,7 +107,7 @@ def build(config: dict, script_id: str) -> tuple[dict, dict]:
         raise StepError(f"the {fmt.get('title') or fmt['name']} format has no ready-made script "
                         f"called {script_id!r} (it has: {have})")
     data = _load(path)
-    rel = path.relative_to(ROOT).as_posix()
+    rel = _rel(path)
     locked = config.get("locked_characters", [])
     people = {c["id"]: c["description"] for c in locked}
     style = str(config["style"]).strip()
