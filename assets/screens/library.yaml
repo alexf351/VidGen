@@ -6,12 +6,20 @@
 #           fits the moment, so say what the viewer sees, not what the feature is called.
 #   group   start | learn | coach | wins | progress | more   (the headings in the UI)
 #
+# A screen MOVES when a recording with the same name sits beside its picture (streak.jpg +
+# streak.mp4): the video then plays the recording on the phone. No entry here is needed for
+# that; delete the .mp4 to go back to the still.
+#
 # Every format can use every screenshot here (see app_assets.py). To add your own without
 # editing this file, drop pictures in assets/screens/mine/ or use "App screens" in the UI.
 # These were captured from the app with scripts/i18n/intro-shots in the Iro repo.
 
 screens:
   # ---- opening the app
+  - file: building.jpg
+    title: "Building your path"
+    group: start
+    shows: "the app building a personal plan: Iro the penguin typing at the centre of a web of skills and AI tools lighting up, a percent counting to 100"
   - file: first_rank.jpg
     title: "First rank"
     group: start

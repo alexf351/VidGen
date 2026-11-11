@@ -67,7 +67,8 @@ class NewRun(BaseModel):
 class ScreenIn(BaseModel):
     title: str
     shows: str = ""
-    image: str                        # data: URL of the screenshot
+    image: str | None = None          # data: URL of a screenshot, or
+    video: str | None = None          # data: URL of a screen recording
 
 
 class CharacterIn(BaseModel):
@@ -360,7 +361,10 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         p = app_assets.file_for(e["path"])
         rel = e["path"][len("assets/screens/"):] if e["path"].startswith("assets/screens/") else None
         url = f"/screen-media/{rel}?v={int(p.stat().st_mtime)}" if p and rel else None
-        return {**e, "url": url}
+        clip = app_assets.file_for(e["clip"]) if e.get("clip") else None
+        clip_url = (f"/screen-media/{e['clip'][len('assets/screens/'):]}?v={int(clip.stat().st_mtime)}"
+                    if clip and e["clip"].startswith("assets/screens/") else None)
+        return {**e, "url": url, "clip_url": clip_url}
 
     @app.get("/api/screens")
     def list_screens(format: str | None = None) -> dict:
@@ -373,7 +377,10 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
     @app.post("/api/screens", status_code=201)
     def add_screen(body: ScreenIn) -> dict:
         try:
-            return screen_out(app_assets.add(body.title, body.shows, app_assets.decode_upload(body.image)))
+            if body.video:
+                data = app_assets.decode_upload(body.video, "recording", app_assets.MAX_CLIP_UPLOAD_BYTES)
+                return screen_out(app_assets.add_clip(body.title, body.shows, data))
+            return screen_out(app_assets.add(body.title, body.shows, app_assets.decode_upload(body.image or "")))
         except StepError as e:
             raise HTTPException(400, str(e)) from e
 

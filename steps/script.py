@@ -20,7 +20,8 @@ OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage",   # card / app screenshot
                       "same_scene",                        # continues the previous shot's scene
                       "sfx",                               # a sound effect on the shot's first frame
                       "stat",                              # progress overlay: {"rank", "value", "unit"}
-                      "flash"}                             # one of a run of very short silent stills
+                      "flash",                             # one of a run of very short silent stills
+                      "app_still"}                         # app screen: show the still, not its recording
 LABEL_MAX_WORDS = 3
 LETTER_MAX_WORDS = 40
 SONG_STYLE_MAX = 300
@@ -56,8 +57,13 @@ def _app_screens_block(screens: list[dict], fmt: dict | None = None, required: b
     where = f"formats/{fmt['name']}/blocks"
     if not screens:
         return render(blocks.get("no_app_screens", ""), {}, where) + "\n"
-    lines = "\n".join(render(prompt["app_screen_line"],
-                             {"PATH": e["path"], "SHOWS": e["shows"] or prompt["app_screen_unknown"]},
+    def shows(e: dict) -> str:
+        text = e["shows"] or prompt["app_screen_unknown"]
+        if e.get("clip") and e.get("seconds"):
+            # A recording: the screen is seen in motion, and the shot lasts as long as it plays.
+            text += f" (this one MOVES: a {e['seconds']:.0f} second recording of the app doing it)"
+        return text
+    lines = "\n".join(render(prompt["app_screen_line"], {"PATH": e["path"], "SHOWS": shows(e)},
                              f"{fmt['file']}: prompt.app_screen_line") for e in screens)
     values = {"SCREEN_LIST": lines, "APP_SCREENS_MAX": fmt["rules"]["app_screens"]["max"]}
     block = render(blocks.get("app_screens", ""), values, where)
@@ -637,11 +643,16 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                          "caption": "", "animate": False, "image_prompt": "", "motion_prompt": ""})
             for key in ("card", "letter", "talk", "label", "stat", "flash", "montage"):
                 shot.pop(key, None)
+            if s.get("app_still") is True:
+                shot["app_still"] = True        # show the still even though the screen has a recording
+            else:
+                shot.pop("app_still", None)
             if tag and rules.get("labels"):
                 shot["label"] = tag.upper()
             normalized_shots.append(shot)
             continue
         shot.pop("app_screen", None)
+        shot.pop("app_still", None)
         if is_montage:
             shot["montage"] = True
         else:

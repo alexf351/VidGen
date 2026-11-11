@@ -242,12 +242,12 @@ to skip that and use the picture itself as the reference.
 ### App screens
 
 The demo beat of a video shows the real app: a screenshot on a phone in the hero's hand, never
-a drawing of the app. VidGen ships a library of 23 Iro screens in `assets/screens/`, described in
+a drawing of the app. VidGen ships a library of 24 Iro screens in `assets/screens/`, described in
 `assets/screens/library.yaml`:
 
 | group | screens |
 |---|---|
-| Opening the app | first rank (Bronze III), learning path, choose a path |
+| Opening the app | building your path, first rank (Bronze III), learning path, choose a path |
 | Learning | lesson card, lesson question, correct answer, match the tools, lesson podcast |
 | Coach and practice | Ask Iro, Prompt Lab, duels |
 | Wins and rewards | lesson complete, streak, reward chest, rank up, unit complete, certificate |
@@ -277,6 +277,46 @@ a line saying what it shows. You can also drop pictures straight into `assets/sc
 they are listed under their file names. Yours are offered to every format next to the shipped
 ones, can be pinned and swapped the same way, and are not in git. Give each one a real `shows`
 line: it is all the script writer knows about the picture.
+
+**Screens that move.** Twelve of the shipped screens are recordings of the app, not stills,
+and play on the phone for four or five seconds:
+
+| screen | what plays |
+|---|---|
+| building your path | Iro types while the web of skills and tools lights up and the percent runs to 100 |
+| first rank | the Bronze III emblem is forged, the name lands, the rank ladder fills in |
+| learning path | the app opens: the splash, the reveal, the map |
+| correct answer | the right answer is tapped, turns green, the bar fills, "Correct!" slides up |
+| match the tools | four pairs are matched one after another, then "Correct!" |
+| lesson complete | three stars, the XP counts up to +88 |
+| streak | the flame lights, 4 rolls to 5, the week's days tick |
+| reward chest | the chest is tapped from common to legendary and opens on +100 gems |
+| rank up | Silver to GOLD with the mascot in gold and confetti |
+| unit complete | the checklist of what you can do now stamps in line by line |
+| after a lesson | the rank bar steps up a division, the certificate and league cards land |
+| create a path | topic ideas type themselves into the create box |
+
+In the UI they carry a play mark and play when you hover over them; `python main.py screens`
+marks them `[moves, 4s]`.
+
+A screen moves when a recording with the same name sits beside its picture (`streak.jpg` +
+`streak.mp4`). The picture is its thumbnail and the fallback. An app screen shot with a
+recording lasts as long as the recording (up to `assemble.app_clip_max_seconds`, 6), and the
+recording plays inside the same phone, in the hand or in the plain frame; a recording shorter
+than the shot holds its last frame. The script writer is told which screens move.
+
+- Show the still instead, for one shot: untick **Play the recording** on the app screen row
+  in the script editor (`"app_still": true` on the shot).
+- Show stills everywhere: `assemble.app_screen_clips: false` in `config.local.yaml`, or a
+  format's `timing.app_screen_clips: false`.
+- Your own recording: "Add your own" takes a phone screen recording too (MP4 or MOV, upright).
+  It is re-encoded to a silent MP4, cut to 12 seconds, and its picture is made from one of its
+  frames. Or drop the file in `assets/screens/mine/`. Trim it on your phone first so it starts
+  where the action starts.
+
+The shipped recordings were made from the app's web build one frame at a time on a paused
+clock, so they are smooth at 30 frames a second whatever the machine. Loops the app plays as
+animated images (the mascot's small movements, the chest lid) show as stills in them.
 
 To change the shipped set, replace a picture in `assets/screens/` (860 x 1864 JPEG works well)
 or edit `library.yaml`: `file`, `title`, `shows`, `group`. A format's own `app_screens` list
@@ -714,6 +754,7 @@ Anton, Bangers, Montserrat) are bundled in `assets/fonts/` under the SIL Open Fo
   shot instead. Bold italic white text with a soft pink-white glow, centred at 55% height, 90 px. Montserrat
   Black Italic is used when installed, otherwise Arial Black, otherwise a substituted sans with
   a printed warning.
+- An app screen with a recording plays it for its own length (see App screens); otherwise:
 - App screen shots are 1.5 s (`assemble.app_screen_seconds`) of the real screenshot inside a
   rounded phone frame, centred on a blurred, darkened copy of the previous scene's last frame,
   with a slight push-in from 1.00 to 1.04 (`assemble.app_screen_zoom_end`). No captions are drawn

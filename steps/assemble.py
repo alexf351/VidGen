@@ -43,6 +43,27 @@ def letter_seconds(shot: dict, asm: dict) -> float:
     return words / float(asm["letter_read_wps"]) + 0.8 if words else 0.0
 
 
+def app_clip_file(shot: dict, asm: dict) -> Path | None:
+    """The recording an app screen shot plays, or None when it shows the still: the screenshot
+    has no recording, the shot asks for the still ("app_still"), or recordings are switched off."""
+    if not shot.get("app_screen") or shot.get("app_still") is True or not asm.get("app_screen_clips", True):
+        return None
+    import app_assets
+    clip = app_assets.clip_for(str(shot["app_screen"]).strip())
+    return clip if clip and app_assets.clip_seconds(clip) else None
+
+
+def app_screen_length(shot: dict, asm: dict) -> float:
+    """Seconds an app screen is on with no line said over it: the usual length for a still,
+    the recording's own length for a recording (never longer than app_clip_max_seconds)."""
+    base = float(asm["app_screen_seconds"])
+    clip = app_clip_file(shot, asm)
+    if clip is None:
+        return base
+    import app_assets
+    return max(base, min(float(app_assets.clip_seconds(clip)), float(asm.get("app_clip_max_seconds", 6.0))))
+
+
 def shot_durations(run_dir: Path, script: dict, asm: dict, song: bool = False) -> list[dict]:
     """Per-shot: duration, start offset, VO path (or None)."""
     if song:
@@ -59,14 +80,14 @@ def shot_durations(run_dir: Path, script: dict, asm: dict, song: bool = False) -
             if not vo.exists():
                 raise StepError(f"shot {n} has a vo_line but {vo} is missing; run the voice step first")
             vo_len = probe_duration(vo)
-            duration = max(float(asm["app_screen_seconds"]), vo_len + pad)
+            duration = max(app_screen_length(shot, asm), vo_len + pad)
             plan.append({"shot": shot, "n": n, "start": t, "duration": duration, "vo": vo, "vo_len": vo_len})
             t += duration
             continue
         if shot.get("card") or shot.get("app_screen") or shot.get("montage") or shot.get("flash"):
             # Time-jump card, app screen, flex montage or flash: fixed length, no voice.
             duration = float(asm["card_seconds"] if shot.get("card") else
-                             asm["app_screen_seconds"] if shot.get("app_screen") else
+                             app_screen_length(shot, asm) if shot.get("app_screen") else
                              asm["flash_seconds"] if shot.get("flash") else asm["montage_seconds"])
             plan.append({"shot": shot, "n": n, "start": t, "duration": duration, "vo": None, "vo_len": 0.0})
             t += duration
@@ -278,6 +299,67 @@ def compose_letter(background: Path | None, paragraphs: list[str], out: Path, as
     return out
 
 
+def screen_window(compose, build: Path, n: int, size: tuple[int, int]):
+    """Where the screen is in a phone picture, found by composing it twice: once with a black
+    screenshot, once with a white one. Whatever differs is the screen (so a thumb over its edge,
+    the rounded corners and the camera pill are all kept). `compose(picture, out)` makes the
+    phone picture, or returns None.
+
+    Returns (frame, box): `frame` is the phone picture as a PNG with the screen cut out, to lay
+    over a recording; `box` is (left, top, width, height) of the screen, even-sized. None when
+    there is no screen to find."""
+    from PIL import Image, ImageChops
+    made = []
+    for name, color in (("k", (0, 0, 0)), ("w", (255, 255, 255))):
+        src = build / f"app_{n:02d}_{name}_src.png"
+        Image.new("RGB", size, color).save(src)
+        out = compose(src, build / f"app_{n:02d}_{name}.png")
+        if out is None:
+            return None
+        made.append(Image.open(out).convert("RGB"))
+    dark, light = made
+    mask = ImageChops.difference(light, dark).convert("L")
+    solid = mask.point(lambda v: 255 if v > 24 else 0).getbbox()
+    if solid is None:
+        return None
+    left, top, right, bottom = solid
+    # Even sizes for the encoder; the frame covers anything the recording does not.
+    right += (right - left) % 2
+    bottom += (bottom - top) % 2
+    frame = dark.convert("RGBA")
+    frame.putalpha(ImageChops.invert(mask))
+    path = build / f"app_{n:02d}_frame.png"
+    frame.save(path)
+    return path, (left, top, right - left, bottom - top)
+
+
+def compose_app_clip(clip: Path, frame: Path, box: tuple[int, int, int, int], out: Path,
+                     frames: int, asm: dict, label: str) -> Path:
+    """The recording playing on the phone: scaled to cover the screen, under the phone picture.
+    A recording shorter than the shot holds its last frame."""
+    w, h, fps = int(asm["width"]), int(asm["height"]), int(asm["fps"])
+    left, top, bw, bh = box
+    seconds = frames / fps
+    graph = (f"[0:v]fps={fps},scale={bw}:{bh}:force_original_aspect_ratio=increase:flags=lanczos,"
+             f"crop={bw}:{bh},setsar=1,tpad=stop_mode=clone:stop_duration={seconds + 1:.2f}[scr];"
+             f"color=c=black:s={w}x{h}:r={fps}[bg];"
+             f"[bg][scr]overlay={left}:{top}[on];"
+             f"[on][1:v]overlay=0:0,format=yuv420p[out]")
+    run_ffmpeg(["-i", str(clip), "-loop", "1", "-framerate", str(fps), "-i", str(frame),
+                "-filter_complex", graph, "-map", "[out]", "-frames:v", str(frames), "-an",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p", str(out)], label)
+    return out
+
+
+def _video_size(path: Path) -> tuple[int, int]:
+    from media import _probe
+    try:
+        w, h = _probe(path, "stream=width,height", stream="v:0").splitlines()[0].split(",")[:2]
+        return int(w), int(h)
+    except (ValueError, IndexError):
+        raise StepError(f"could not read the size of {path}") from None
+
+
 def app_screen_file(shot: dict) -> Path:
     rel = str(shot["app_screen"]).strip()
     path = Path(rel) if Path(rel).is_absolute() else ROOT / rel
@@ -318,6 +400,23 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
         import phone_hand
         mock = None
         hand = phone_hand.run_path(run_dir)
+        bg_png = None
+        recording = app_clip_file(shot, asm)
+        if recording is not None:
+            # A recording plays on the same phone: find the screen, put the recording under it.
+            found = None
+            if hand.is_file():
+                found = screen_window(lambda pic, to: phone_hand.compose(hand, pic, to, w, h), build, n, _video_size(recording))
+                if found is None:
+                    print(f"  shot {n}: the hand picture has no clean green screen; using the plain phone frame")
+            if found is None:
+                bg_png = last_frame(background, build / f"bg_{n:02d}.png", label) if background else None
+                found = screen_window(lambda pic, to: compose_phone_mockup(pic, bg_png, to, w, h), build, n, _video_size(recording))
+            if found is not None:
+                raw = compose_app_clip(recording, found[0], found[1], build / f"app_{n:02d}_raw.mp4", frames, asm, label)
+                _push_in(raw, out, frames, float(asm["app_screen_zoom_end"]), asm, label, video=True)
+                return out
+            print(f"  shot {n}: could not place the recording on the phone; showing the still")
         if hand.is_file():
             mock = phone_hand.compose(hand, app_screen_file(shot), build / f"app_{n:02d}.png", w, h)
             if mock is None:
@@ -921,7 +1020,7 @@ def run(run_dir: Path, config: dict) -> None:
         elif it["shot"].get("montage"):
             kind = "montage punch-in"
         elif it["shot"].get("app_screen"):
-            kind = f"app screen {it['shot']['app_screen']}"
+            kind = f"app screen {it['shot']['app_screen']}" + (" (recording)" if app_clip_file(it["shot"], asm) else "")
         elif it["shot"].get("card"):
             kind = f"card \"{it['shot']['card']}\""
         elif it.get("letter_page"):
