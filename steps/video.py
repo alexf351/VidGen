@@ -36,11 +36,19 @@ def video_resolution(config: dict) -> str:
     return res
 
 
+# Said to the video model after every motion prompt. A clip is one shot: the cuts are made when
+# the video is put together. Without this, a motion that does not match the picture (two people
+# drawn facing the camera, told to "walk off down the corridor") came back as a turn-around, a
+# cut to their backs and a different corridor.
+ONE_TAKE = ("One continuous take that starts on this exact picture: no cut, no jump to another angle "
+            "or place, and nobody turns to face the other way unless the action says so.")
+
+
 def _motion(config: dict, shot: dict, descriptions: dict[str, str] | None) -> str:
     # mouths_move (config, on by default): spoken shots tell the video model who is talking.
     if config.get("mouths_move", True) is False:
-        return shot["motion_prompt"].strip()
-    return clip_prompt(shot, descriptions)
+        return f"{shot['motion_prompt'].strip()} {ONE_TAKE}"
+    return f"{clip_prompt(shot, descriptions)} {ONE_TAKE}"
 
 
 def _workers(config: dict) -> int:

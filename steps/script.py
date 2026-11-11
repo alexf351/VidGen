@@ -310,6 +310,13 @@ def same_line_key(line) -> str:
     return " ".join(re.sub(r"[^a-z0-9' ]+", " ", str(line or "").lower().replace("’", "'")).split())
 
 
+def line_keys(line) -> set[str]:
+    """The line, and each sentence of it, as same_line_key keys. A line that comes back inside a
+    longer one ("Already?! Two sugars, right?" after "Two sugars, right?") still comes back."""
+    keys = {same_line_key(line)} | {same_line_key(part) for part in re.split(r"(?<=[.!?])\s+", str(line or ""))}
+    return keys - {""}
+
+
 def validate_and_normalize(data: dict, style: str, max_animated: int,
                            locked: list[dict] | None = None,
                            app_screens: list[dict] | None = None,
@@ -784,7 +791,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         cards_at = [k for k, s in enumerate(normalized_shots) if s.get("card")]
         if cards_at:
             before = {same_line_key(s.get("vo_line")) for s in normalized_shots[:cards_at[-1]]} - {""}
-            echoed = {same_line_key(s.get("vo_line")) for s in normalized_shots[cards_at[-1] + 1:]} & before
+            after = set().union(*[line_keys(s.get("vo_line")) for s in normalized_shots[cards_at[-1] + 1:]])
+            echoed = after & before
             if len(echoed) < mirror:
                 errors.append(f"the scene after the time card must replay the opening scene: at least {mirror} "
                               f"of its lines repeat, word for word, a line said before the card "

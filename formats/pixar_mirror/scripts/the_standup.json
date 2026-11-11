@@ -192,7 +192,7 @@
       ],
       "image_prompt": "close shot, chest up, a glass-walled meeting room with a long white table and a city view behind it, warm golden late-afternoon light, {tyler}, in a navy waistcoat over a white shirt with the sleeves rolled up, wringing his hands and leaning in toward someone off camera with a desperate eager smile, eyebrows pinched up in the middle, mouth open mid-question. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Tyler gapes at the laptop, then rubs his hands together and his mouth moves as he asks it too quickly, nodding along with his own question. Push-in on his nervous smile.",
-      "vo_line": "Already?! Uh, two sugars, right?",
+      "vo_line": "Already?! Two sugars, right?",
       "speaker": "tyler",
       "same_scene": true
     },
@@ -221,8 +221,8 @@
         "marcus",
         "sofia"
       ],
-      "image_prompt": "wide shot from inside the room toward the glass door, a glass-walled meeting room with a long white table and a city view behind it, warm golden late-afternoon light, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, walking out through the glass door with one hand lifted in a small wave over his shoulder, smiling ahead; {sofia}, in a fitted black dress with sheer black sleeves and a black corset belt, waiting just outside the door and hooking her arm through his with a slow proud smile, eyes on him. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Marcus walks out through the glass door with a wave over his shoulder; Sofia slips her arm through his and they walk off down the bright corridor laughing. The camera holds as the door swings shut.",
+      "image_prompt": "wide shot from the corridor just outside the meeting room, looking at its open glass door, a glass-walled meeting room with a long white table and a city view behind it, warm golden late-afternoon light, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, walking out through the glass door toward the camera with one hand lifted in a small goodbye wave back at the room, smiling ahead; {sofia}, in a fitted black dress with sheer black sleeves and a black corset belt, at his side with her arm hooked through his and a slow proud smile, eyes on him. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus and Sofia walk arm in arm toward the camera and past it, Marcus dropping his wave and both of them laughing, while the glass door swings shut behind them. The camera stays where it is.",
       "same_scene": true
     },
     {
