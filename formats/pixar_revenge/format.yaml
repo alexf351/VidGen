@@ -14,6 +14,13 @@ description: >-
   quick flashes, a time card, the reunion and one comeback line. Almost no dialogue.
 duration_target: "about 40-45 seconds"
 
+# The videos this format is modelled on (shown in the UI under Format details).
+references:
+  - url: "https://www.instagram.com/reel/DeV-XBfgvTC/"
+    note: "Paris proposal, 9.8M views: 'Hell no', the older man's Rolls, '2 years later', 'can't hear you'"
+  - url: "https://www.instagram.com/reel/DehudnaAmce/"
+    note: "The wedding, 4.6M views: 'Hell no' at the altar, the grind in flashes, 'Sorry, I'm fully booked'"
+
 beats:
   - public rejection ("hell no")
   - she leaves with the rival

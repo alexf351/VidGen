@@ -247,7 +247,24 @@ def _code_render(raw, where: str) -> dict | None:
 
 
 # Never taken from the format a format extends: these describe the format itself.
-_OWN_KEYS = ("name", "title", "description", "duration_target", "beats", "extends")
+_OWN_KEYS = ("name", "title", "description", "duration_target", "beats", "extends", "references")
+
+
+def _references(raw, where: str) -> list[dict]:
+    """references: the videos a format is modelled on, as [{url, note}] (a bare URL is fine).
+    Shown in the UI and the README; nothing in the pipeline reads them."""
+    out = []
+    for i, item in enumerate(raw or []):
+        if isinstance(item, str):
+            url, note = item, ""
+        elif isinstance(item, dict):
+            url, note = item.get("url"), item.get("note") or ""
+        else:
+            url, note = None, ""
+        if not isinstance(url, str) or not re.match(r"https?://\S+$", url.strip()):
+            raise StepError(f"{where}: references[{i}] must be a web address, or {{url: ..., note: ...}}")
+        out.append({"url": url.strip(), "note": " ".join(str(note).split())})
+    return out
 
 
 def _merge(base: dict, over: dict) -> dict:
@@ -323,6 +340,7 @@ def load_format(name: str | None = None) -> dict:
         "clip_seconds": f.get("clip_seconds"),
         "cast": f.get("cast", "locked"),
         "beats": [str(b) for b in (f.get("beats") or [])],
+        "references": _references(f.get("references"), where),
         "rules": _rules(f.get("rules") or {}, where),
         "prompt": {"app_screen_line": str((f.get("prompt") or {}).get("app_screen_line") or
                                           '* "{{PATH}}": {{SHOWS}}'),

@@ -19,6 +19,13 @@ description: >-
   "what do you even do?": the hero walks through it in numbered steps, one of them Iro.
 duration_target: "about 90-110 seconds"
 
+# The videos this format is modelled on (shown in the UI under Format details).
+references:
+  - url: "https://www.instagram.com/reel/DfD0qcCMqJy/"
+    note: "Higgsfield, the yacht: 'you were only ever my placeholder', then five steps"
+  - url: "https://www.instagram.com/reel/DfYfGF6RLCq/"
+    note: "Higgsfield, the airport and the teddy bear: the pitch line shown working, then five steps"
+
 beats:
   - public rejection with a reason
   - "\"watch me\""

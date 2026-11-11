@@ -16,6 +16,13 @@ description: >-
   climbing number, a time card, then the same scene replayed with the roles reversed.
 duration_target: "about 45-55 seconds"
 
+# The videos this format is modelled on (shown in the UI under Format details).
+references:
+  - url: "https://www.instagram.com/reel/DexjmDmBOw0/"
+    note: "RepStandard, the wingman: 'Be my wingman' comes back six months later with the roles swapped"
+  - url: "https://www.instagram.com/reel/De79Dn5hIfg/"
+    note: "RepStandard, the keys: 'You dropped your keys', then she drops them on purpose"
+
 beats:
   - small public humiliation (5-7 lines)
   - "\"enough is enough\", alone"

@@ -768,6 +768,21 @@ template; pick whichever fits the premise.
 | `pixar_ladder` | 45-50 s | 45-90 | the app with `LEARNED IT ON IRO`, before the work |
 | `pixar_steps` | 90-110 s | 160-250 | one of the spoken steps, said over the app |
 
+The videos each one is modelled on (also listed in each `format.yaml` under `references` and
+shown in the UI under Format details):
+
+| format | reference videos |
+|---|---|
+| `pixar_mirror` | [RepStandard, the wingman](https://www.instagram.com/reel/DexjmDmBOw0/) · [RepStandard, the keys](https://www.instagram.com/reel/De79Dn5hIfg/) |
+| `pixar_revenge` | [Paris proposal, 9.8M](https://www.instagram.com/reel/DeV-XBfgvTC/) · [the wedding, 4.6M](https://www.instagram.com/reel/DehudnaAmce/) |
+| `pixar_ladder` | [the car detailer, 11M](https://www.instagram.com/reel/DeukYhBBTKE/) · [the barber, 7.1M](https://www.instagram.com/reel/De4oLmjgWld/) |
+| `pixar_steps` | [Higgsfield, the yacht](https://www.instagram.com/reel/DfD0qcCMqJy/) · [Higgsfield, the airport](https://www.instagram.com/reel/DfYfGF6RLCq/) |
+
+Two more were studied and are not a format yet:
+[the five-day trading bet](https://www.instagram.com/reel/DdaDED9OrPj/) (one room, one argument,
+a bet with a deadline) and [the ghost of your future](https://www.instagram.com/reel/De4IALIok-C/)
+(an older self shows the hero three futures).
+
 What a premise needs:
 
 - `pixar_revenge`: where he is rejected and what she leaves him for. "Marcus proposes on a

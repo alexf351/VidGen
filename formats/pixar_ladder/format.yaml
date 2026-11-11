@@ -16,6 +16,13 @@ description: >-
   screen, gets paid, word spreads and every client is bigger than the last.
 duration_target: "about 45-50 seconds"
 
+# The videos this format is modelled on (shown in the UI under Format details).
+references:
+  - url: "https://www.instagram.com/reel/DeukYhBBTKE/"
+    note: "The car detailer, 11M views: 'I can clean that', $350, 'Girls, you need my detailer'"
+  - url: "https://www.instagram.com/reel/De4oLmjgWld/"
+    note: "The barber, 7.1M views: the friend who sits down first, the livestream, the star in the chair"
+
 beats:
   - the problem, mid-argument
   - "\"I can fix that\" and the doubt"
