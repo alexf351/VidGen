@@ -166,6 +166,8 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
     for flag in ("animate_all", "app_screen_hand"):
         if not isinstance(cfg.setdefault(flag, False), bool):
             raise StepError(f"config: {flag} must be true or false")
+    import sfx as _sfx
+    cfg["sfx"] = _sfx.settings(cfg)
     cfg.setdefault("script", {})
     cfg["script"].setdefault("model", "claude-sonnet-5-5")
     cfg["script"].setdefault("max_tokens", 64000)

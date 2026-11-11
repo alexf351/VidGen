@@ -1128,7 +1128,7 @@ function draftChanged() {
   if (!S.run || !S.run.script || !S.draft) return out;
   S.draft.shots.forEach((s, i) => {
     const o = S.run.script.shots[i] || {};
-    for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt", "same_scene"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
+    for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt", "same_scene", "sfx"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
   });
   return out;
 }
@@ -1152,7 +1152,7 @@ function scriptPanel(run, busy) {
   const lookEditor = (s, i, row) => {
     const o = run.script.shots[i] || {};
     const touched = (s.motion_prompt ?? "") !== (o.motion_prompt ?? "") || (s.image_prompt ?? "") !== (o.image_prompt ?? "")
-      || (s.same_scene ?? "") !== (o.same_scene ?? "");
+      || (s.same_scene ?? "") !== (o.same_scene ?? "") || (s.sfx ?? "") !== (o.sfx ?? "");
     // Offered on shots that have a drawn shot before them to continue (not the first, not a montage shot).
     const prev = S.draft.shots.slice(0, i).reverse().find((x) => !x.app_screen);
     const canContinue = !s.montage && prev && !prev.card && !prev.montage && (prev.image_prompt || "").trim();
@@ -1160,15 +1160,23 @@ function scriptPanel(run, busy) {
       h("input", { type: "checkbox", checked: s.same_scene === true, "aria-label": `Shot ${s.n} continues the previous scene`,
         onchange: (e) => { if (e.target.checked) update(i, "same_scene", true, row); else { delete S.draft.shots[i].same_scene; update(i, "motion_prompt", S.draft.shots[i].motion_prompt, row); } } }),
       h("span", {}, "Same scene as the shot before: keep its place and clothes")) : null;
+    // The sound on the shot's first frame (formats with sound effects only).
+    const SOUNDS = [["", "Automatic"], ["none", "None"], ["whoosh", "Whoosh"], ["swish", "Swish (short whoosh)"],
+      ["impact", "Impact (deep hit)"], ["pop", "Pop"], ["riser", "Riser (builds up to this shot)"]];
+    const soundPick = run.sfx ? h("label", { class: "look-label look-sound" }, "Sound when this shot starts",
+      h("select", { "aria-label": `Shot ${s.n} sound`,
+        onchange: (e) => { if (e.target.value) update(i, "sfx", e.target.value, row); else { delete S.draft.shots[i].sfx; update(i, "motion_prompt", S.draft.shots[i].motion_prompt, row); } } },
+        SOUNDS.map(([v, t]) => h("option", { value: v, selected: (s.sfx || "") === v }, t)))) : null;
     const box = h("details", { class: "look", open: touched || S.lookOpen.has(s.n) },
-      h("summary", {}, "Picture and motion"),
+      h("summary", {}, run.sfx ? "Picture, motion and sound" : "Picture and motion"),
       sceneBox,
       h("label", { class: "look-label" }, "Motion: what moves in the clip, and the camera",
         h("textarea", { rows: "3", "aria-label": `Shot ${s.n} motion`, placeholder: "the car drives forward and leaves the frame, camera holds on Marcus",
           oninput: (e) => update(i, "motion_prompt", e.target.value, row) }, s.motion_prompt || "")),
       h("label", { class: "look-label" }, "Picture: what the image shows",
         h("textarea", { rows: "5", "aria-label": `Shot ${s.n} picture`,
-          oninput: (e) => update(i, "image_prompt", e.target.value, row) }, s.image_prompt || "")));
+          oninput: (e) => update(i, "image_prompt", e.target.value, row) }, s.image_prompt || "")),
+      soundPick);
     box.addEventListener("toggle", () => { if (box.open) S.lookOpen.add(s.n); else S.lookOpen.delete(s.n); });
     return box;
   };
@@ -1207,7 +1215,12 @@ function scriptPanel(run, busy) {
   const topSave = h("button", { class: "btn primary small", disabled: busy || !changed.size, onclick: () => saveScript(run) }, "Save");
   const panel = h("section", { "aria-label": "Script" },
     h("div", { class: "panel-title" }, h("span", {}, "Script"), topSave),
-    h("div", { class: "notice info" }, "Saving changes script.json only. Rerun Voice for changed lines, then Assemble. To change what a clip does, open Picture and motion on its shot."));
+    h("div", { class: "notice info" }, `Saving changes script.json only. Rerun Voice for changed lines, then Assemble. To change what a clip does, open ${run.sfx ? "Picture, motion and sound" : "Picture and motion"} on its shot.`));
+  if (S.afterSave && S.afterSave.run === run.run_id && (S.afterSave.sound || []).length) {
+    const ns = S.afterSave.sound;
+    panel.append(h("div", { class: "notice" }, `Saved. The sound changed on ${ns.length === 1 ? "shot" : "shots"} ${ns.join(", ")}. `,
+      h("button", { class: "btn small", disabled: busy, onclick: () => { S.afterSave.sound = []; runStep(run, "assemble"); } }, "Assemble again to hear it")));
+  }
   if (S.afterSave && S.afterSave.run === run.run_id && S.afterSave.voice.length) {
     const ns = S.afterSave.voice;
     panel.append(h("div", { class: "notice" }, `Saved. Lines changed on ${ns.length === 1 ? "shot" : "shots"} ${ns.join(", ")}. `,
@@ -1248,12 +1261,13 @@ async function saveScript(run) {
     return (a.same_scene === true) !== (b.same_scene === true);
   });
   const images = [...new Set([...differs("image_prompt"), ...sceneChanged])].sort((a, b) => a - b);
+  const sound = differs("sfx");
   const clipped = new Set(run.shots.filter((s) => s.shot.animate || s.shot.talk).map((s) => s.n));
   const video = differs("motion_prompt").filter((n) => clipped.has(n) && !images.includes(n));
   try {
     await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/script`, S.draft);
     S.saveErrors = null;
-    S.afterSave = { run: run.run_id, voice, images, video: [...video, ...images.filter((n) => clipped.has(n))].sort((a, b) => a - b) };
+    S.afterSave = { run: run.run_id, voice, images, sound, video: [...video, ...images.filter((n) => clipped.has(n))].sort((a, b) => a - b) };
     toast("Script saved", "ok");
     await loadRun(run.run_id, { keepDraft: false });
   } catch (e) {

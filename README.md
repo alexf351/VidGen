@@ -392,7 +392,7 @@ runs/<run_id>/
   shots/<n>.mp4         clip, only for shots with animate: true
   audio/<n>.mp3         voice-over per spoken shot
   audio/<n>.json        per-word timings for that clip
-  build/                intermediate clips, captions.ass, the pre-outro mix
+  build/                intermediate clips, captions.ass, sfx.wav + sfx.json, the pre-outro mix
   final.mp4             the finished short
 characters_cache/<id>.png   generated sheets for locked characters, reused by every run
 characters_cache/<id>.txt   the description each sheet was drawn from
@@ -422,6 +422,7 @@ characters_cache/<id>.txt   the description each sheet was drawn from
 | `music_path`         | music bed under the whole cut; empty = none (add it on-platform) |
 | `outro_path`         | clip appended after the last shot; empty = none |
 | `assemble.music_volume` | level of the music bed under the voice                     |
+| `sfx.source` / `sfx.volume` | where sound effects come from (`auto`, `elevenlabs`, `builtin`) and how loud they are together |
 
 Set by the format (`formats/<name>/format.yaml`), overridable in `config.local.yaml`:
 
@@ -430,6 +431,7 @@ Set by the format (`formats/<name>/format.yaml`), overridable in `config.local.y
 | `style`              | style line prepended word-for-word to every `image_prompt`     |
 | `max_animated_shots` | cap on shots marked `animate: true` (when `animate_all` is off) |
 | `animate_all`        | `true`: every drawn shot becomes a video clip (set by the format; Pixar Arc: on) |
+| `sfx`                | `true`: sound effects under the cut (set by the format; Pixar Arc: on). `sfx: false` or `sfx: {enabled: true}` in `config.local.yaml` decides for every format |
 | `assemble.caption_style` | caption style for new videos (see Caption styles); empty = the format's own |
 | `app_screens`        | real Iro app screenshots (`path`, `shows`) the script may put in app_screen shots |
 | `locked_characters` (with `cast: locked`) | recurring cast: `id`, `role`, `description`, `image_path` |
@@ -493,6 +495,8 @@ Rules enforced by the prompt and checked by the validator (the numbers and wordi
   other, each beat's key fact is said out loud, and Iro acts as the running commentary. A
   `narrator` speaker fails validation
 - at most 2 story shots in a row are silent (`rules.silent_run_max`)
+- a shot's `sfx` is a sound name or `none`; anything else is dropped, and so are sounds past the
+  fifth (see Sound effects)
 - total `vo_line` words across the script is 70 to 120
 - the image model never draws the Iro app: a character using a phone is shown with the back
   of the phone toward camera and the screen glow on their face, and an `image_prompt` that
@@ -659,9 +663,49 @@ Anton, Bangers, Montserrat) are bundled in `assets/fonts/` under the SIL Open Fo
   in the caption style, fading in and out over 200 ms (`assemble.card_fade_ms`), with no zoom
   or pop. The images, video and voice steps make nothing for card shots.
 - A light grade is applied to the whole cut: saturation 0.85 and a slight cool tint.
+- Sound effects, when the format has them, are mixed under the voice (see Sound effects below).
 - A music bed is mixed under the cut only when `music_path` is set, and the outro is appended
   only when `outro_path` is set. The result is `runs/<run_id>/final.mp4`, H.264 + AAC at 30 fps,
   and the step ends with an estimated cost breakdown for images, video and voice.
+
+### Sound effects
+
+With `sfx: true` (Pixar Arc), the assemble step lays short effects under the voice. `sfx.py`
+decides where from the cut itself:
+
+| where                                   | sound                                      |
+|-----------------------------------------|--------------------------------------------|
+| a change of scene                       | `whoosh`, its loudest point on the cut     |
+| a time-jump card                        | `impact`                                   |
+| an app screen                           | `pop`                                      |
+| the first montage shot                  | `riser` that ends on the cut, then `impact` |
+| every montage cut after it              | `swish` (a short whoosh)                   |
+
+A change of scene is a drawn shot that does not carry `"same_scene": true`, so cuts inside a
+conversation stay clean; a script with no `same_scene` at all gets no scene whooshes. Two scene
+whooshes are never closer than 0.9 s.
+
+A shot can also carry its own `"sfx"` in `script.json`: `whoosh`, `swish`, `impact`, `pop` or
+`riser` plays that sound on the shot's first frame in place of the automatic one, and `none`
+keeps the shot silent. The script step may set `impact` or `pop` on up to five shots where the
+picture shows something that makes the sound (a door slams, a notification lands). In the UI it
+is the Sound choice under Picture, motion and sound on each shot; after changing it, assemble
+again.
+
+Each sound comes from the first of these that exists:
+
+1. your own file: `assets/sfx/<name>.wav` (or `.mp3`, `.m4a`, `.ogg`), for example
+   `assets/sfx/whoosh.mp3`
+2. ElevenLabs Sound Effects, when `ELEVENLABS_API_KEY` is set and `sfx.source` is `auto` or
+   `elevenlabs`: five short sounds, generated the first time they are needed and kept in
+   `cache/sfx/` for every later video
+3. a built-in sound, synthesized locally (`sfx.source: builtin` uses these only)
+
+Whatever the source, a sound is trimmed to start on the sound and brought to one level, so a
+file from a sample pack sits where a built-in one would. If ElevenLabs cannot make a sound, the
+built-in one is used and the log says so; the step does not fail. `sfx.volume` scales all
+effects together (1.0 = normal). The effects are written to `build/sfx.wav`, and `build/sfx.json`
+lists each one with its time. Song formats never get effects.
 
 ## Providers: fal or Sume
 

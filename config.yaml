@@ -47,6 +47,15 @@ assemble:
 # shots everywhere (false). Clips are most of a video's cost.
 # animate_all: false
 
+# Sound effects mixed under the voice: a whoosh on a change of scene, a hit on a time card, a
+# riser into the montage, a pop on an app screen. Each format decides whether it has them
+# (Pixar Arc: on); add `enabled: true` or `enabled: false` here to decide for every format.
+# To use your own sounds, put whoosh / swish / impact / pop / riser (.wav or .mp3) in assets/sfx/.
+sfx:
+  source: auto                  # auto = ElevenLabs Sound Effects when its key is set (five short
+                                # sounds, made once and reused), else built in | elevenlabs | builtin
+  volume: 1.0                   # all effects together; 0.5 = half as loud
+
 script:
   model: "claude-sonnet-5-5"
   # The cap on one reply. The model thinks before it writes and the thinking counts toward this

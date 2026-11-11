@@ -496,6 +496,7 @@ details.notes { margin-top: 14px; }
 .srow details.look summary:hover { color: var(--accent-soft); }
 .look-label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--dim); margin-top: 5px; }
 .look-label textarea { width: 100%; resize: vertical; }
+.look-sound select { align-self: flex-start; min-width: 220px; }
 .look-check { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; color: var(--muted); margin-top: 5px; cursor: pointer; }
 .look-check input { margin-top: 1px; accent-color: var(--accent); }
 .badge.scene { color: var(--info); }

@@ -1,4 +1,5 @@
-"""Assemble step: shots + voice-over + captions (+ music, outro) -> runs/<id>/final.mp4 via ffmpeg."""
+"""Assemble step: shots + voice-over + captions (+ sound effects, music, outro) -> runs/<id>/final.mp4
+via ffmpeg."""
 
 from __future__ import annotations
 
@@ -650,7 +651,7 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
 # ------------------------------------------------------------------- mix ----
 
 def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total: float,
-                config: dict) -> Path:
+                config: dict, sfx_track: Path | None = None) -> Path:
     asm = config["assemble"]
     w, h, fps = int(asm["width"]), int(asm["height"]), int(asm["fps"])
     out = build / "main.mp4"
@@ -669,6 +670,8 @@ def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total:
         args += ["-stream_loop", "-1", "-i", str(music_file)]
     if song:
         args += ["-i", str(song)]
+    if sfx_track:
+        args += ["-i", str(sfx_track)]
 
     # Video: burn captions, then the format's grade (pixar_arc: desaturate + a slight cool tint).
     sat = float(asm["saturation"])
@@ -699,6 +702,11 @@ def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total:
         parts.append(f"[{si}:a]aresample=44100,atrim=0:{total:.3f},"
                      f"afade=t=out:st={max(0.0, total - fade):.3f}:d={fade:.3f}[song]")
         labels.append("[song]")
+    if sfx_track:
+        # Already at its own level and as long as the cut (sfx.py); it goes in as it is.
+        xi = len(vo_items) + 1 + (1 if (music_file or song) else 0)
+        parts.append(f"[{xi}:a]aresample=44100[sfx]")
+        labels.append("[sfx]")
     if labels:
         if len(labels) == 1:
             parts.append(f"{labels[0]}apad,atrim=0:{total:.3f}[a]")
@@ -856,7 +864,14 @@ def run(run_dir: Path, config: dict) -> None:
     look = "" if style == caption_styles.FORMAT else f" ({caption_styles.title(style)} style)"
     print(f"[assemble] {n_caps} caption(s){look} -> {captions.relative_to(run_dir)}")
 
-    main = render_main(build, cut, captions, plan, total, config)
+    import sfx
+    sfx_track = None
+    if not is_song(config):
+        try:
+            sfx_track = sfx.render_track(build, plan, total, config)
+        except StepError as e:      # effects are an extra: the video is still made without them
+            print(f"  sound effects: left out of this cut ({e})")
+    main = render_main(build, cut, captions, plan, total, config, sfx_track=sfx_track)
     progress.tick()
     final_src = append_outro(build, main, config)
     final = run_dir / "final.mp4"

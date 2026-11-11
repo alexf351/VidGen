@@ -216,4 +216,5 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             "captions": file_url(run_dir / "build" / "captions.ass"),
             "caption_style": _caption_style(run_dir, config),
             "animate_all": bool((config or {}).get("animate_all")),
+            "sfx": bool(((config or {}).get("sfx") or {}).get("enabled")),
             "cost": cost(run_dir, script, config)}

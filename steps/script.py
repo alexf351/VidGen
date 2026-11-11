@@ -17,7 +17,8 @@ SHOT_KEYS = {"n", "characters", "image_prompt", "motion_prompt", "vo_line",
 OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage",   # card / app screenshot / flex montage
                       "letter", "talk",                    # a line of the letter / a lip-synced clip
                       "label",                             # a short tag on screen for the whole shot
-                      "same_scene"}                        # continues the previous shot's scene
+                      "same_scene",                        # continues the previous shot's scene
+                      "sfx"}                               # a sound effect on the shot's first frame
 LABEL_MAX_WORDS = 3
 LETTER_MAX_WORDS = 40
 SONG_STYLE_MAX = 300
@@ -88,6 +89,17 @@ first shot, and change only the framing and what the people do. Leave "same_scen
 first shot of a scene, whenever the place or the time changes, and on montage shots."""
 
 
+SFX_NOTE = """
+
+SOUND EFFECTS
+Changes of scene, time cards, app screens and the montage get their sound automatically. On top
+of that, a shot may carry "sfx" for a moment that should LAND: "impact" when the shot opens on a
+physical hit or a shock (a door slams, a phone hits the floor, someone snaps awake, a reveal
+that drops a jaw), "pop" for a small light beat (a notification, a number ticking up, an idea).
+Use it on at most {max} shots, and only where the picture shows the thing that makes the sound.
+Most shots carry no "sfx"."""
+
+
 def scene_anchor(shots: list[dict], i: int) -> int | None:
     """For shots[i] marked "same_scene", the index of the first shot of its scene: walk back
     over the shots it continues. App screenshots in between are cutaways and are skipped; a
@@ -149,7 +161,7 @@ def apply_animate_all(script: dict | None, config: dict | None) -> int:
 
 def build_system_prompt(style: str, max_animated: int, locked: list[dict],
                         app_screens: list[dict] | None = None, fmt: dict | None = None,
-                        animate_all: bool = False) -> str:
+                        animate_all: bool = False, sfx: bool = False) -> str:
     """The format's script_prompt.md with shot_rules.md and the cast / app screens filled in."""
     fmt = _format(fmt)
     values = prompt_values(fmt)
@@ -164,7 +176,9 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict],
     prompt = render(fmt["script_prompt"], values, f"formats/{fmt['name']}/script_prompt.md")
     # Letter formats use one backdrop for the whole video, so there are no scenes to keep.
     scenes = "" if (fmt.get("rules") or {}).get("letter") else SCENE_NOTE
-    return prompt + scenes + (ANIMATE_ALL_NOTE if animate_all else "")
+    import sfx as sound
+    effects = SFX_NOTE.format(max=sound.MAX_SHOT_SFX) if sfx and not (fmt.get("rules") or {}).get("song") else ""
+    return prompt + scenes + (ANIMATE_ALL_NOTE if animate_all else "") + effects
 
 
 def build_user_prompt(premise: str) -> str:
@@ -585,6 +599,21 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             shot["same_scene"] = True
         else:
             shot.pop("same_scene")
+    # "sfx" is a sound name or "none"; anything else is quietly dropped, and so are sounds past
+    # the cap (a cut where every shot booms has no boom).
+    import sfx as sound
+    own = 0
+    for shot in normalized_shots:
+        if "sfx" not in shot:
+            continue
+        value = shot["sfx"].strip().lower() if _is_str(shot.get("sfx")) else ""
+        if value in sound.NAMES and own < sound.MAX_SHOT_SFX:
+            shot["sfx"] = value
+            own += 1
+        elif value == "none":
+            shot["sfx"] = "none"
+        else:
+            shot.pop("sfx")
     if animate_all:
         for shot in normalized_shots:
             if animates(shot):
@@ -711,7 +740,9 @@ def generate_script(premise: str, config: dict, client=None) -> dict:
     client = client or create_client()
 
     animate_all = bool(config.get("animate_all"))
-    system = build_system_prompt(style, max_animated, locked, screens, fmt, animate_all=animate_all)
+    import sfx as sound
+    system = build_system_prompt(style, max_animated, locked, screens, fmt, animate_all=animate_all,
+                                 sfx=sound.enabled(config))
     messages = [{"role": "user", "content": build_user_prompt(premise)}]
 
     last_error = None

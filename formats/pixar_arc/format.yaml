@@ -50,6 +50,10 @@ max_animated_shots: 8
 # once with a green screen and reused; see phone_hand.py). false = a plain phone frame.
 app_screen_hand: true
 
+# Sound effects under the cut: a whoosh on a change of scene, a hit on the time card, a riser
+# into the flex montage, a pop when the phone comes up (see sfx.py). false = none.
+sfx: true
+
 # What the script validator enforces (and the prompt quotes).
 rules:
   story_shots: [15, 22]          # shots, not counting the montage

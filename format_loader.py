@@ -125,6 +125,15 @@ def _overlay(f: dict, where: str) -> dict:
             if not isinstance(f[key], bool):
                 raise StepError(f"{where}: {key} must be true or false")
             out[key] = f[key]
+    if "sfx" in f:
+        # true / false, or a block (enabled / source / volume). Always handed on as a block, so
+        # config.local.yaml can change one setting without switching the effects off.
+        if isinstance(f["sfx"], bool):
+            out["sfx"] = {"enabled": f["sfx"]}
+        elif isinstance(f["sfx"], dict):
+            out["sfx"] = dict(f["sfx"])
+        else:
+            raise StepError(f"{where}: sfx must be true, false, or a block with enabled / source / volume")
     cast = f.get("cast", "locked")
     if cast not in CAST_MODES:
         raise StepError(f"{where}: cast must be one of {', '.join(CAST_MODES)}, got {cast!r}")
