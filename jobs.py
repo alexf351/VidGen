@@ -93,24 +93,69 @@ class Job:
         return j
 
 
+class _Console:
+    """Writes to the real console from a thread of its own, so nothing ever waits on it.
+
+    A Windows console window stops taking output while text in it is selected (one click in
+    the window is enough: the title bar says "Select"). A direct write then blocks until
+    someone presses a key there, and a job that prints a line would sit at 99% for ever. Here
+    a write only puts the text in a queue; if the console is stuck the queue fills and the
+    oldest news is dropped, and the job carries on. The job's own log never goes through here."""
+
+    def __init__(self, stream, limit: int = 4000):
+        self._stream = stream
+        self._q: queue.Queue[str] = queue.Queue(maxsize=limit)
+        self.dropped = 0
+        threading.Thread(target=self._pump, name="vidgen-console", daemon=True).start()
+        import atexit
+        atexit.register(self.drain)
+
+    def write(self, text) -> int:
+        try:
+            self._q.put_nowait(text)
+        except queue.Full:
+            self.dropped += 1
+        return len(text)
+
+    def _pump(self) -> None:
+        while True:
+            text = self._q.get()
+            try:
+                self._stream.write(text)
+                self._stream.flush()
+            except Exception:
+                pass                      # a closed or broken console must not take the server down
+            finally:
+                self._q.task_done()
+
+    def drain(self, seconds: float = 2.0) -> None:
+        """Give what is queued a moment to reach the console (on exit, and in tests)."""
+        import time
+        end = time.monotonic() + seconds
+        while self._q.unfinished_tasks and time.monotonic() < end:
+            time.sleep(0.01)
+
+
 class _StreamRouter:
     """Replaces sys.stdout / sys.stderr once. While a job runs, writes from the job thread and
     from pipeline worker-pool threads go to the job's log as well as the console; everything
-    else (the web server's own logging) goes to the console only."""
+    else (the web server's own logging) goes to the console only. The console is written from
+    its own thread (_Console), so a frozen console window cannot hold up a job or the server."""
 
     def __init__(self, original, runner: "JobRunner"):
         self._original = original
         self._runner = runner
+        self._console = _Console(original)
 
     def write(self, text):
         job = self._runner._capturing()
         if job is not None:
             with self._runner._lock:
                 job.write(text)
-        return self._original.write(text)
+        return self._console.write(text)
 
     def flush(self):
-        return self._original.flush()
+        return None                       # the console thread flushes after every write
 
     def __getattr__(self, name):
         return getattr(self._original, name)

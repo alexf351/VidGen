@@ -874,6 +874,28 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
 
 # ----------------------------------------------------------------- launch ----
 
+def keep_console_awake() -> bool:
+    """Windows: turn off the console's QuickEdit mode for this window. With it on, one click
+    in the window selects text and the console stops taking output until a key is pressed,
+    which used to freeze a job at its next log line. Returns True when it was switched off.
+    (Text can still be selected from the window's menu: Edit > Mark.)"""
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+        kernel = ctypes.windll.kernel32
+        handle = kernel.GetStdHandle(-10)                      # STD_INPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if not kernel.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False                                       # no console (a service, a pipe)
+        quick_edit, extended = 0x0040, 0x0080
+        if not mode.value & quick_edit:
+            return False
+        return bool(kernel.SetConsoleMode(handle, (mode.value & ~quick_edit) | extended))
+    except Exception:
+        return False
+
+
 def serve(load_config: Callable[..., dict], key_sources: dict[str, str], port: int = DEFAULT_PORT,
           open_browser: bool = True) -> int:
     import uvicorn
@@ -882,6 +904,7 @@ def serve(load_config: Callable[..., dict], key_sources: dict[str, str], port: i
             s.bind((HOST, port))
         except OSError:
             raise StepError(f"port {port} on {HOST} is in use; pass --port with another number") from None
+    keep_console_awake()
     app = create_app(load_config, key_sources, port)
     url = f"http://{HOST}:{port}/"
     print(f"[ui] VidGen at {url}  (API docs {url}api/docs). Only this computer can reach it. Ctrl+C to stop.")
