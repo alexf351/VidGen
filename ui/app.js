@@ -1362,7 +1362,10 @@ function shotCard(run, s, busy) {
     thumb.append(h("div", { class: "card-text" }, shot.card));
   } else if (s.kind === "app_screen") {
     const scr = screenFor(shot.app_screen);
-    if (scr && scr.url) {
+    // Once the hand picture is drawn the card shows the shot as it is in the video: the
+    // screenshot on the phone in the hero's hand. Before that, the screenshot on its own.
+    if (s.image) thumb.append(h("img", { src: bust(s.image, run.run_id), alt: `App screen: ${scr ? scr.title : "app"}, on the phone in the hero's hand`, loading: "lazy" }));
+    else if (scr && scr.url) {
       thumb.append(h("img", { class: "app-pic", src: scr.url, alt: `App screen: ${scr.title}`, loading: "lazy" }));
       if (scr.clip_url && !shot.app_still) hoverPlay(thumb, scr.clip_url);
     }
@@ -1420,7 +1423,10 @@ function shotCard(run, s, busy) {
   const info = h("div", { class: "shot-info" },
     spoken ? [h("div", { class: "speaker" }, shot.speaker), h("div", { class: "line" }, shot.vo_line)]
       : h("div", { class: "line silent" }, s.kind === "card" ? "time card" : s.kind === "app_screen" ? `App screen: ${screenTitle(shot.app_screen)}${(screenFor(shot.app_screen) || {}).clip_url && !shot.app_still ? " (recording)" : ""}` :
-        shot.caption ? `caption: ${shot.caption}` : "silent"));
+        shot.caption ? `caption: ${shot.caption}` : "silent"),
+    s.kind === "app_screen" && run.app_hand
+      ? h("div", { class: "line-note" }, s.image ? "On the phone in the hero's hand, as in the video." : "In the video this sits on a phone in the hero's hand. The hand is drawn with the images.")
+      : null);
   const actions = h("div", { class: "shot-actions" },
     h("button", { disabled: busy || !drawable, title: shot.talk ? "New keyframe and talking clip" : shot.animate ? "New keyframe and clip" : "New keyframe", onclick: () => reroll(run, s) }, "Reroll"),
     h("button", { disabled: busy || !drawable, title: "Redo the keyframe only", onclick: () => runStep(run, "images", [s.n]) }, "Image"),

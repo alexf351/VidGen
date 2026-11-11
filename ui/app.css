@@ -714,6 +714,7 @@ details.card-sec summary { font-size: 13px; align-items: center; }
 .shot-info { padding: 9px 10px 8px; min-height: 54px; }
 .speaker { font-size: 10.5px; letter-spacing: .05em; }
 .line { font-size: 13px; line-height: 1.4; }
+.line-note { font-size: 11.5px; line-height: 1.4; color: var(--muted); margin-top: 3px; }
 .shot-actions button { height: 32px; font-size: 12px; font-weight: 500; transition: background .15s, color .15s; }
 .player { max-width: 100%; border-radius: 12px; margin-bottom: 12px; }
 .player-empty { border-radius: 12px; font-size: 13px; line-height: 1.45; }

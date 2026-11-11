@@ -14,6 +14,26 @@ from steps.voice import audio_path, timing_path
 STEP_NAMES = ("script", "images", "video", "voice", "assemble")
 
 
+def app_preview(run_dir: Path, n: int, shot: dict) -> Path | None:
+    """What an app-screen shot looks like in the video: the screenshot on the phone in the
+    hand picture, once the images step has drawn the hand. Made on first look and kept in the
+    run's app/ folder; None while there is no hand picture (or it has no clean green screen)."""
+    import phone_hand
+    from common import ROOT
+    try:
+        hand = phone_hand.run_path(run_dir)
+        src = ROOT / str(shot.get("app_screen") or "")
+        if not hand.is_file() or not src.is_file():
+            return None
+        out = run_dir / "app" / f"preview_{n:02d}_{src.stem}.jpg"
+        if not out.is_file() or out.stat().st_mtime < max(hand.stat().st_mtime, src.stat().st_mtime):
+            if phone_hand.compose(hand, src, out, 540, 960) is None:
+                return None
+        return out
+    except Exception:          # a preview must never break the run page
+        return None
+
+
 def file_url(path: Path) -> str | None:
     """/files/<path under the output dir>?v=<mtime>, or None if the file does not exist."""
     try:
@@ -197,8 +217,9 @@ def detail(run_dir: Path, config: dict | None) -> dict:
         kind = ("card" if s.get("card") else "app_screen" if s.get("app_screen")
                 else "montage" if s.get("montage") else "flash" if s.get("flash")
                 else "letter" if s.get("letter") else "shot")
+        preview = app_preview(run_dir, n, s) if kind == "app_screen" else None
         shots.append({"n": n, "kind": kind, "shot": s,
-                      "image": file_url(shot_path(run_dir, n)),
+                      "image": file_url(preview) if preview else file_url(shot_path(run_dir, n)),
                       "clip": file_url(video_path(run_dir, n)),
                       "audio": file_url(audio_path(run_dir, n)),
                       "words": timing})
@@ -219,6 +240,8 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             "captions": file_url(run_dir / "build" / "captions.ass"),
             "caption_style": _caption_style(run_dir, config),
             "animate_all": bool((config or {}).get("animate_all")),
+            # app-screen shots go on a phone in the hero's hand (the hand is drawn by the images step)
+            "app_hand": bool((config or {}).get("app_screen_hand")),
             "sfx": bool(((config or {}).get("sfx") or {}).get("enabled")),
             # ranks and units for the progress overlay, when the format has one
             "stats": (((config or {}).get("format") or {}).get("rules") or {}).get("stats"),
