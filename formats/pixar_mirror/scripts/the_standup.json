@@ -191,8 +191,8 @@
         "tyler"
       ],
       "image_prompt": "close shot, chest up, a glass-walled meeting room with a long white table and a city view behind it, warm golden late-afternoon light, {tyler}, in a navy waistcoat over a white shirt with the sleeves rolled up, wringing his hands and leaning in toward someone off camera with a desperate eager smile, eyebrows pinched up in the middle, mouth open mid-question. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Tyler rubs his hands together and his mouth moves as he asks it too quickly, nodding along with his own question. Push-in on his nervous smile.",
-      "vo_line": "Two sugars, right?",
+      "motion_prompt": "Tyler gapes at the laptop, then rubs his hands together and his mouth moves as he asks it too quickly, nodding along with his own question. Push-in on his nervous smile.",
+      "vo_line": "Already?! Uh, two sugars, right?",
       "speaker": "tyler",
       "same_scene": true
     },
@@ -231,7 +231,7 @@
       ],
       "image_prompt": "close shot, chest up, a glass-walled meeting room with a long white table and a city view behind it, warm golden late-afternoon light, {tyler}, in a navy waistcoat over a white shirt with the sleeves rolled up, alone at the table holding the rejected paper coffee cup in both hands, staring after the door with his mouth turned down and his eyes gone blank, shoulders sagging, mouth open mid-mumble. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Tyler looks down at the cup, takes a sad sip of it himself and his mouth moves as he mumbles the line to nobody. Slow pull-back leaving him alone at the long table.",
-      "vo_line": "I'll do the coffee run.",
+      "vo_line": "I'll stick to the coffee run.",
       "speaker": "tyler",
       "same_scene": true
     },
