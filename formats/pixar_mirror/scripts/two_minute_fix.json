@@ -4,21 +4,21 @@
   "shots": [
     {
       "characters": [
-        "jess"
-      ],
-      "image_prompt": "close shot, chest up, a sunny corner coffee shop with small round wooden tables by a big window, bright late-morning light, {jess}, in a white blouse with her sleeves pushed up, hunched over an open laptop seen from behind its lid, one flat palm raised toward someone off camera like a stop sign, eyes glued to her work, lips tight, mouth open mid-word, not even glancing up. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess lifts a flat palm without taking her eyes off the laptop and her mouth moves as she says it in a clipped polite voice. Slow push-in on her raised hand and her unmoving eyes.",
-      "vo_line": "I'm good, thanks.",
-      "speaker": "jess"
-    },
-    {
-      "characters": [
         "marcus"
       ],
       "image_prompt": "close shot, chest up, a sunny corner coffee shop with small round wooden tables by a big window, bright late-morning light, {marcus}, in a faded green hoodie with an old scratched laptop under his arm, bending toward the table with two fingers held up and an eager helpful smile, eyebrows high, nodding, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus holds up two fingers and leans in, his mouth moving as he says it hopefully, nodding at the laptop. Quick push-in on his eager face.",
       "vo_line": "It's a two minute fix.",
-      "speaker": "marcus",
+      "speaker": "marcus"
+    },
+    {
+      "characters": [
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, a sunny corner coffee shop with small round wooden tables by a big window, bright late-morning light, {jess}, in a white blouse with her sleeves pushed up, hunched over an open laptop seen from behind its lid, one flat palm raised toward someone off camera like a stop sign, eyes glued to her work, lips tight, mouth open mid-word, not even glancing up. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess lifts a flat palm without taking her eyes off the laptop and her mouth moves as she says it in a clipped polite voice. Slow push-in on her raised hand and her unmoving eyes.",
+      "vo_line": "I'm good, thanks.",
+      "speaker": "jess",
       "same_scene": true
     },
     {

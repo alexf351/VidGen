@@ -101,6 +101,11 @@ class DescribeRequest(BaseModel):
     character: str | None = None      # a library character's own picture
 
 
+class MoveShot(BaseModel):
+    shot: int
+    to: int
+
+
 class StepRequest(BaseModel):
     step: str
     only: list[int] | None = None
@@ -581,6 +586,22 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             raise HTTPException(409, "this run has no script.json yet; run the script step first")
         return submit_run_job("recast", run_dir, {}, lambda cfg: commands.recast(run_id, cfg), None)
 
+    @app.post("/api/runs/{run_id}/move")
+    def move_shot(run_id: str, body: MoveShot) -> dict:
+        """Move a shot to another place, with its picture, clip and voice. Nothing is generated."""
+        import shot_order
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "moving a shot")
+        active = runner.active_for_run(run_id)
+        if active:
+            raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
+                                     f"wait for it to finish")
+        try:
+            out = shot_order.move(run_dir, config_for_run(run_dir), body.shot, body.to)
+        except StepError as e:
+            raise HTTPException(422, str(e)) from e
+        return {"moved": out["moved"], "to": out["to"], "files": out["files"]}
+
     def image_pipeline_only(run_dir: Path, what: str) -> None:
         if run_engine(run_dir) == "claude_code":
             raise HTTPException(409, f"{what} is for the image pipeline; this run uses the Claude Code engine")
@@ -607,7 +628,6 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
 
     @app.put("/api/runs/{run_id}/script")
     def save_script(run_id: str, script: dict = Body(...)) -> dict:
-        import steps.script as S
         run_dir = run_dir_of(run_id)
         image_pipeline_only(run_dir, "the shot-list editor")
         active = runner.active_for_run(run_id)
@@ -615,16 +635,10 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
                                      f"wait for it to finish")
         cfg = config_for_run(run_dir)
-        # A run keeps the cast descriptions it was written with. If the format's description of a
-        # character changed since (say sofia got a new look), editing a line of dialogue must not
-        # be refused for it; Recast is how a run takes the new description.
-        mine = {c.get("id"): c.get("description") for c in (run_status.load_script(run_dir) or {}).get("characters", [])
-                if isinstance(c, dict) and isinstance(c.get("description"), str) and c["description"].strip()}
-        locked = [{**c, "description": mine.get(c["id"], c["description"])} for c in cfg.get("locked_characters", [])]
+        import shot_order
         try:
-            normalized = S.validate_and_normalize(
-                script, cfg["style"], int(cfg["max_animated_shots"]), locked,
-                available_app_screens(cfg), cfg["format"]["rules"], animate_all=bool(cfg.get("animate_all")))
+            # with the cast descriptions the run was written with (shot_order.validate_for_run)
+            normalized = shot_order.validate_for_run(run_dir, cfg, script)
         except ValueError as e:
             errors = [line[2:] if line.startswith("- ") else line for line in str(e).splitlines()]
             raise HTTPException(422, {"message": "the script does not pass validation", "errors": errors})

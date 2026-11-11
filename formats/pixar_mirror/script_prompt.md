@@ -87,8 +87,9 @@ shots come on top. Number every shot "n" from 1 upward with no gaps.
 
   1. THE SCENE, FIRST TIME (6-9 shots, 5-7 lines). A small, ordinary, public moment in
      which the hero is brushed off, talked down to or made to look small. Not a
-     catastrophe: a "No.", a laugh, a "that's cute". It opens ON the brush-off, in the
-     first second, with no setup. He tries once more and it gets worse. Someone else
+     catastrophe: a "No.", a laugh, a "that's cute". It opens on the hero's ask, already
+     mid-scene with no setup, and the brush-off is the very next shot. He tries once
+     more and it gets worse. Someone else
      joins in with a line of their own (the rival, the partner). It ends on the hero
      alone, saying one small, sad line.
      Write this scene knowing you will replay it: give it two or three lines that will
@@ -144,10 +145,14 @@ THE PROGRESS SHOTS
 - Each has "vo_line": "", "speaker": "", "caption": "". Never "same_scene".
 
 THE HOOK (SHOT 1)
-- Shot 1 is the brush-off itself, mid-scene: the person saying the line that stings,
-  already walking away or not even looking at him. Never an establishing shot.
-- It must work on mute: the picture alone shows who is turning him down.
-- Its line is at most five words.
+- Shot 1 is the hero making his ask, mid-scene and already in motion: hand up, half out
+  of his chair, leaning in. Never an establishing shot. Its line is at most six words.
+- Shot 2 is the brush-off: the person saying the line that stings, not even looking at
+  him. Its line is at most five words.
+- A reply never comes before the line it answers. The viewer has to hear what he asked
+  before anyone laughs at it; "That's cute, Marcus." as the first line of the video
+  answers something nobody heard.
+- The two shots must work on mute: the pictures alone show who asks and who turns him down.
 
 HOW IT IS SHOT
 - Dialogue is shot close: ONE person in the frame, chest up, talking to someone just

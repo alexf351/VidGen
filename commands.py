@@ -168,6 +168,16 @@ def reroll(run_id: str, shot_number: int, config: dict) -> None:
     step_module("video").reroll_shot(run_dir, config, shot_number)
 
 
+def move_shot(run_id: str, shot_number: int, to: int, config: dict) -> dict:
+    """Move a shot to another place in the run, with its picture, clip and voice (shot_order.py)."""
+    run_dir = run_dir_for(run_id)
+    _image_pipeline_only(run_dir, "moving a shot")
+    out = importlib.import_module("shot_order").move(run_dir, config, shot_number, to)
+    print(f"shot {shot_number} is now shot {to} ({out['files']} files renamed). Nothing was generated. "
+          f"Assemble again for the video in the new order:  python main.py step {run_dir.name} assemble")
+    return out
+
+
 def recast(run_id: str, config: dict) -> None:
     run_dir = run_dir_for(run_id)
     _image_pipeline_only(run_dir, "recast")

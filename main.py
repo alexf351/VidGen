@@ -19,6 +19,7 @@ Commands:
       ... images --only 3,7                 regenerate only those shots (images, video, voice)
   python main.py reroll <run_id> <shot_n>   regenerate one shot's image + video
   python main.py recast <run_id>            sync script.json with the format's locked characters
+  python main.py move <run_id> <shot> <to>  move a shot to another place (its files move with it)
   python main.py captions <run_id> [style]  show or change a run's caption style (then: step assemble)
 
 step, reroll and recast reuse the format the run was created with (saved in run.json).
@@ -79,6 +80,10 @@ def cmd_captions(args, config) -> None:
     print(f"apply it (free, no API calls):  python main.py step {args.run_id} assemble")
 
 
+def cmd_move(args, config) -> None:
+    commands.move_shot(args.run_id, args.shot, args.to, config)
+
+
 def cmd_recast(args, config) -> None:
     commands.recast(args.run_id, config)
 
@@ -126,6 +131,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_reroll.add_argument("shot_number", type=int)
     p_reroll.set_defaults(func=cmd_reroll)
 
+    p_move = sub.add_parser("move", help="move a shot to another place in a run, with its picture, clip and voice")
+    p_move.add_argument("run_id")
+    p_move.add_argument("shot", type=int, help="the shot to move")
+    p_move.add_argument("to", type=int, help="the place it goes to (1 = first)")
+    p_move.set_defaults(func=cmd_move)
     p_recast = sub.add_parser("recast", help="apply config's locked character descriptions to a run")
     p_recast.add_argument("run_id")
     p_recast.set_defaults(func=cmd_recast)

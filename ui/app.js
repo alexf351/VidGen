@@ -19,7 +19,7 @@ const ACTIVE = new Set(["queued", "running"]);
 const S = {
   config: null, formats: [], runs: [], jobs: [],
   run: null, runId: null, stamps: {}, selected: new Set(),
-  draft: null, draftFor: null, saveErrors: null, afterSave: null,
+  draft: null, draftFor: null, saveErrors: null, afterSave: null, moved: null,
   provider: "", viewJob: null, viewPinned: false, es: null,
   jobStatus: new Map(), jobsLoaded: false, doctor: null,
   chars: [], charsLoaded: false, storyDraft: null, storyFor: null, storyErrors: null,
@@ -1512,6 +1512,18 @@ function voicesPanel(run, busy) {
 }
 
 // ----------------------------------------------------------- script panel
+async function moveShot(run, n, to) {
+  try {
+    await api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/move`, { shot: n, to });
+  } catch (e) { toast(e.message, "bad"); return; }
+  S.moved = { run: run.run_id, from: n, to };
+  S.stamps[run.run_id] = Date.now();          // the files behind each number changed
+  S.selected.clear(); S.afterSave = null; S.saveErrors = null;
+  await loadRun(run.run_id, { keepDraft: false });
+  const row = document.getElementById(`srow-${to}`);
+  if (row) { row.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); row.classList.add("just-moved"); }
+}
+
 function draftChanged() {
   const out = new Set();
   if (!S.run || !S.run.script || !S.draft) return out;
@@ -1636,7 +1648,15 @@ function scriptPanel(run, busy) {
       : meta && meta.image
       ? h("img", { class: "srow-thumb", src: bust(meta.image, run.run_id), alt: "", loading: "lazy" })
       : h("div", { class: "srow-thumb none" }, s.card ? "card" : s.app_screen ? "app" : "no picture");
-    row.append(h("div", { class: "srow-side" }, h("span", { class: "num" }, `#${s.n}`), pic), fields);
+    // Move the shot one place earlier or later. Its picture, clip and voice go with it.
+    const last = S.draft.shots.length;
+    const why = busy ? "Wait for the running job to finish" : changed.size ? "Save or discard your changes first" : "";
+    const mover = h("div", { class: "srow-move" },
+      h("button", { type: "button", class: "icon-btn", disabled: busy || changed.size > 0 || s.n === 1, "aria-label": `Move shot ${s.n} earlier`,
+        title: why || (s.n === 1 ? "Already first" : "Move earlier"), onclick: () => moveShot(run, s.n, s.n - 1) }, icon("chevron-up", 15)),
+      h("button", { type: "button", class: "icon-btn", disabled: busy || changed.size > 0 || s.n === last, "aria-label": `Move shot ${s.n} later`,
+        title: why || (s.n === last ? "Already last" : "Move later"), onclick: () => moveShot(run, s.n, s.n + 1) }, icon("chevron-down", 15)));
+    row.append(h("div", { class: "srow-side" }, h("span", { class: "num" }, `#${s.n}`), pic, mover), fields);
     return row;
   });
   const saveBtn = h("button", { class: "btn primary small", disabled: busy || !changed.size, onclick: () => saveScript(run) }, "Save script");
@@ -1647,6 +1667,11 @@ function scriptPanel(run, busy) {
   const panel = h("section", { "aria-label": "Script" },
     h("div", { class: "panel-title" }, h("span", {}, "Script"), topSave),
     h("p", { class: "script-help" }, `Change any line, speaker or caption, then save. After saving, VidGen offers to redo just the parts that changed. To change what a shot shows or how it moves, open \u201c${run.sfx ? "Picture, motion and sound" : "Picture and motion"}\u201d under it.`));
+  if (S.moved && S.moved.run === run.run_id) {
+    const made = run.steps.assemble && run.steps.assemble.status === "done";
+    panel.append(h("div", { class: "notice" }, `Shot ${S.moved.from} is now shot ${S.moved.to}. Its picture, clip and voice moved with it; nothing was generated. `,
+      made ? h("button", { class: "btn small", disabled: busy, onclick: () => { S.moved = null; runStep(run, "assemble"); } }, "Assemble again to see it") : null));
+  }
   if (S.afterSave && S.afterSave.run === run.run_id && (S.afterSave.sound || []).length) {
     const ns = S.afterSave.sound;
     panel.append(h("div", { class: "notice" }, `Saved. The sound changed on ${ns.length === 1 ? "shot" : "shots"} ${ns.join(", ")}. `,
@@ -2149,7 +2174,7 @@ async function watchJob(id, pinned) {
 function route() {
   const m = location.hash.match(/^#\/run\/(.+)$/);
   const runId = m ? decodeURIComponent(m[1]) : null;
-  if (runId !== S.runId) { S.selected.clear(); S.saveErrors = null; S.afterSave = null; S.draft = null; S.draftFor = null; S.run = null;
+  if (runId !== S.runId) { S.selected.clear(); S.saveErrors = null; S.afterSave = null; S.moved = null; S.draft = null; S.draftFor = null; S.run = null;
     S.storyDraft = null; S.storyFor = null; S.storyErrors = null; }
   S.runId = runId;
   renderSidebar();

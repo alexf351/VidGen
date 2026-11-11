@@ -4,21 +4,21 @@
   "shots": [
     {
       "characters": [
-        "tyler"
-      ],
-      "image_prompt": "close shot, chest up, a glass-walled meeting room with a long white table and a city view behind it, bright flat morning light, {tyler}, in a navy waistcoat over a white shirt with the sleeves rolled up, leaning back in his chair with one hand flapping dismissively toward someone off camera, eyes still down on his laptop, mouth open mid-word in a lazy smirk, one eyebrow cocked. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Tyler waves his hand without looking up, his mouth moving as he drawls the line, then he finally glances over and snorts. Slow push-in on his smirk.",
-      "vo_line": "That's cute, Marcus.",
-      "speaker": "tyler"
-    },
-    {
-      "characters": [
         "marcus"
       ],
       "image_prompt": "close shot, chest up, a glass-walled meeting room with a long white table and a city view behind it, bright flat morning light, {marcus}, in a wrinkled grey hoodie over a white tee with a blue office lanyard, half out of his chair and leaning over the table with one hand raised like a schoolboy, eyes wide and hopeful, mouth open mid-sentence, eyebrows up, a nervous eager smile. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus leans forward with his hand up, his mouth moving fast as he blurts it out, nodding hard to sell it. Quick push-in on his hopeful face.",
       "vo_line": "I could do it with AI.",
-      "speaker": "marcus",
+      "speaker": "marcus"
+    },
+    {
+      "characters": [
+        "tyler"
+      ],
+      "image_prompt": "close shot, chest up, a glass-walled meeting room with a long white table and a city view behind it, bright flat morning light, {tyler}, in a navy waistcoat over a white shirt with the sleeves rolled up, leaning back in his chair with one hand flapping dismissively toward someone off camera, eyes still down on his laptop, mouth open mid-word in a lazy smirk, one eyebrow cocked. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler waves his hand without looking up, his mouth moving as he drawls the line, then he finally glances over and snorts. Slow push-in on his smirk.",
+      "vo_line": "That's cute, Marcus.",
+      "speaker": "tyler",
       "same_scene": true
     },
     {

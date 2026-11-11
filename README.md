@@ -91,6 +91,10 @@ python main.py step 20261103-201530-a-laid-off-line-cook images --only 3,7
 # regenerate one shot's image + video
 python main.py reroll 20261103-201530-a-laid-off-line-cook 7
 
+# move a shot to another place (here shot 2 becomes shot 1). Its picture, clip and voice move
+# with it, nothing is generated; assemble again for the video in the new order
+python main.py move 20261103-201530-a-laid-off-line-cook 2 1
+
 # after editing locked_characters in the format: update an existing run's script.json,
 # drop the stale reference sheets, and print the images --only command to regenerate
 python main.py recast 20261103-201530-a-laid-off-line-cook
@@ -441,6 +445,8 @@ The editor (`ui/`: `index.html`, `app.css`, `app.js`; plain HTML/CSS/JS, no buil
     button for the line, Reroll / Image / Voice, the star to use it as the format's cover).
     Select several shots to redo images, video or voice for just those.
   - **Script and editing**: every shot as a row with its picture, speaker, caption and line
+    (the two arrows under a row's picture move the shot one place earlier or later; its
+    picture, clip and voice move with it and nothing is generated)
     (an app screen row has a Change screen button).
     "Picture, motion and sound" under a row opens the rest (scene description, motion, sound
     effect, progress number, time-card text). Save with the button or Ctrl+S (Cmd+S on a Mac);
@@ -875,7 +881,7 @@ lists each one with its time. Song formats never get effects.
 `pixar_mirror` is a second story shape for the Pixar cast, modelled on short app ads that tell
 their story twice (about 45-55 seconds, 45-90 spoken words):
 
-1. a small public brush-off, 5-7 lines, opening on the line that stings
+1. a small public brush-off, 5-7 lines, opening on his ask with the line that stings right after
 2. "Enough is enough", alone
 3. the app in his hand, with a small `*OPENS IRO*` label
 4. three progress shots, each with the rank and a number drawn over it

@@ -734,6 +734,12 @@ details.card-sec summary { font-size: 13px; align-items: center; }
 .srow:hover { border-color: var(--line-2); }
 .srow.dirty { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
 .srow-side { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.srow-move { display: flex; gap: 2px; margin-left: -4px; }
+.srow-move .icon-btn { color: var(--muted); cursor: pointer; }
+.srow-move .icon-btn:disabled { opacity: .35; cursor: not-allowed; }
+.srow.just-moved { animation: moved-flash 1.2s ease-out; }
+@keyframes moved-flash { from { background: color-mix(in srgb, var(--accent, #ff8ac2) 16%, transparent); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .srow.just-moved { animation: none; } }
 .srow .num { font-size: 12px; font-weight: 650; color: var(--muted); padding: 0; }
 .srow-thumb { width: 76px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 8px; background: #06070b; border: 1px solid var(--line); display: block; }
 .srow-thumb.none { display: grid; place-items: center; text-align: center; font-size: 11px; color: var(--dim); padding: 4px; aspect-ratio: 9 / 12; }
