@@ -162,6 +162,8 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             yield
         finally:
             runner.stop()
+            import media
+            media.stop_all()          # no ffmpeg outlives the server (it would keep run files locked)
 
     app = FastAPI(title="VidGen", docs_url="/api/docs", redoc_url=None,
                   openapi_url="/api/openapi.json", lifespan=lifespan)
@@ -607,7 +609,9 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
                                      f"wait for it to finish")
         try:
-            out = shot_order.move(run_dir, config_for_run(run_dir), body.shot, body.to)
+            # No job is working on this run (checked above), so an ffmpeg that still holds one of
+            # its files is a leftover of a job that hung, and may be ended.
+            out = shot_order.move(run_dir, config_for_run(run_dir), body.shot, body.to, free_leftovers=True)
         except StepError as e:
             raise HTTPException(422, str(e)) from e
         return {"moved": out["moved"], "to": out["to"], "files": out["files"]}

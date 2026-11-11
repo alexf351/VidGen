@@ -1417,7 +1417,7 @@ function shotCard(run, s, busy) {
     const btn = h("button", { class: "play-audio", title: "Play line", "aria-label": `Play shot ${s.n} line`,
       onclick: (e) => {
         e.stopPropagation();
-        if (!audio) audio = new Audio(bust(s.audio, run.run_id));
+        if (!audio || !audio.getAttribute("src")) { audio = new Audio(bust(s.audio, run.run_id)); LOOSE_AUDIO.add(audio); }
         if (audio.paused) { audio.currentTime = 0; audio.play(); btn.textContent = "■"; audio.onended = () => (btn.textContent = "▶"); }
         else { audio.pause(); btn.textContent = "▶"; }
       } }, "▶");
@@ -1517,8 +1517,12 @@ function voicesPanel(run, busy) {
 // ----------------------------------------------------------- script panel
 // Let go of every clip and sound on the page. While the browser holds one open, the server
 // has the file open too, and Windows will not let an open file be renamed or replaced.
+// Voice players made with new Audio() are not in the page, so they are kept here to be let go too.
+const LOOSE_AUDIO = new Set();
 // Only the shots' own clips and voices: the finished video stays in its player.
 function releaseMedia() {
+  LOOSE_AUDIO.forEach((a) => { try { a.pause(); a.removeAttribute("src"); a.load(); } catch { /* gone */ } });
+  LOOSE_AUDIO.clear();
   const ofShot = (u) => /\/(shots|audio)\//.test(u || "");
   document.querySelectorAll("video, audio").forEach((m) => {
     const srcs = [m.getAttribute("src"), ...[...m.querySelectorAll("source")].map((x) => x.getAttribute("src"))];

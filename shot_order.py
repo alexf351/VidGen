@@ -106,9 +106,31 @@ def repair(run_dir: Path) -> int:
     return back
 
 
-def move(run_dir: Path, config: dict, n: int, to: int) -> dict:
+def _why_locked(target: Path, free_leftovers: bool) -> tuple[str, bool]:
+    """What has `target` open, in words, and whether something was done about it. With
+    `free_leftovers` (no job is working on this run), an ffmpeg of VidGen's own that still
+    holds the file is one a hung job left behind, and it is ended."""
+    import os
+    import winlock
+    found = winlock.holders(target)
+    if not found:
+        return ("a clip or a voice still open in the browser, a virus scanner, or another program", False)
+    if free_leftovers and all(winlock.is_ours(name) for _, name in found):
+        ended = winlock.end_leftovers(found)
+        if ended:
+            print(f"  {target.name} was held open by {winlock.describe(ended)}, left running by an earlier job; ended it")
+            return (winlock.describe(ended), True)
+    if any(pid == os.getpid() for pid, _ in found):
+        return ("VidGen itself, for a clip or voice a browser tab is still loading (close other VidGen tabs, "
+                "or restart VidGen)", False)
+    return (winlock.describe(found), False)
+
+
+def move(run_dir: Path, config: dict, n: int, to: int, free_leftovers: bool = False) -> dict:
     """Shot `n` becomes shot `to`; the shots between shift by one. Returns
-    {"moved": n, "to": to, "files": how many files were renamed, "script": the new script}."""
+    {"moved": n, "to": to, "files": how many files were renamed, "script": the new script}.
+    `free_leftovers`: the caller knows no job is working on this run, so an ffmpeg that still
+    has one of its files open may be ended (see _why_locked)."""
     path = run_dir / "script.json"
     if not path.is_file():
         raise StepError("this run has no script yet")
@@ -151,7 +173,16 @@ def move(run_dir: Path, config: dict, n: int, to: int) -> dict:
     # (Windows refuses while a clip is still open in the browser or another program), every
     # rename already made is undone: a move happens whole or not at all.
     done: list[tuple[Path, Path]] = []
-    try:
+
+    def undo() -> None:
+        for before, after in reversed(done):
+            try:
+                _rename(after, before, tries=3)
+            except OSError:
+                pass                                         # repair() picks it up on the next look
+        done.clear()
+
+    def go() -> None:
         for src, parked, _ in plan:
             _rename(src, parked)
             done.append((src, parked))
@@ -159,15 +190,27 @@ def move(run_dir: Path, config: dict, n: int, to: int) -> dict:
             _rename(parked, dest)
             done.append((parked, dest))
         write_json(path, clean)
+
+    try:
+        go()
     except OSError as e:
-        for before, after in reversed(done):
+        undo()
+        stuck = Path(getattr(e, "filename", "") or "")
+        who, freed = _why_locked(stuck, free_leftovers) if stuck.name else ("another program", False)
+        if freed:
+            import time
+            time.sleep(0.6)                                  # Windows lets go of the file a moment after
             try:
-                _rename(after, before, tries=3)
-            except OSError:
-                pass                                         # repair() picks it up on the next look
-        stuck = Path(getattr(e, "filename", "") or "").name
-        raise StepError(f"shot {n} was not moved: {stuck or 'one of its files'} is in use (a clip still open in the "
-                        f"browser, or another program). Nothing was changed. Reload the page and try again.") from None
+                go()
+            except OSError as again:
+                undo()
+                stuck = Path(getattr(again, "filename", "") or stuck)
+                freed = False
+                who = _why_locked(stuck, False)[0]
+        if not freed:
+            raise StepError(f"shot {n} was not moved: {stuck.name or 'one of its files'} is held open by {who}. "
+                            f"Nothing was changed. Close that program (Task Manager, End task) or reload "
+                            f"this page, then try again.") from None
     # In-hand previews are named by shot number; they are remade on the next look.
     app = run_dir / "app"
     if app.is_dir():

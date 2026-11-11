@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import atexit
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 import common
@@ -32,6 +34,51 @@ def require_ffmpeg() -> None:
                         f"of ffmpeg.exe")
 
 
+# Every ffmpeg that is running right now. A job that is cut off (the server is closed, the
+# window is shut) must not leave one behind: on Windows an ffmpeg that lives on keeps every
+# file it was reading open, and those files then cannot be renamed or replaced.
+_live: set = set()
+_live_lock = threading.Lock()
+
+
+class _alive:
+    def __init__(self, proc):
+        self.proc = proc
+
+    def __enter__(self):
+        with _live_lock:
+            _live.add(self.proc)
+        return self.proc
+
+    def __exit__(self, *exc):
+        with _live_lock:
+            _live.discard(self.proc)
+        if exc[0] is not None and self.proc.poll() is None:      # interrupted: do not leave it running
+            try:
+                self.proc.kill()
+            except OSError:
+                pass
+        return False
+
+
+def stop_all() -> int:
+    """End every ffmpeg still running (server shutdown, interpreter exit). Returns how many."""
+    with _live_lock:
+        procs = list(_live)
+    n = 0
+    for p in procs:
+        if p.poll() is None:
+            try:
+                p.kill()
+                n += 1
+            except OSError:
+                pass
+    return n
+
+
+atexit.register(stop_all)
+
+
 # A long encode that reports no new frame for this long is taken to be stuck, and stopped.
 STALL_SECONDS = 600
 
@@ -45,9 +92,12 @@ def run_ffmpeg(args: list[str], label: str, cwd: Path | None = None, on_progress
     STALL_SECONDS is killed with a clear error instead of sitting there for ever."""
     base = [tool_path("ffmpeg") or common.TOOLS["ffmpeg"], "-y", "-hide_banner", "-nostdin", "-loglevel", "error"]
     if on_progress is None:
-        proc = subprocess.run([*base, *args], cwd=cwd, stdin=subprocess.DEVNULL, **_TEXT)
+        proc = subprocess.Popen([*base, *args], cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+        with _alive(proc):
+            _, err = proc.communicate()
         if proc.returncode != 0:
-            tail = "\n".join(proc.stderr.strip().splitlines()[-12:])
+            tail = "\n".join((err or "").strip().splitlines()[-12:])
             raise StepError(f"{label}: ffmpeg failed (exit {proc.returncode})\n{tail}")
         return
     _run_watched([*base, "-nostats", "-progress", "pipe:1", *args], label, cwd, on_progress)
@@ -61,6 +111,8 @@ def _run_watched(cmd: list[str], label: str, cwd: Path | None, on_progress) -> N
     with tempfile.TemporaryFile() as errors:        # a file, so a chatty ffmpeg can never fill a pipe
         proc = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=errors,
                                 text=True, encoding="utf-8", errors="replace")
+        with _live_lock:
+            _live.add(proc)
         lines: queue.Queue = queue.Queue()
 
         def read() -> None:
@@ -91,9 +143,13 @@ def _run_watched(cmd: list[str], label: str, cwd: Path | None, on_progress) -> N
             if time.monotonic() - moved > STALL_SECONDS:
                 proc.kill()
                 proc.wait()
+                with _live_lock:
+                    _live.discard(proc)
                 raise StepError(f"{label}: ffmpeg wrote nothing new for {STALL_SECONDS // 60} minutes and was stopped. "
                                 f"Run the step again; everything already made is kept.")
         code = proc.wait()
+        with _live_lock:
+            _live.discard(proc)
         if code != 0:
             errors.seek(0)
             text = errors.read().decode("utf-8", "replace")
