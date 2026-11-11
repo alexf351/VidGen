@@ -9,6 +9,7 @@ Commands:
       ... --engine claude_code              Claude Code codes the scenes and renders locally
   python main.py formats                    list the installed video formats
   python main.py screens                    list the app screenshots a video can show
+  python main.py ready                      list the ready-made scripts (python main.py new --ready NAME)
   python main.py ui [--port 8765]           local web UI + HTTP API on 127.0.0.1 (opens the browser)
   python main.py import-skill <skill>       turn a Claude skill folder (or its SKILL.md) into a format
       ... --name <name> --force             format name / replace an existing format
@@ -47,8 +48,11 @@ run_step = commands.run_step
 
 def cmd_new(args, config) -> None:
     picks = [x.strip() for x in (getattr(args, "screens", None) or "").split(",") if x.strip()]
-    run_dir = commands.create_new_run(args.premise, config, engine=getattr(args, "engine", None),
-                                      captions=getattr(args, "captions", None), screens=picks)
+    ready = getattr(args, "ready", None)
+    if not (args.premise or "").strip() and not ready:
+        raise StepError("give a premise in quotes, or --ready NAME to use a ready-made script")
+    run_dir = commands.create_new_run(args.premise or "", config, engine=getattr(args, "engine", None),
+                                      captions=getattr(args, "captions", None), screens=picks, ready=ready)
     commands.execute_new(run_dir, config, args.dry_run)
 
 
@@ -85,7 +89,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="command", required=True)
 
     p_new = sub.add_parser("new", help="create a run and execute all steps")
-    p_new.add_argument("premise", help="story premise, in quotes")
+    p_new.add_argument("premise", nargs="?", default="", help="story premise, in quotes (not needed with --ready)")
+    p_new.add_argument("--ready", default=None, metavar="NAME",
+                       help="use one of the format's ready-made scripts instead of writing one "
+                            "(no script step, no Claude cost); see: python main.py ready")
     p_new.add_argument("--dry-run", action="store_true",
                        help="run only the script step and print the shot list (no image/video/voice calls)")
     p_new.add_argument("--format", default=DEFAULT_FORMAT, metavar="NAME",
@@ -139,6 +146,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_screens = sub.add_parser("screens", help="list the app screenshots a video can show")
     p_screens.set_defaults(func=None)
 
+    p_ready = sub.add_parser("ready", help="list the ready-made scripts of each format")
+    p_ready.set_defaults(func=None)
+
     p_ui = sub.add_parser("ui", help="start the local web UI and HTTP API on 127.0.0.1")
     p_ui.add_argument("--port", type=int, default=8765, help="port (default 8765)")
     p_ui.add_argument("--no-browser", action="store_true", help="do not open a browser window")
@@ -184,6 +194,29 @@ def cmd_import_skill(args, config) -> int:
         return 1
     print(f"\n[import] formats/{name} produced a shot list. Make a video with:\n"
           f"  python main.py new \"<premise>\" --format {name}")
+    return 0
+
+
+def list_ready() -> int:
+    """ready: the ready-made scripts, by format, with the command that makes a video from each."""
+    import ready_scripts
+    found = 0
+    for f in format_summaries():
+        if "error" in f:
+            continue
+        rows = ready_scripts.listing(f)
+        if not rows:
+            continue
+        print(f"\n{f.get('title') or f['name']}  ({f['name']})")
+        for e in rows:
+            found += 1
+            print(f"  {e['id']:<16} {e['title']}: {e['premise']}")
+            print(f"  {'':<16} {e['shots']} shots, {e['words']} spoken words")
+            print(f"  {'':<16} python main.py new --format {f['name']} --ready {e['id']}")
+    if not found:
+        print("no ready-made scripts found (expected formats/<format>/scripts/*.json)")
+        return 1
+    print("\nadd --dry-run to make the run without images, video or voice, and read the script first")
     return 0
 
 
@@ -305,6 +338,8 @@ def main(argv=None) -> int:
             return list_formats()
         if args.command == "screens":
             return list_screens()
+        if args.command == "ready":
+            return list_ready()
         config = load_config(format_name=format_for(args), cast=cast_for(args))
         key_sources = _key_sources(config, from_dotenv)
         print_config_sources(config, key_sources)

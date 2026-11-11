@@ -407,7 +407,7 @@ def run_dir_for(run_id: str, must_exist: bool = True) -> Path:
 
 def create_run(premise: str, format_name: str, cast: list | None = None,
                engine: str | None = None, captions: str | None = None,
-               screens: list[str] | None = None) -> Path:
+               screens: list[str] | None = None, ready: str | None = None) -> Path:
     run_id = new_run_id(premise)
     run_dir = RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
@@ -426,6 +426,8 @@ def create_run(premise: str, format_name: str, cast: list | None = None,
         meta["captions"] = captions          # a caption style id, see caption_styles.py
     if screens:
         meta["screens"] = list(screens)      # app screenshots pinned for this video (app_assets.py)
+    if ready:
+        meta["ready_script"] = ready         # written by hand (ready_scripts.py): no script step
     write_json(run_dir / "run.json", meta)
     return run_dir
 
@@ -470,6 +472,12 @@ def _run_meta(run_dir: Path) -> dict:
 def run_cast(run_dir: Path) -> list:
     """The library characters a run was cast with (run.json "cast"), [] if none."""
     return list(_run_meta(run_dir).get("cast") or [])
+
+
+def run_ready_script(run_dir: Path) -> str | None:
+    """The ready-made script a run was started from (run.json "ready_script"), or None."""
+    value = _run_meta(run_dir).get("ready_script")
+    return value if isinstance(value, str) and value else None
 
 
 def run_engine(run_dir: Path) -> str:

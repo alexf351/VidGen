@@ -59,11 +59,22 @@ def pick_screens(config: dict, screens) -> list[str]:
 
 
 def create_new_run(premise: str, config: dict, log=print, engine: str | None = None,
-                   captions: str | None = None, screens=None) -> Path:
+                   captions: str | None = None, screens=None, ready: str | None = None) -> Path:
     """Make the run folder for `new` (premise.txt, run.json with the format, cast, engine,
-    caption style and any pinned app screens)."""
+    caption style and any pinned app screens). With `ready`, the run starts from a ready-made
+    script (ready_scripts.py): script.json is written now and the script step is not run."""
     import caption_styles
     captions = caption_styles.check(captions) if captions else None
+    script = None
+    if ready:
+        if engine == "claude_code":
+            raise StepError("ready-made scripts are for the image pipeline, not the Claude Code engine")
+        if screens:
+            raise StepError("a ready-made script already says which app screens it shows; "
+                            "swap one in the script editor after the run is made")
+        import ready_scripts
+        script, info = ready_scripts.build(config, ready)
+        premise = (premise or "").strip() or info["premise"] or info["title"]
     screens = pick_screens(config, screens)
     if screens and engine == "claude_code":
         raise StepError("app screens are for the image pipeline; the Claude Code engine does not show them")
@@ -75,12 +86,18 @@ def create_new_run(premise: str, config: dict, log=print, engine: str | None = N
             raise StepError(f"the {config['format']['name']} format does not offer the Claude Code "
                             f"engine (its format.yaml has no code_render block)")
     run_dir = create_run(premise, config["format"]["name"], cast=config.get("cast") or None,
-                         engine=engine, captions=captions, screens=screens)
+                         engine=engine, captions=captions, screens=screens, ready=ready or None)
+    if script is not None:
+        from common import write_json
+        write_json(run_dir / "script.json", script)
     log(f"created run {run_dir.name} (format {config['format']['name']}"
         + (", Claude Code engine)" if engine == "claude_code" else ")"))
     log(f"  {run_dir}")
     if screens:
         log(f"  app screens: {', '.join(Path(p).stem for p in screens)}")
+    if script is not None:
+        log(f"  ready-made script: {info['title']} ({len(script['shots'])} shots, {info['words']} spoken words); "
+            f"no script step")
     return run_dir
 
 
@@ -90,6 +107,26 @@ def execute_new(run_dir: Path, config: dict, dry_run: bool = False) -> None:
         import code_engine
         progress.start(code_engine.CODE_STEPS[:1] if dry_run else list(code_engine.CODE_STEPS))
         code_engine.execute(run_dir, config, dry_run)
+        return
+    from common import run_ready_script
+    if run_ready_script(run_dir) and (run_dir / "script.json").is_file():
+        # Started from a ready-made script: it is already written and checked. Cast the voices
+        # (the script step does that after writing) and carry on with the rest.
+        import steps.script as S
+        from common import read_json
+        script = read_json(run_dir / "script.json")
+        print(f"\n=== ready-made script: {run_ready_script(run_dir)} ({run_dir.name}) ===")
+        S.print_shot_table(script, config["style"])
+        rest = [n for n in STEP_ORDER if n != "script"]
+        progress.start([] if dry_run else rest)
+        S.cast_voices(run_dir, config, script)
+        if dry_run:
+            print("\nscript only: the ready-made script is in place; no images, video or voice were generated.")
+            print(f"continue this run with:  python main.py step {run_dir.name} images  (then video, voice, assemble)")
+            return
+        for name in rest:
+            run_step(name, run_dir, config)
+        print(f"\nrun {run_dir.name} complete")
         return
     progress.start(STEP_ORDER[:1] if dry_run else list(STEP_ORDER))
     if dry_run:

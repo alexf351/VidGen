@@ -32,7 +32,7 @@ def is_run_dir(path: Path) -> bool:
 
 def run_meta(run_dir: Path) -> dict:
     meta = {"run_id": run_dir.name, "premise": "", "format": "pixar_arc", "created_at": None,
-            "engine": "ai", "cast": [], "screens": []}
+            "engine": "ai", "cast": [], "screens": [], "ready_script": None}
     try:
         if (run_dir / "run.json").is_file():
             data = read_json(run_dir / "run.json")
@@ -41,6 +41,7 @@ def run_meta(run_dir: Path) -> dict:
             meta["engine"] = data.get("engine") or "ai"
             meta["cast"] = data.get("cast") or []
             meta["screens"] = [p for p in (data.get("screens") or []) if isinstance(p, str)]
+            meta["ready_script"] = data.get("ready_script") if isinstance(data.get("ready_script"), str) else None
         elif (run_dir / "premise.txt").is_file():
             meta["premise"] = (run_dir / "premise.txt").read_text(encoding="utf-8").strip()
     except (OSError, ValueError):

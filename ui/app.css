@@ -909,3 +909,16 @@ button.stile:focus-visible { outline: none; box-shadow: var(--ring); }
 .hover-clip { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity .12s; pointer-events: none; }
 .playing > .hover-clip { opacity: 1; }
 .spick { position: relative; }
+
+/* ---- ready-made scripts on the create screen --------------------------- */
+.ready-list { display: flex; flex-direction: column; gap: 8px; }
+.ready-card { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 12px 14px; text-align: left; font: inherit; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; cursor: pointer;
+  transition: border-color .15s var(--ease), background .15s var(--ease), box-shadow .15s var(--ease); }
+.ready-card:hover { border-color: var(--line-2); }
+.ready-card:focus-visible { outline: none; box-shadow: var(--ring); }
+.ready-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--accent-bg); }
+.ready-title { font-size: 14px; font-weight: 650; }
+.ready-text { font-size: 13px; line-height: 1.45; color: var(--muted); }
+.ready-meta { font-size: 12px; color: var(--accent-soft); margin-top: 2px; }
+.premise-box.locked { color: var(--muted); background: var(--panel-2); cursor: default; }

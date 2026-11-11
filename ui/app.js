@@ -503,6 +503,31 @@ function screenPicker({ title, text, max = 1, selected = [], allowEmpty = false 
   });
 }
 
+// The create screen's "Story" card, for formats with ready-made scripts: write your own
+// premise, or pick a script that is already written (no script step, nothing to pay for it).
+function readySection(f, st, onChange) {
+  const list = f.ready_scripts || [];
+  if (!list.length) return null;
+  const box = h("div", { class: "ready-list" });
+  const pick = (id) => { st.ready = id; draw(); onChange(); };
+  function draw() {
+    box.replaceChildren(
+      h("button", { type: "button", class: `ready-card${st.ready ? "" : " on"}`, "aria-pressed": st.ready ? "false" : "true", onclick: () => pick(null) },
+        h("span", { class: "ready-title" }, "Write my own"),
+        h("span", { class: "ready-text" }, "You give a premise, Claude writes the script."),
+        h("span", { class: "ready-meta" }, "a few cents")),
+      ...list.map((e) => h("button", { type: "button", class: `ready-card${st.ready === e.id ? " on" : ""}`, "aria-pressed": st.ready === e.id ? "true" : "false", onclick: () => pick(e.id) },
+        h("span", { class: "ready-title" }, e.title),
+        h("span", { class: "ready-text" }, e.premise),
+        h("span", { class: "ready-meta" }, `${e.shots} shots · ${e.words} spoken words · script is free`))));
+  }
+  draw();
+  return h("section", { class: "card-sec", id: "sec-ready" },
+    h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Story"), h("span", { class: "count-note" }, `${list.length} ready-made`)),
+    box,
+    h("div", { class: "field-note" }, "A ready-made script was written by hand for this format and already passes its rules. You can still edit every line after the run is made."));
+}
+
 // The create screen's "App screens" card: pin the screenshots this video shows, or leave it open.
 function screensSection(f, st) {
   const max = (f.limits || {}).app_screens || 0;
@@ -920,7 +945,7 @@ function chips(options, value, onChange, label) {
 function renderCreate(formatName) {
   const f = S.formats.find((x) => x.name === formatName && !x.error);
   if (!f) { $("#main").replaceChildren(h("div", { class: "empty" }, `No format called "${formatName}". `, h("a", { href: "#/new", class: "muted" }, "Back to Studio"))); return; }
-  const st = { provider: "", dry: false, engine: "ai", cast: [], captions: S.config.caption_style || "format", screens: [] };
+  const st = { provider: "", dry: false, engine: "ai", cast: [], captions: S.config.caption_style || "format", screens: [], ready: null };
   const hasCode = (f.engines || []).includes("claude_code");
   const d = S.config.providers.default;
   const premise = h("textarea", { class: "premise-box", id: "f-premise", rows: "6", maxlength: String(PREMISE_MAX),
@@ -931,7 +956,13 @@ function renderCreate(formatName) {
   const keyWarn = h("div", { class: "field-note warn" });
   const go = h("button", { class: "btn primary go", type: "submit" }, "Generate video");
   const codeWarn = h("div", { class: "field-note warn" });
+  let ownPremise = "";
   const update = () => {
+    const readyOn = st.engine === "ai" ? (f.ready_scripts || []).find((e) => e.id === st.ready) : null;
+    if (readyOn && !premise.readOnly) ownPremise = premise.value;
+    if (readyOn) { premise.value = readyOn.premise; premise.readOnly = true; } else if (premise.readOnly) { premise.value = ownPremise; premise.readOnly = false; }
+    premise.classList.toggle("locked", !!readyOn);
+    if (readySec) readySec.classList.toggle("hidden", st.engine === "claude_code");
     const words = premise.value.trim() ? premise.value.trim().split(/\s+/).length : 0;
     const left = PREMISE_MAX - premise.value.length;
     count.textContent = !words ? "One or two sentences is plenty"
@@ -942,7 +973,7 @@ function renderCreate(formatName) {
     keyWarn.textContent = missing.length ? `No API key set for ${missing.join(", ")}.` : "";
     provSec.classList.toggle("hidden", st.engine === "claude_code");
     capSec.classList.toggle("hidden", st.engine === "claude_code");
-    if (scrSec) scrSec.classList.toggle("hidden", st.engine === "claude_code");
+    if (scrSec) scrSec.classList.toggle("hidden", st.engine === "claude_code" || !!readyOn);
     codeWarn.textContent = st.engine === "claude_code" ? codeEngineProblem() : "";
     if (st.engine === "claude_code") {
       const est = estimateCode(f.name);
@@ -952,7 +983,11 @@ function renderCreate(formatName) {
       go.textContent = st.dry ? "Write the story" : "Make video";
       return;
     }
-    if (st.dry) {
+    if (readyOn) count.textContent = "Ready-made script";
+    if (st.dry && readyOn) {
+      costLine.textContent = "free"; costSub.textContent = "Makes the run with the ready-made script so you can read and edit it. Nothing is generated.";
+      go.textContent = "Open the script";
+    } else if (st.dry) {
       costLine.textContent = "a few cents"; costSub.textContent = "Script only. Nothing goes to the image, video or voice providers.";
       go.textContent = "Write the script";
     } else {
@@ -983,7 +1018,7 @@ function renderCreate(formatName) {
 
   const outputBox = h("div");
   const drawOutput = () => outputBox.replaceChildren(chips(
-    [[false, "Full video"], [true, st.engine === "claude_code" ? "Story only" : "Script only", st.engine === "claude_code" ? "free" : "a few cents"]],
+    [[false, "Full video"], [true, st.engine === "claude_code" ? "Story only" : "Script only", st.engine === "claude_code" || st.ready ? "free" : "a few cents"]],
     st.dry, (v) => { st.dry = v; update(); }, "Output"));
   drawOutput();
   const provSec = h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Provider")),
@@ -994,11 +1029,13 @@ function renderCreate(formatName) {
     captionPicker(f.name, st.captions, (v) => { st.captions = v; }),
     h("div", { class: "field-note" }, "You can change this after the video is made, for free."));
   const scrSec = screensSection(f, st);
+  const readySec = readySection(f, st, () => { drawOutput(); update(); });
   S.onDoctor = update;
   const form = h("form", { class: "create-left", onsubmit: async (e) => {
     e.preventDefault();
     const text = premise.value.trim();
-    if (!text) { premise.focus(); toast("Write a premise first.", "bad"); return; }
+    const ready = st.engine === "ai" ? st.ready : null;
+    if (!text && !ready) { premise.focus(); toast("Write a premise first.", "bad"); return; }
     if (st.engine === "claude_code" && !st.dry) {
       const est = estimateCode(f.name);
       const ok = await confirmDialog({ title: `Make a ${formatTitle(f)} video with Claude Code?`, rows: est.rows, total: est.total,
@@ -1016,11 +1053,12 @@ function renderCreate(formatName) {
     go.disabled = true;
     const r = await submit(api("POST", "/api/runs", { premise: text, format: f.name, provider: st.engine === "ai" ? (st.provider || null) : null,
       dry_run: st.dry, engine: st.engine, cast: st.cast, captions: st.engine === "ai" ? st.captions : null,
-      screens: st.engine === "ai" ? st.screens : [] }),
+      screens: st.engine === "ai" && !ready ? st.screens : [], ready }),
       st.dry ? (st.engine === "claude_code" ? "story" : "script") : `${formatTitle(f)} video`);
     go.disabled = false;
     if (r) { await refreshRuns(); location.hash = `#/run/${encodeURIComponent(r.run_id)}`; }
   } },
+    readySec,
     h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Premise"), count), premise),
     hasCode ? h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Engine")),
       chips([["ai", "Image models", "fal / Sume"], ["claude_code", "Claude Code", "your Claude plan"]], st.engine,

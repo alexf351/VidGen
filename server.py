@@ -29,6 +29,7 @@ import characters as lib
 import commands
 import run_status
 import app_assets
+import ready_scripts
 import caption_styles
 import code_engine
 import progress
@@ -62,6 +63,7 @@ class NewRun(BaseModel):
     engine: str = "ai"                # "ai" or "claude_code"
     captions: str | None = None       # a caption style id (caption_styles.py); None = the default
     screens: list[str] = []           # app screenshots this video must show (library paths)
+    ready: str | None = None          # a ready-made script of the format (ready_scripts.py)
 
 
 class ScreenIn(BaseModel):
@@ -248,6 +250,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                                        for c in f["overlay"].get("locked_characters", [])],
                         "engines": ["ai", "claude_code"] if f.get("code_render") else ["ai"],
                         "code_styles": (f.get("code_render") or {}).get("styles", []),
+                        "ready_scripts": ready_scripts.listing(f),
                         "cover": media_url(f["name"], "cover", f["cover"]),
                         "example_video": media_url(f["name"], "example", f["example_video"]),
                         "limits": {"story_shots": r["story_shots"], "vo_words": r["vo_words"],
@@ -464,7 +467,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
     @app.post("/api/runs", status_code=202)
     def new_run(body: NewRun) -> dict:
         premise = body.premise.strip()
-        if not premise:
+        if not premise and not body.ready:
             raise HTTPException(400, "premise is empty")
         providers = _providers(body.provider)
         cast = [e.model_dump() for e in body.cast]
@@ -480,9 +483,10 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         preface: list[str] = []
         try:
             run_dir = commands.create_new_run(premise, cfg, log=preface.append, engine=body.engine,
-                                              captions=captions, screens=body.screens)
+                                              captions=captions, screens=body.screens, ready=body.ready)
         except StepError as e:
             raise HTTPException(400, str(e)) from e
+        premise = run_status.run_meta(run_dir)["premise"] or premise
         if captions and captions != caption_styles.FORMAT:
             preface.append(f"  captions: {caption_styles.title(captions)}")
         for line in lib.describe_cast(cfg):
