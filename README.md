@@ -532,6 +532,17 @@ one retry. The result is saved to `runs/<run_id>/script.json` and printed as a s
 `runs/<run_id>/characters/<id>.png`. The source is, in order: the `image_path` set in
 `locked_characters`, a cached sheet in `characters_cache/`, a sheet already in the run, or a
 freshly generated sheet (front, three-quarter and side view on a plain light grey background).
+**Scene continuity.** Each picture is drawn from its own text, so three shots of one
+conversation can come out with three different outfits and backgrounds. A shot marked
+`"same_scene": true` in `script.json` continues the previous shot's scene (same place, same
+moment); it is drawn with the scene's first shot as an extra reference image, so the place, the
+light and everyone's clothes carry over. The script step marks these shots itself; scene
+starters are drawn first, then the shots that continue them. An app screenshot in between does
+not break a scene; a time card or a montage shot does. In the UI the shot shows a "scene" badge,
+and "Picture and motion" in the script panel has a checkbox to turn it on or off for a shot
+(then redo that shot's image and video). Redoing a scene's first shot prints which shots follow
+it, in case they need redoing too.
+
 New sheets for locked characters are copied into `characters_cache/` for later runs, with a
 note (`<id>.txt`) of the look they were drawn from. Change a locked character's description or
 `outfit` and their cached sheet is redrawn the next time it is needed (the Cast list in the UI

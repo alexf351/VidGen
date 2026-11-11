@@ -1010,6 +1010,7 @@ function shotCard(run, s, busy) {
     s.kind !== "shot" ? h("span", { class: "badge kind" }, s.kind === "app_screen" ? "APP" : s.kind.toUpperCase()) : null,
     shot.animate ? h("span", { class: "badge anim", title: s.clip ? "Animated clip (hover to play)" : "Animated: no clip yet" }, s.clip ? "▶ clip" : "▶ —") : null,
     shot.label ? h("span", { class: "badge kind", title: "On-screen label for this shot" }, shot.label) : null,
+    shot.same_scene ? h("span", { class: "badge scene", title: "Same scene as the shot before: drawn with that scene's first shot as a reference, so the place and clothes match" }, "↳ scene") : null,
     shot.talk ? h("span", { class: "badge anim", title: s.clip ? "Lip-synced talking clip (hover to play)" : "Talking shot: no clip yet (video step)" }, s.clip ? "🗣 talk" : "🗣 —") : null));
   if (drawable) {
     thumb.append(h("input", { type: "checkbox", class: "sel", checked: selected, "aria-label": `Select shot ${s.n}`,
@@ -1127,7 +1128,7 @@ function draftChanged() {
   if (!S.run || !S.run.script || !S.draft) return out;
   S.draft.shots.forEach((s, i) => {
     const o = S.run.script.shots[i] || {};
-    for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
+    for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt", "same_scene"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
   });
   return out;
 }
@@ -1150,9 +1151,18 @@ function scriptPanel(run, busy) {
   // What the clip does and what the picture shows, tucked under each drawn shot.
   const lookEditor = (s, i, row) => {
     const o = run.script.shots[i] || {};
-    const touched = (s.motion_prompt ?? "") !== (o.motion_prompt ?? "") || (s.image_prompt ?? "") !== (o.image_prompt ?? "");
+    const touched = (s.motion_prompt ?? "") !== (o.motion_prompt ?? "") || (s.image_prompt ?? "") !== (o.image_prompt ?? "")
+      || (s.same_scene ?? "") !== (o.same_scene ?? "");
+    // Offered on shots that have a drawn shot before them to continue (not the first, not a montage shot).
+    const prev = S.draft.shots.slice(0, i).reverse().find((x) => !x.app_screen);
+    const canContinue = !s.montage && prev && !prev.card && !prev.montage && (prev.image_prompt || "").trim();
+    const sceneBox = canContinue ? h("label", { class: "look-check" },
+      h("input", { type: "checkbox", checked: s.same_scene === true, "aria-label": `Shot ${s.n} continues the previous scene`,
+        onchange: (e) => { if (e.target.checked) update(i, "same_scene", true, row); else { delete S.draft.shots[i].same_scene; update(i, "motion_prompt", S.draft.shots[i].motion_prompt, row); } } }),
+      h("span", {}, "Same scene as the shot before: keep its place and clothes")) : null;
     const box = h("details", { class: "look", open: touched || S.lookOpen.has(s.n) },
       h("summary", {}, "Picture and motion"),
+      sceneBox,
       h("label", { class: "look-label" }, "Motion: what moves in the clip, and the camera",
         h("textarea", { rows: "3", "aria-label": `Shot ${s.n} motion`, placeholder: "the car drives forward and leaves the frame, camera holds on Marcus",
           oninput: (e) => update(i, "motion_prompt", e.target.value, row) }, s.motion_prompt || "")),
@@ -1233,7 +1243,11 @@ async function saveScript(run) {
     const a = S.draft.shots.find((s) => s.n === n), b = run.script.shots.find((s) => s.n === n) || {};
     return (a[key] || "").trim() !== (b[key] || "").trim();
   });
-  const images = differs("image_prompt");
+  const sceneChanged = changed.filter((n) => {
+    const a = S.draft.shots.find((s) => s.n === n), b = run.script.shots.find((s) => s.n === n) || {};
+    return (a.same_scene === true) !== (b.same_scene === true);
+  });
+  const images = [...new Set([...differs("image_prompt"), ...sceneChanged])].sort((a, b) => a - b);
   const clipped = new Set(run.shots.filter((s) => s.shot.animate || s.shot.talk).map((s) => s.n));
   const video = differs("motion_prompt").filter((n) => clipped.has(n) && !images.includes(n));
   try {

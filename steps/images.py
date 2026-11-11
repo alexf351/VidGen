@@ -103,17 +103,28 @@ def cache_is_current(config: dict, lock: dict) -> bool:
         return False
 
 
-def shot_prompt(shot: dict, ref_ids: list[str]) -> str:
+def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False) -> str:
+    """The keyframe prompt. `scene`: the last reference image is the first shot of the scene
+    this shot continues (shot "same_scene"), given so the place and the clothes carry over."""
     prompt = shot["image_prompt"].strip()
-    if not ref_ids:
+    if not ref_ids and not scene:
         return prompt
-    order = ", ".join(f"{i + 1}) {cid}" for i, cid in enumerate(ref_ids))
-    return (
-        f"{prompt}\n\n"
-        f"Reference images, in order: {order}. Each reference is a character sheet; keep that "
-        "character's face, hair, skin and build identical to its sheet. Do not copy the sheet "
-        "layout or grey background; render the scene described above."
-    )
+    parts = [prompt, ""]
+    if ref_ids:
+        order = ", ".join(f"{i + 1}) {cid}" for i, cid in enumerate(ref_ids))
+        parts.append(
+            f"Reference images, in order: {order}. Each reference is a character sheet; keep that "
+            "character's face, hair, skin and build identical to its sheet. Do not copy the sheet "
+            "layout or grey background; render the scene described above.")
+    if scene:
+        which = f"Reference image {len(ref_ids) + 1}" if ref_ids else "The reference image"
+        parts.append(
+            f"{which} is an earlier shot of this same scene. Keep the same place, time of day and "
+            "lighting, and dress every character exactly as they are dressed in it; if the "
+            "description above names different clothes or a different background, the reference "
+            "image wins. Do not copy its framing or poses: this is a new camera angle on the same "
+            "moment, showing what the description above says.")
+    return "\n".join(parts) if len(parts) > 2 else prompt
 
 
 # -------------------------------------------------------------- provider ----
@@ -245,7 +256,9 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
 
 # --------------------------------------------------------------- keyframes ----
 
-def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str, Path]) -> Path:
+def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str, Path],
+                      scene_ref: Path | None = None) -> Path:
+    """`scene_ref`: the keyframe of the first shot of the scene this shot continues."""
     n = shot["n"]
     dest = shot_path(run_dir, n)
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -253,9 +266,9 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
     missing = [cid for cid in shot["characters"] if cid not in sheets]
     if missing:
         raise StepError(f"shot {n}: no reference sheet for {missing}")
-
-    _generate_image(config, shot_prompt(shot, ref_ids), SHOT_ASPECT,
-                    [sheets[cid] for cid in ref_ids], f"shot {n}", dest)
+    refs = [sheets[cid] for cid in ref_ids] + ([scene_ref] if scene_ref else [])
+    _generate_image(config, shot_prompt(shot, ref_ids, scene=scene_ref is not None), SHOT_ASPECT,
+                    refs, f"shot {n}", dest)
 
     video = dest.with_suffix(".mp4")
     if (shot.get("animate") or shot.get("talk")) and video.exists():
@@ -280,18 +293,35 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
     sheets = ensure_sheets(run_dir, config, script, needed)
 
     print(f"[images] keyframes ({len(shots)} shots)")
-    runner = TaskRunner(_workers(config))
     done = []
     lock = threading.Lock()
 
+    # A shot marked "same_scene" is drawn with the first shot of its scene as a reference, so
+    # the place and the clothes carry over. Scene starters are drawn first, then the rest.
+    from steps.script import scene_anchor
+    every = script["shots"]
+    anchor_of: dict[int, dict] = {}
+    for i, s in enumerate(every):
+        a = scene_anchor(every, i)
+        if a is not None:
+            anchor_of[s["n"]] = every[a]
+
     def make(shot: dict) -> None:
         who = ", ".join(shot["characters"]) or "no characters"
-        print(f"  shot {shot['n']}: generating ({who})...")
-        generate_keyframe(run_dir, config, shot, sheets)
+        anchor = anchor_of.get(shot["n"])
+        scene_ref = shot_path(run_dir, anchor["n"]) if anchor else None
+        if scene_ref is not None and not scene_ref.exists():
+            print(f"  shot {shot['n']}: shot {anchor['n']} (the start of its scene) has no image yet, "
+                  f"so this one is drawn without it")
+            scene_ref = None
+        same = f", same scene as shot {anchor['n']}" if scene_ref else ""
+        print(f"  shot {shot['n']}: generating ({who}{same})...")
+        generate_keyframe(run_dir, config, shot, sheets, scene_ref)
         progress.tick()
         with lock:
             done.append(shot["n"])
 
+    todo: list[dict] = []
     for shot in shots:
         n = shot["n"]
         if shot.get("card"):
@@ -307,8 +337,19 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         if dest.exists() and not force:
             print(f"  shot {n}: exists, skipping")
             continue
-        runner.submit(make, shot)
-    runner.join()
+        todo.append(shot)
+    for batch in ([s for s in todo if s["n"] not in anchor_of], [s for s in todo if s["n"] in anchor_of]):
+        runner = TaskRunner(_workers(config))
+        for shot in batch:
+            runner.submit(make, shot)
+        runner.join()
+    redrawn = {s["n"] for s in todo}
+    for start in sorted({a["n"] for n, a in anchor_of.items()} & redrawn):
+        rest = sorted(n for n, a in anchor_of.items() if a["n"] == start and n not in redrawn
+                      and shot_path(run_dir, n).exists())
+        if rest:
+            print(f"  shot {start} starts a scene that shot(s) {', '.join(map(str, rest))} continue; if its "
+                  f"place or clothes changed, redo them too: images --only {','.join(map(str, rest))}")
     generated = len(done)
     cost = generated * image_cost(config)
     print(f"[images] generated {generated} keyframe(s), est. ${cost:.2f} -> {shots_dir(run_dir)}")

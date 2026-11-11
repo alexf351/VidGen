@@ -16,7 +16,8 @@ SHOT_KEYS = {"n", "characters", "image_prompt", "motion_prompt", "vo_line",
              "speaker", "caption", "animate"}
 OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage",   # card / app screenshot / flex montage
                       "letter", "talk",                    # a line of the letter / a lip-synced clip
-                      "label"}                             # a short tag on screen for the whole shot
+                      "label",                             # a short tag on screen for the whole shot
+                      "same_scene"}                        # continues the previous shot's scene
 LABEL_MAX_WORDS = 3
 LETTER_MAX_WORDS = 40
 SONG_STYLE_MAX = 300
@@ -73,6 +74,39 @@ def prompt_values(fmt: dict) -> dict:
     return v
 
 
+SCENE_NOTE = """
+
+SCENE CONTINUITY
+Several shots in a row often show the same scene: the same place at the same moment, seen from
+a new angle (a conversation, a reaction, an answer). On every such shot after the first, add
+"same_scene": true. The picture for that shot is then drawn with the scene's first shot as a
+visual reference, so the place, the light and everyone's clothes stay the same. In its
+image_prompt, describe the place and each character's outfit in the SAME words as the scene's
+first shot, and change only the framing and what the people do. Leave "same_scene" out on the
+first shot of a scene, whenever the place or the time changes, and on montage shots."""
+
+
+def scene_anchor(shots: list[dict], i: int) -> int | None:
+    """For shots[i] marked "same_scene", the index of the first shot of its scene: walk back
+    over the shots it continues. App screenshots in between are cutaways and are skipped; a
+    time card, a montage shot or the start of the list ends the scene (None)."""
+    if not (0 <= i < len(shots)) or shots[i].get("same_scene") is not True:
+        return None
+    j = i - 1
+    while j >= 0:
+        s = shots[j]
+        if not isinstance(s, dict) or s.get("card") or s.get("montage"):
+            return None
+        if s.get("app_screen") or not str(s.get("image_prompt") or "").strip():
+            j -= 1
+            continue
+        if s.get("same_scene") is True:
+            j -= 1
+            continue
+        return j
+    return None
+
+
 ANIMATE_ALL_NOTE = """
 
 EVERY SHOT IS A VIDEO CLIP
@@ -123,7 +157,9 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict],
     })
     values["SHOT_RULES"] = render(fmt["shot_rules"], values, f"formats/{fmt['name']}/shot_rules.md")
     prompt = render(fmt["script_prompt"], values, f"formats/{fmt['name']}/script_prompt.md")
-    return prompt + (ANIMATE_ALL_NOTE if animate_all else "")
+    # Letter formats use one backdrop for the whole video, so there are no scenes to keep.
+    scenes = "" if (fmt.get("rules") or {}).get("letter") else SCENE_NOTE
+    return prompt + scenes + (ANIMATE_ALL_NOTE if animate_all else "")
 
 
 def build_user_prompt(premise: str) -> str:
@@ -533,6 +569,17 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 shot["caption"] = ""
         normalized_shots.append(shot)
 
+    # "same_scene" stays only where there is a scene to continue (not on a scene's first shot,
+    # a montage shot, a card or an app screenshot); anything else is quietly dropped.
+    for i, shot in enumerate(normalized_shots):
+        if "same_scene" not in shot:
+            continue
+        drawn = (not shot.get("card") and not shot.get("app_screen") and not shot.get("montage")
+                 and bool(str(shot.get("image_prompt") or "").strip()))
+        if shot.get("same_scene") is True and drawn and scene_anchor(normalized_shots, i) is not None:
+            shot["same_scene"] = True
+        else:
+            shot.pop("same_scene")
     if animate_all:
         for shot in normalized_shots:
             if animates(shot):
