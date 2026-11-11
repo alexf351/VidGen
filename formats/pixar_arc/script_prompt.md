@@ -117,10 +117,22 @@
           in the middle of the video, not saved for the end.
         - No two shots in a row carry the same information. Every shot moves the story forward.
 
-        NARRATION AND DIALOGUE
-        - The narrator sounds like a friend telling you a story they can't believe: plain,
-          short words, dry and a little amused, never a movie-trailer voice.
-        - Write dialogue people actually say out loud to each other. Plain, short words.
+        DIALOGUE THAT FLOWS
+        - Write the dialogue as ONE running conversation cut across the shots. Every line
+          answers the line before it or sets up the next one: someone says something in one
+          shot and someone hits back in the next. No line stands alone, and no line refers to
+          something the viewer has not been told.
+        - The key fact of every beat is SAID by someone in the scene. The loss: the ex or the
+          rival says she is leaving and why. The firing: the boss says it. The mentor: Iro
+          says what the hero's real problem is and what to do about it. The bet: the two of
+          them say the stakes and the deadline out loud. The grind: Iro, the rival or a doubter
+          marks the time and the progress ("Day ten. Still nothing." "Gold already?"). The
+          win: someone announces it. The return and the reversal: a three-line exchange.
+        - Iro is the hero's running commentary. He coaches, counts the days and reacts to the
+          progress, so the viewer always knows where the story is.
+        - People talk to each other, never to the camera, and never describe what the viewer
+          can already see.
+        - Write lines people actually say out loud to each other. Plain, short words.
         - Never use: em dashes or semicolons; "it's not X, it's Y" or "not just X but Y";
           filler such as "here's the thing", "let that sink in", "the truth is", "at the end of
           the day", "buckle up"; "spoiler:" or "plot twist:"; the words delve, unlock, unleash,

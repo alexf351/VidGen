@@ -36,6 +36,13 @@ def video_resolution(config: dict) -> str:
     return res
 
 
+def _motion(config: dict, shot: dict, descriptions: dict[str, str] | None) -> str:
+    # mouths_move (config, on by default): spoken shots tell the video model who is talking.
+    if config.get("mouths_move", True) is False:
+        return shot["motion_prompt"].strip()
+    return clip_prompt(shot, descriptions)
+
+
 def _workers(config: dict) -> int:
     # fal runs one request at a time, as it always has; Sume runs up to its concurrency cap.
     return int(config["sume"]["max_concurrent"]) if video_provider(config) == "sume" else 1
@@ -85,7 +92,36 @@ def generate_talk_clip(run_dir: Path, config: dict, shot: dict) -> Path:
     return dest
 
 
-def generate_clip(run_dir: Path, config: dict, shot: dict) -> Path:
+def clip_prompt(shot: dict, descriptions: dict[str, str] | None = None) -> str:
+    """The motion prompt sent to the video model. When someone in the shot speaks a line, the
+    prompt also says so, so their mouth moves while the line is heard (the voice itself is
+    added at assembly; this is not exact lip-sync)."""
+    prompt = shot["motion_prompt"].strip()
+    line = " ".join(str(shot.get("vo_line") or "").split())
+    speaker = shot.get("speaker") or ""
+    on_screen = shot.get("characters") or []
+    if not line or not speaker or speaker not in on_screen:
+        return prompt
+    if len(on_screen) == 1:
+        who = "The character"
+    else:
+        # Name the speaker by how they look: the first clause of their description
+        # ("a 28 year old man with slick blond hair and a smug grin").
+        parts = [x.strip() for x in str((descriptions or {}).get(speaker) or "").split(",") if x.strip()]
+        first = parts[0] if parts else ""
+        if first and len(first.split()) < 3 and len(parts) > 1:
+            first = f"{first}, {parts[1]},"                     # "Iro, a small round robotic penguin ...,"
+        words = first.split()[:18]
+        if words and words[0].lower() in ("a", "an"):
+            words[0] = "The"
+        who = " ".join(words) or "The speaker"
+    quoted = line.replace('"', "'")
+    return (f'{prompt} {who} is talking throughout, mouth moving clearly with every word, saying: '
+            f'"{quoted}" No subtitles or text on screen.')
+
+
+def generate_clip(run_dir: Path, config: dict, shot: dict,
+                  descriptions: dict[str, str] | None = None) -> Path:
     n = shot["n"]
     fal = config["fal"]
     keyframe = shot_path(run_dir, n)
@@ -97,13 +133,13 @@ def generate_clip(run_dir: Path, config: dict, shot: dict) -> Path:
         video_resolution(config)
         if downloads.resume(dest, sume_api.download, label):
             return dest
-        url = sume_api.generate_video(config, shot["motion_prompt"].strip(), keyframe, label)
+        url = sume_api.generate_video(config, _motion(config, shot, descriptions), keyframe, label)
         downloads.save(url, dest, sume_api.download)
         return dest
     if downloads.resume(dest, fal_api.download, label):
         return dest
     result = fal_api.call(fal["video_model"], {
-        "prompt": shot["motion_prompt"].strip(),
+        "prompt": _motion(config, shot, descriptions),
         "image_url": fal_api.upload(keyframe),
         "duration": int(fal["video_seconds"]),
         "resolution": video_resolution(config),
@@ -122,6 +158,7 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         write_json(run_dir / "script.json", script)
         print(f"[video] every shot is a video clip in this format: {more} more shot(s) marked to animate")
     selected = select_shots(script, only)
+    descriptions = {c["id"]: c.get("description", "") for c in script.get("characters", []) if isinstance(c, dict)}
     animated = [s for s in selected if s.get("animate") and not s.get("talk")]
     talking = [s for s in selected if s.get("talk")]
     if animated:
@@ -158,7 +195,7 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
     def make(shot: dict) -> None:
         n = shot["n"]
         print(f"  shot {n}: generating...")
-        generate_clip(run_dir, config, shot)
+        generate_clip(run_dir, config, shot, descriptions)
         progress.tick()
         cost = seconds * rate
         with lock:

@@ -200,9 +200,9 @@ The ten looks and the narrated story shape come from the claude-animation-styles
 (`skills/claude-animation-styles/`). That skill renders with hand-written three.js code in
 Claude Code; here each look is a style line plus image rules for the image model, so it runs on
 the normal pipeline. The narrated formats set `rules.narrator: true`: the narrator speaks with
-`voices.narrator` (falling back to `voice_id`). `pixar_arc` mixes the two: a narrator tells the
-story and the characters speak its big moments (`rules.dialogue_lines_min` sets how many lines
-must still be dialogue).
+`voices.narrator` (falling back to `voice_id`). `pixar_arc` has no narrator: its dialogue tells
+the story. A format that wants both sets `narrator: true` with `rules.dialogue_lines_min` (how
+many lines must still be spoken by characters).
 
 A format can carry `title:` (shown in the UI), `cover.jpg` (its gallery card) and `example.mp4`
 (its preview). Set the last two from any run in the UI: "Use as cover" on a shot, "Use as
@@ -488,11 +488,12 @@ Rules enforced by the prompt and checked by the validator (the numbers and wordi
 
 - 15 to 22 shots, numbered from 1 with no gaps
 - every locked character is present and its description matches config exactly
-- a narrator tells the story (third person, short lines, about two thirds of the 80-130 words) and
-  the cast (marcus, jess, tyler, boss, sofia, iro) speak its big moments: the insult, the bet,
-  "I'm good". A shot carries narration or one line of dialogue, never both; `speaker` names who
-  says it (`narrator` or a character id), and a silent shot has an empty `vo_line` and `speaker`
-- total `vo_line` words across the script is 80 to 130
+- there is no narrator: every `vo_line` is dialogue spoken by a cast member (marcus, jess, tyler,
+  boss, sofia, iro) who is in the shot, and the dialogue tells the story: lines answer each
+  other, each beat's key fact is said out loud, and Iro acts as the running commentary. A
+  `narrator` speaker fails validation
+- at most 2 story shots in a row are silent (`rules.silent_run_max`)
+- total `vo_line` words across the script is 70 to 120
 - the image model never draws the Iro app: a character using a phone is shown with the back
   of the phone toward camera and the screen glow on their face, and an `image_prompt` that
   names "Iro AI", the app's UI, a logo or what a screen shows fails validation (the mascot's
@@ -515,8 +516,7 @@ Rules enforced by the prompt and checked by the validator (the numbers and wordi
 - the style line opens every `image_prompt` (prepended if the model forgets)
 - no more than `max_animated_shots` shots are `animate: true`, reserved for shots where motion is the beat;
   with `animate_all` on (the default for this format) every drawn shot is `animate: true` instead
-- `speaker` is `narrator` or a known character id, and at least `dialogue_lines_min` (5) lines are
-  spoken by characters; captions are at most two words (except the CTA)
+- `speaker` is a known character id (never `narrator`); captions are at most two words (except the CTA)
 - dialogue sounds spoken, not written by AI: a `vo_line` with an em dash, a semicolon, "it's not X,
   it's Y", "not just X but Y", filler ("here's the thing", "let that sink in"), fake suspense
   ("plot twist:") or an AI word (unlock, game-changer, next level, ...) fails validation
@@ -569,6 +569,11 @@ to date when its video step next runs. Set `animate_all: false` in the format, o
 `config.local.yaml` for every format, to animate only the key shots (at most
 `max_animated_shots`) and keep the rest as stills; `animate_all: true` in `config.local.yaml`
 turns it on for every format.
+
+**Mouths move.** When a shot has a line and its speaker is in the picture, the motion prompt
+sent to the video model also says who is talking and what they say, so the character's mouth
+moves while the line is heard. This is not exact lip-sync (the voice is added at assembly); set
+`mouths_move: false` in `config.local.yaml` to send the motion prompt as written.
 
 **Dropped downloads.** A provider can finish a clip and then drop the connection while the file
 is downloaded. Downloads are tried five times, and the file's address is kept next to where it

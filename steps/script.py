@@ -62,7 +62,8 @@ def prompt_values(fmt: dict) -> dict:
     v = {"SHOT_MIN": r["story_shots"][0], "SHOT_MAX": r["story_shots"][1],
          "VO_WORDS_MIN": r["vo_words"][0], "VO_WORDS_MAX": r["vo_words"][1],
          "CTA_CAPTION": r["cta_caption"], "APP_SCREENS_MAX": r["app_screens"]["max"],
-         "DIALOGUE_MIN": r.get("dialogue_lines_min", 0)}
+         "DIALOGUE_MIN": r.get("dialogue_lines_min", 0),
+         "SILENT_RUN_MAX": r.get("silent_run_max", 0)}
     if r["montage"]:
         v["MONTAGE_MIN"], v["MONTAGE_MAX"] = r["montage"]["count"]
     if r.get("talking"):
@@ -592,6 +593,27 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         errors.append(f"at most {max_animated} shots may have animate: true, got {animated}")
     if talk_rule and talks > talk_rule["max"]:
         errors.append(f"at most {talk_rule['max']} shots may have talk: true, got {talks}")
+    quiet_max = int(rules.get("silent_run_max") or 0)
+    if quiet_max:
+        # Story shots in a row with no line. A time card starts a new stretch, the montage is
+        # silent by design, and an app screenshot is a cutaway that neither counts nor resets.
+        run: list[int] = []
+        worst: list[int] = []
+        for s in normalized_shots:
+            if s.get("card") or s.get("montage"):
+                run = []
+            elif s.get("app_screen"):
+                continue
+            elif str(s.get("vo_line") or "").strip():
+                run = []
+            else:
+                run = run + [s.get("n")]
+                if len(run) > len(worst):
+                    worst = run
+        if len(worst) > quiet_max:
+            errors.append(f"shots {worst[0]}-{worst[-1]} are {len(worst)} story shots in a row with no "
+                          f"line; at most {quiet_max} in a row may be silent, so the dialogue keeps "
+                          f"telling the story")
     need = int(rules.get("dialogue_lines_min") or 0)
     if need:
         said = sum(1 for s in normalized_shots if str(s.get("vo_line") or "").strip()

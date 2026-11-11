@@ -69,6 +69,8 @@ def _rules(raw, where: str) -> dict:
         "narrator": bool(raw.get("narrator", False)),
         # With a narrator: at least this many lines must still be spoken by characters.
         "dialogue_lines_min": max(0, int(raw.get("dialogue_lines_min") or 0)),
+        # At most this many story shots in a row may be silent (0 = no limit).
+        "silent_run_max": max(0, int(raw.get("silent_run_max") or 0)),
         "cards": None, "montage": None,
         "app_screens": {"max": 0, "hint": ""},
         "banned_image_prompt": {"fix": "", "patterns": []},

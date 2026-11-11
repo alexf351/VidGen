@@ -15,6 +15,10 @@
           The emotion changes from shot to shot with the story: humiliated, crushed, stubborn,
           exhausted, stunned, euphoric, cool and unbothered. No two shots in a row give the hero
           the same expression and pose.
+          EXAGGERATE. This is cartoon acting, pushed far past real life: eyes huge and wet with
+          the lip trembling, jaw on the floor, doubled over laughing with tears flying, a vein
+          popping on the forehead, arms thrown to the sky, sliding down a wall to the floor. If
+          an expression would look normal on a real person, make it twice as big.
         - "characters" lists the ids of every character visible in the shot (may be empty).
         - "motion_prompt" directs a 4 second clip made from the picture. Performance first,
           camera second. Start with what each visible character DOES and how their face changes
@@ -24,27 +28,23 @@
           jump up, grab, hug, shove a door open) and react to each other. End with ONE camera
           move that follows the action (a fast push-in on his face, a pull-back as he walks off,
           a handheld follow). Two sentences, 20-40 words. Never a camera move alone, and never a
-          character who only stands there while the camera drifts.
-        - "vo_line" is either NARRATION or one line of DIALOGUE. A shot carries one or the
-          other, never both.
-          NARRATION ("speaker": "narrator") is a storyteller's voice over the pictures: third
-          person, past tense, short punchy sentences of 4-10 words. "Marcus got dumped for a
-          guy with a rented Lambo." "So he made a bet. Thirty days." "By day ten, he wanted to
-          quit." The narrator tells the viewer what the pictures cannot: who these people are,
-          what just happened, what is at stake, how much time passed, what changed. Someone who
-          only LISTENS to the narration must be able to follow the whole story, start to end.
-          The narrator never describes what is plainly on screen, never explains the app's
-          features and never comments on the story ("little did he know").
-          DIALOGUE ("speaker": a character id, one of {{SPEAKERS}}) is for the moments that
-          hit hardest when a person says them: the insult, the firing, the bet, the mentor's
-          push, the ex asking to come back, the hero's answer. 2-8 words each. At least
-          {{DIALOGUE_MIN}} lines are dialogue.
-          Narration carries about two thirds of the words and runs through most story shots,
-          so the viewer is never lost. A quick reaction shot may be silent ("vo_line": ""), but
-          never two silent story shots in a row. The TOTAL word count of all vo_lines across
-          the script must be {{VO_WORDS_MIN}}-{{VO_WORDS_MAX}} words. Count before you answer.
-        - "speaker" is "narrator" for narration, the id of the character who says a line of
-          dialogue (one of {{SPEAKERS}}), or "" when vo_line is "".
+          character who only stands there while the camera drifts. When the shot has a vo_line,
+          the speaker TALKS in the clip: say that their mouth moves as they speak and how they
+          deliver it (spits it out, mutters it, yells it, laughs through it).
+        - "vo_line" is a line of dialogue spoken by one of the cast: {{SPEAKERS}}.
+          There is NO narrator. The DIALOGUE TELLS THE STORY: someone who only listens, with
+          their eyes shut, must be able to follow everything that happens. So the characters
+          say what happened, what is at stake and what changed, to each other, the way people
+          do in an argument: "You're fired. That video is everywhere." "Thirty days. I'll bury
+          you." "Day ten and he's still broke." Most story shots carry a line; a shot is
+          silent only for a quick reaction, and never more than {{SILENT_RUN_MAX}} story shots
+          in a row are silent. Lines are short, 3-9 words. The TOTAL word count of all
+          vo_lines across the script must be {{VO_WORDS_MIN}}-{{VO_WORDS_MAX}} words. Count
+          before you answer.
+        - "speaker" is the id of the character who speaks the vo_line (one of {{SPEAKERS}}),
+          or "" when vo_line is "". Never "narrator". The speaker is in the shot: their id is
+          in "characters", and the image_prompt shows them mid-sentence, mouth open, talking
+          AT someone.
         - "caption" is "" or ONE OR TWO WORDS IN ALL CAPS that hit the beat ("LOSER", "DAY 1",
           "DIAMOND", "I'M GOOD"). The only three-word caption allowed is "{{CTA_CAPTION}}" on the
           last shot.

@@ -49,11 +49,11 @@ max_animated_shots: 8
 # What the script validator enforces (and the prompt quotes).
 rules:
   story_shots: [15, 22]          # shots, not counting the montage
-  vo_words: [80, 130]            # total spoken words, narration + dialogue (montage excluded)
+  vo_words: [70, 120]            # total spoken words across all shots (montage excluded)
   caption_max_words: 2           # captions are 1-2 words, except the CTA caption
   cta_caption: "SEARCH IRO AI"   # required caption on the final shot
-  narrator: true                 # a narrator tells the story; characters speak the big moments
-  dialogue_lines_min: 5          # at least this many lines are still said by characters
+  narrator: false                # every spoken line belongs to a character
+  silent_run_max: 2              # at most this many story shots in a row without a line
   cards:                         # time-jump cards
     count: [1, 3]
     words: [2, 4]
