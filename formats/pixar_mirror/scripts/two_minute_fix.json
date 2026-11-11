@@ -4,12 +4,22 @@
   "shots": [
     {
       "characters": [
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, a sunny corner coffee shop with small round wooden tables by a big window, bright late-morning light, {jess}, in a white blouse with her sleeves pushed up, hunched over an open laptop seen from behind its lid, jabbing the same key again and again with one stiff finger, her other hand gripping her hair, eyes wide, teeth clenched, mouth open mid-word. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess hammers the same key over and over, her mouth moving as she pleads with the laptop, then she drops her forehead into her hand. Quick push-in on her panicked face.",
+      "vo_line": "No, no, no. Not today!",
+      "speaker": "jess"
+    },
+    {
+      "characters": [
         "marcus"
       ],
       "image_prompt": "close shot, chest up, a sunny corner coffee shop with small round wooden tables by a big window, bright late-morning light, {marcus}, in a faded green hoodie with an old scratched laptop under his arm, bending toward the table with two fingers held up and an eager helpful smile, eyebrows high, nodding, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus holds up two fingers and leans in, his mouth moving as he says it hopefully, nodding at the laptop. Quick push-in on his eager face.",
       "vo_line": "It's a two minute fix.",
-      "speaker": "marcus"
+      "speaker": "marcus",
+      "same_scene": true
     },
     {
       "characters": [

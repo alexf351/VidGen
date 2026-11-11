@@ -87,9 +87,10 @@ shots come on top. Number every shot "n" from 1 upward with no gaps.
 
   1. THE SCENE, FIRST TIME (6-9 shots, 5-7 lines). A small, ordinary, public moment in
      which the hero is brushed off, talked down to or made to look small. Not a
-     catastrophe: a "No.", a laugh, a "that's cute". It opens on the hero's ask, already
-     mid-scene with no setup, and the brush-off is the very next shot. He tries once
-     more and it gets worse. Someone else
+     catastrophe: a "No.", a laugh, a "that's cute". It opens inside the scene with no
+     setup shot, and the brush-off lands within the first four shots, but the first
+     line has to make sense to someone who has heard nothing (see THE HOOK). He tries
+     once more and it gets worse. Someone else
      joins in with a line of their own (the rival, the partner). It ends on the hero
      alone, saying one small, sad line.
      Write this scene knowing you will replay it: give it two or three lines that will
@@ -145,14 +146,18 @@ THE PROGRESS SHOTS
 - Each has "vo_line": "", "speaker": "", "caption": "". Never "same_scene".
 
 THE HOOK (SHOT 1)
-- Shot 1 is the hero making his ask, mid-scene and already in motion: hand up, half out
-  of his chair, leaning in. Never an establishing shot. Its line is at most six words.
-- Shot 2 is the brush-off: the person saying the line that stings, not even looking at
-  him. Its line is at most five words.
-- A reply never comes before the line it answers. The viewer has to hear what he asked
-  before anyone laughs at it; "That's cute, Marcus." as the first line of the video
-  answers something nobody heard.
-- The two shots must work on mute: the pictures alone show who asks and who turns him down.
+- The video opens inside the brush-off, in its first seconds, the way the videos this
+  format copies do. Never an establishing shot, never a slow build.
+- But the story has to make sense. The first line is never an answer to something the
+  viewer did not hear: "That's cute, Marcus." as line one answers nothing. Open on a line
+  or a picture that carries its own meaning: the thing that is needed ("Who's doing the
+  client deck?"), a problem in plain sight (a laptop that will not unfreeze), or the
+  hero's own offer when the picture already shows what he is offering to do.
+- The line that stings lands by shot 3 or 4. Any order that reads clearly is fine; a
+  fixed order is not the point, being understood is.
+- The first two lines are at most six words each.
+- They must work on mute: the pictures alone show what is going on, who offers and who
+  turns him down.
 
 HOW IT IS SHOT
 - Dialogue is shot close: ONE person in the frame, chest up, talking to someone just

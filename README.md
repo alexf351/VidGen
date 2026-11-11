@@ -881,7 +881,7 @@ lists each one with its time. Song formats never get effects.
 `pixar_mirror` is a second story shape for the Pixar cast, modelled on short app ads that tell
 their story twice (about 45-55 seconds, 45-90 spoken words):
 
-1. a small public brush-off, 5-7 lines, opening on his ask with the line that stings right after
+1. a small public brush-off, 5-7 lines, opening inside the scene on a line that makes sense by itself, with the line that stings by shot 3 or 4
 2. "Enough is enough", alone
 3. the app in his hand, with a small `*OPENS IRO*` label
 4. three progress shots, each with the rank and a number drawn over it
