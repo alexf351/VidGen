@@ -413,7 +413,7 @@ characters_cache/<id>.txt   the description each sheet was drawn from
 | `fal.video_resolution` / `fal.video_audio` | clip size (480p or 720p, default 480p), audio (off); clip length is the format's `clip_seconds` |
 | `fal.image_cost` | USD per image for the printed estimates |
 | `fal.video_cost_per_second` | USD per second of video, keyed by resolution; the active one is used |
-| `providers.images` / `providers.video` | `fal` (default) or `sume`, chosen separately |
+| `providers.images` / `providers.video` | `sume` (default) or `fal`, chosen separately |
 | `sume.*`             | Sume models, settings, prices, `max_concurrent` and retry/poll limits |
 | `voices`             | speaker id to ElevenLabs voice id; empty entries fall back to `voice_id` |
 | `elevenlabs.model_id` / `output_format` / `cost_per_1k_chars` | TTS model, audio format, rate for the estimate |
@@ -647,14 +647,19 @@ Anton, Bangers, Montserrat) are bundled in `assets/fonts/` under the SIL Open Fo
 
 ## Providers: fal or Sume
 
-Images and video can each run on [fal.ai](https://fal.ai) (the default) or on
-[Sume](https://sume.com/docs). Switch them independently in `config.yaml`:
+Images and video can each run on [Sume](https://sume.com/docs) (the default, about half the
+price for the same models) or on [fal.ai](https://fal.ai). Switch them independently in
+`config.yaml` or `config.local.yaml`:
 
 ```yaml
 providers:
   images: sume
-  video: sume
+  video: fal
 ```
+
+`default_video_provider` / `default_image_provider` in `config.local.yaml` (from the example
+file) are the same settings and win over `config.yaml`, so a `fal` left there keeps fal as your
+default. The provider menu on a run's page and on the create screen overrides it for one job.
 
 Sume runs the same models: `nano-banana` for sheets and keyframes (one model id covers
 text-to-image and reference-image edits) and `seedance-2-fast` for clips, with the video

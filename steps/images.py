@@ -122,8 +122,11 @@ def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False) -> str:
             f"{which} is an earlier shot of this same scene. Keep the same place, time of day and "
             "lighting, and dress every character exactly as they are dressed in it; if the "
             "description above names different clothes or a different background, the reference "
-            "image wins. Do not copy its framing or poses: this is a new camera angle on the same "
-            "moment, showing what the description above says.")
+            "image wins. It is a guide to the place and the clothes only: every character's face, "
+            "body and design still come from their own character sheet, and a character who is not "
+            "in that earlier shot must look exactly like their own sheet. Do not copy its framing "
+            "or poses: this is a new camera angle on the same moment, showing what the description "
+            "above says.")
     return "\n".join(parts) if len(parts) > 2 else prompt
 
 

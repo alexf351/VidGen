@@ -288,7 +288,7 @@ def _apply_providers(cfg: dict) -> None:
     prov = cfg.setdefault("providers", {}) or {}
     cfg["providers"] = prov
     for kind in ("images", "video"):
-        value = str(prov.get(kind) or "fal").strip().lower()
+        value = str(prov.get(kind) or "sume").strip().lower()
         if value not in PROVIDERS:
             raise StepError(f"config.yaml: providers.{kind} must be one of {', '.join(PROVIDERS)}, got '{value}'")
         prov[kind] = value

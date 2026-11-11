@@ -66,10 +66,11 @@ import_skill:
 # reused by every later run.
 characters_cache_dir: "characters_cache"
 
-# Which service generates the images and the video clips. Both default to fal.
+# Which service generates the images and the video clips. Sume is the default (about half the
+# price of fal for the same models); set either to fal here or in config.local.yaml to use fal.
 providers:
-  images: fal                   # fal | sume
-  video: fal                    # fal | sume
+  images: sume                  # sume | fal
+  video: sume                   # sume | fal
 
 fal:
   # Keyframes: text-to-image for shots with no characters, edit (reference images) otherwise.

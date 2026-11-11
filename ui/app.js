@@ -123,7 +123,7 @@ function confirmDialog({ title, text, rows = [], note, ok = "Run", total }) {
 function providerFor(kind, choice) {
   const c = choice || S.provider;
   if (c) return c;
-  return (S.config && S.config.providers.default[kind]) || "fal";
+  return (S.config && S.config.providers.default[kind]) || "sume";
 }
 function resolution() { return (S.config && S.config.video.resolution) || "480p"; }
 function clipSeconds(formatName) {
