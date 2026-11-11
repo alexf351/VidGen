@@ -6,9 +6,9 @@
       "characters": [
         "tyler"
       ],
-      "image_prompt": "close shot, chest up, a glass-walled meeting room with a long white table and a city view behind it, bright flat morning light, {tyler}, in a navy waistcoat over a white shirt with the sleeves rolled up, leaning back in his chair with one hand tossed out toward the rest of the table, eyes still down on his laptop, mouth open mid-question, one eyebrow cocked, bored. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Tyler tosses the question at the room without looking up, his mouth moving as he asks it, then he drums his fingers on the table and waits. Slow push-in on his bored face.",
-      "vo_line": "Who's doing the client deck?",
+      "image_prompt": "close shot, chest up, a glass-walled meeting room with a long white table and a city view behind it, bright flat morning light, {tyler}, in a navy waistcoat over a white shirt with the sleeves rolled up, leaning back in his chair with one hand flapping dismissively toward someone off camera, eyes still down on his laptop, mouth open mid-word in a lazy smirk, one eyebrow cocked. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler waves his hand without looking up, his mouth moving as he drawls the line, then he finally glances over and snorts. Slow push-in on his smirk.",
+      "vo_line": "You? On the client deck? That's cute.",
       "speaker": "tyler"
     },
     {
@@ -36,8 +36,8 @@
         "tyler"
       ],
       "image_prompt": "close shot, chest up, a glass-walled meeting room with a long white table and a city view behind it, bright flat morning light, {tyler}, in a navy waistcoat over a white shirt with the sleeves rolled up, leaning forward on both elbows now and grinning wide at someone off camera, chin tipped up, eyes narrowed, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Tyler leans in on his elbows with a smirk, his mouth moving as he says it slowly and enjoys every word, then winks. Push-in on his grin.",
-      "vo_line": "That's cute, Marcus. Stick to the coffee run.",
+      "motion_prompt": "Tyler leans in on his elbows, his mouth moving as he says it slowly and enjoys every word, then winks. Push-in on his grin.",
+      "vo_line": "Stick to the coffee run.",
       "speaker": "tyler",
       "same_scene": true
     },

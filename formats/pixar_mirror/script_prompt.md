@@ -149,13 +149,14 @@ THE HOOK (SHOT 1)
 - The video opens inside the brush-off, in its first seconds, the way the videos this
   format copies do. Never an establishing shot, never a slow build.
 - But the story has to make sense. The first line is never an answer to something the
-  viewer did not hear: "That's cute, Marcus." as line one answers nothing. Open on a line
-  or a picture that carries its own meaning: the thing that is needed ("Who's doing the
-  client deck?"), a problem in plain sight (a laptop that will not unfreeze), or the
-  hero's own offer when the picture already shows what he is offering to do.
+  viewer did not hear: "That's cute, Marcus." as line one answers nothing. Best is a
+  brush-off that says who is being turned down and for what, so it stings and explains
+  itself in one breath ("You? On the client deck? That's cute."). Also fine: a problem in
+  plain sight (a laptop that will not unfreeze), or the hero's own offer when the picture
+  already shows what he is offering to do.
 - The line that stings lands by shot 3 or 4. Any order that reads clearly is fine; a
   fixed order is not the point, being understood is.
-- The first two lines are at most six words each.
+- The first two lines are at most seven words each.
 - They must work on mute: the pictures alone show what is going on, who offers and who
   turns him down.
 
