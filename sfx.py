@@ -56,6 +56,7 @@ SHOT_VALUES = NAMES + ("none",)   # what a shot's "sfx" key may say
 MAX_SHOT_SFX = 5                  # at most this many shots carry their own "sfx"
 MIN_GAP = 0.9                     # two scene whooshes are never closer than this (seconds)
 BUILTIN_VERSION = 1               # bump when the synthesized sounds change
+STAT_TICK_AT = 0.55               # how far into a progress shot its number ticks up (0-1)
 
 
 # ------------------------------------------------------------------ settings ----
@@ -143,6 +144,11 @@ def cues(plan: list[dict]) -> list[dict]:
             if t - last_whoosh >= MIN_GAP:
                 add("whoosh", "new scene")
                 last_whoosh = t
+        stat = shot.get("stat")
+        if own != "none" and isinstance(stat, dict) and int(stat.get("value") or 0) > 0:
+            # The number on a progress shot ticks up partway through; a pop lands with it.
+            out.append({"t": round(t + STAT_TICK_AT * float(it["duration"]), 3), "sound": "pop",
+                        "shot": it["n"], "why": "the number ticks up"})
         prev_kind = kind
     return sorted(out, key=lambda c: (c["t"], c["sound"]))
 

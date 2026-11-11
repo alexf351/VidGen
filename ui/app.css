@@ -95,10 +95,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ----------------------------------------------------------------- forms */
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field > span { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
-input[type=text], select, textarea {
+input[type=text], input[type=number], select, textarea {
   background: var(--bg); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px 8px;
   outline: none; width: 100%; }
-input[type=text]:focus, select:focus, textarea:focus { border-color: var(--accent); }
+input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus { border-color: var(--accent); }
 textarea { resize: vertical; }
 select { height: 32px; }
 .check { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; color: var(--muted); }
@@ -206,7 +206,7 @@ input[type=checkbox] { accent-color: var(--accent); }
 .srow.dirty { border-color: rgba(255, 140, 198, .5); }
 .srow .num { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; padding-top: 4px; }
 .srow .fields { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.srow select, .srow input[type=text] { height: 26px; padding: 2px 6px; font-size: 12px; }
+.srow select, .srow input[type=text], .srow input[type=number] { height: 26px; padding: 2px 6px; font-size: 12px; }
 .srow textarea { font-size: 12px; padding: 4px 6px; min-height: 30px; }
 .srow .kind { font-size: 10px; color: var(--accent-soft); text-transform: uppercase; letter-spacing: .06em; }
 .srow .ro { color: var(--dim); font-size: 12px; }
@@ -497,6 +497,10 @@ details.notes { margin-top: 14px; }
 .look-label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--dim); margin-top: 5px; }
 .look-label textarea { width: 100%; resize: vertical; }
 .look-sound select { align-self: flex-start; min-width: 220px; }
+.look-stat { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 0 8px; }
+.look-stat label:last-child { grid-column: 1 / -1; }
+.look-stat input, .look-stat select { width: 100%; min-width: 0; }
+.badge.stat { color: var(--warn, #f5c451); }
 .look-check { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; color: var(--muted); margin-top: 5px; cursor: pointer; }
 .look-check input { margin-top: 1px; accent-color: var(--accent); }
 .badge.scene { color: var(--info); }

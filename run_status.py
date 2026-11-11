@@ -217,4 +217,6 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             "caption_style": _caption_style(run_dir, config),
             "animate_all": bool((config or {}).get("animate_all")),
             "sfx": bool(((config or {}).get("sfx") or {}).get("enabled")),
+            # ranks and units for the progress overlay, when the format has one
+            "stats": (((config or {}).get("format") or {}).get("rules") or {}).get("stats"),
             "cost": cost(run_dir, script, config)}

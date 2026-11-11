@@ -10,6 +10,11 @@ captions, grade, shot timing).
     formats/<name>/blocks/*.md        optional prompt pieces a step picks between
     formats/<name>/examples/          optional example scripts
 
+A format can build on another one with `extends: <name>` in its format.yaml: it starts from that
+format's settings and changes only what it lists (mappings are merged key by key, lists and
+plain values are replaced), and any prompt file it does not have comes from the format it
+extends. That is how several story shapes share one cast and one look.
+
 Prompt files are read as written; {{NAME}} placeholders are filled in when the prompt is built.
 A file's final newline is not part of its text.
 """
@@ -80,7 +85,26 @@ def _rules(raw, where: str) -> dict:
         "talking": None,                             # {"max": n}: shots may be lip-synced talking clips
         "song": bool(raw.get("song", False)),       # the lines are sung as one song
         "labels": bool(raw.get("labels", False)),   # shots may carry a short on-screen tag
+        "label_max_words": max(1, int(raw.get("label_max_words") or 3)),
+        # Progress overlays ("stat") on the grind shots: {count: [min, max], ranks: [...], units: [...]}
+        "stats": None,
+        # At least this many lines after the last time card repeat, word for word, a line said
+        # before it (the opening scene replayed with the roles reversed). 0 = no such rule.
+        "mirror_lines_min": max(0, int(raw.get("mirror_lines_min") or 0)),
     }
+    if raw.get("stats"):
+        st = raw["stats"]
+        ranks = st.get("ranks") if isinstance(st, dict) else None
+        units = st.get("units") if isinstance(st, dict) else None
+        if (not isinstance(st, dict) or not isinstance(ranks, list) or not ranks
+                or not all(isinstance(x, str) and x.strip() for x in ranks)
+                or not isinstance(units, list) or not units
+                or not all(isinstance(x, str) and x.strip() for x in units)):
+            raise StepError(f"{where}: rules.stats must be a mapping with count: [min, max], "
+                            f"ranks: [names, lowest first] and units: [what the number counts]")
+        r["stats"] = {"count": _pair(st.get("count"), f"{where}: rules.stats.count"),
+                      "ranks": [" ".join(x.upper().split()) for x in ranks],
+                      "units": [" ".join(x.upper().split()) for x in units]}
     if raw.get("talking"):
         t = raw["talking"]
         if not isinstance(t, dict) or not isinstance(t.get("max"), int) or t["max"] < 1:
@@ -161,6 +185,12 @@ def _overlay(f: dict, where: str) -> dict:
     grade = f.get("grade") or {}
     for key, value in grade.items():
         asm[key] = value
+    stat = f.get("stat") or {}
+    if stat:
+        if not isinstance(stat, dict):
+            raise StepError(f"{where}: stat must be a mapping of progress-overlay settings")
+        for key, value in stat.items():
+            asm[f"stat_{key}"] = value
     labels = f.get("labels") or {}
     if labels:
         if not isinstance(labels, dict):
@@ -205,8 +235,19 @@ def _code_render(raw, where: str) -> dict | None:
             "styles": [str(x) for x in styles], "mix": bool(raw.get("mix"))}
 
 
-def load_format(name: str | None = None) -> dict:
-    name = (name or DEFAULT_FORMAT).strip()
+# Never taken from the format a format extends: these describe the format itself.
+_OWN_KEYS = ("name", "title", "description", "duration_target", "beats", "extends")
+
+
+def _merge(base: dict, over: dict) -> dict:
+    """`over` on top of `base`: mappings merge key by key, everything else is replaced."""
+    out = dict(base)
+    for k, v in over.items():
+        out[k] = _merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
+
+
+def _read_yaml(name: str) -> tuple[dict, Path, str]:
     folder = FORMATS_DIR / name
     where = f"formats/{name}/format.yaml"
     if not re.fullmatch(r"[A-Za-z0-9_-]+", name) or not (folder / "format.yaml").is_file():
@@ -220,22 +261,50 @@ def load_format(name: str | None = None) -> dict:
         raise StepError(f"{where} must be a mapping of settings")
     if f.get("name", name) != name:
         raise StepError(f"{where}: name is {f.get('name')!r} but the folder is {name!r}")
+    return f, folder, where
+
+
+def load_format(name: str | None = None) -> dict:
+    name = (name or DEFAULT_FORMAT).strip()
+    f, folder, where = _read_yaml(name)
+
+    # extends: start from another format's settings and files. One level only, so a format's
+    # full definition is never more than two files away.
+    folders = [folder]
+    base_name = f.get("extends")
+    if base_name is not None:
+        if not isinstance(base_name, str) or not base_name.strip() or base_name.strip() == name:
+            raise StepError(f"{where}: extends must name another installed format, got {base_name!r}")
+        base_name = base_name.strip()
+        try:
+            base, base_folder, _ = _read_yaml(base_name)
+        except StepError as e:
+            raise StepError(f"{where}: extends {base_name!r}: {e}") from e
+        if base.get("extends") is not None:
+            raise StepError(f"{where}: extends {base_name!r}, which extends another format itself; "
+                            f"extend {base['extends']!r} directly")
+        f = _merge({k: v for k, v in base.items() if k not in _OWN_KEYS}, f)
+        folders.append(base_folder)
 
     texts = {}
     for key, file in (("script_prompt", "script_prompt.md"), ("shot_rules", "shot_rules.md")):
-        path = folder / file
-        if not path.is_file():
+        path = next((d / file for d in folders if (d / file).is_file()), None)
+        if path is None:
             raise StepError(f"formats/{name}/{file} is missing")
         texts[key] = _read_text(path)
-    blocks = {p.stem: _read_text(p) for p in sorted((folder / "blocks").glob("*.md"))}
+    blocks = {}
+    for d in reversed(folders):                 # its own blocks win over the ones it inherits
+        blocks.update({p.stem: _read_text(p) for p in sorted((d / "blocks").glob("*.md"))})
     examples = sorted(p.name for p in (folder / "examples").glob("*")) if (folder / "examples").is_dir() else []
-    cover = next((folder / f"cover.{ext}" for ext in COVER_EXTS if (folder / f"cover.{ext}").is_file()), None)
+    cover = next((d / f"cover.{ext}" for d in folders for ext in COVER_EXTS
+                  if (d / f"cover.{ext}").is_file()), None)
     example_video = folder / "example.mp4" if (folder / "example.mp4").is_file() else None
 
     return {
         "name": name,
         "dir": folder,
         "file": where,
+        "extends": base_name,
         "title": str(f.get("title") or name.replace("_", " ").title()),
         "description": " ".join(str(f.get("description") or "").split()),
         "duration_target": str(f.get("duration_target") or ""),

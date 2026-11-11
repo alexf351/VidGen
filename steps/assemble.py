@@ -69,6 +69,8 @@ def shot_durations(run_dir: Path, script: dict, asm: dict, song: bool = False) -
         else:
             vo = None
         duration = max(minimum, vo_len + pad) if vo else minimum
+        if shot.get("stat") and not vo:
+            duration = max(duration, float(asm["stat_seconds"]))    # long enough to read the number
         if shot.get("letter"):
             duration = max(duration, letter_seconds(shot, asm))
         plan.append({"shot": shot, "n": n, "start": t, "duration": duration, "vo": vo, "vo_len": vo_len})
@@ -568,7 +570,61 @@ def _ass_color(color: str) -> str:
     return f"&H00{b:02X}{g:02X}{r:02X}"
 
 
-def ass_head(asm: dict, font: str, w: int, h: int) -> list[str]:
+def stat_font(asm: dict, build: Path | None, fallback: str) -> str:
+    """The font for the progress overlay: the bundled upright heavy face, copied next to the
+    caption font for libass; the caption font when that file is missing."""
+    rel = str(asm.get("stat_font_file") or "").strip()
+    path = (Path(rel) if Path(rel).is_absolute() else ROOT / rel) if rel else None
+    if path is None or not path.is_file():
+        return fallback
+    names = font_names(path)
+    name = names.get(4) or names.get(1)
+    if not name:
+        return fallback
+    if build is not None:
+        (build / FONTS_SUBDIR).mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, build / FONTS_SUBDIR / path.name)
+    return name
+
+
+def stat_events(item: dict, asm: dict, w: int, h: int) -> list[str]:
+    """The .ass lines for one shot's progress overlay ("stat"): the rank on a dark card top left
+    with a small heading over it, and lower left a big number with what it counts. The number
+    starts one lower and ticks up partway through the shot (sfx.STAT_TICK_AT), with a small pop."""
+    stat = item["shot"].get("stat")
+    if not isinstance(stat, dict):
+        return []
+    import sfx
+    start, end = item["start"], item["start"] + item["duration"]
+    x = int(round(w * float(asm["stat_x"])))
+    ry = int(round(h * float(asm["stat_rank_y"])))
+    ny = int(round(h * float(asm["stat_y"])))
+    pad = max(8, int(asm["stat_rank_size"]) // 3)
+    fade = "\\fad(120,0)"
+    t0, t1 = _ass_time(start), _ass_time(end)
+    out = []
+    heading = str(asm.get("stat_eyebrow") or "").strip().upper()
+    if heading:
+        out.append(f"Dialogue: 2,{t0},{t1},StatHead,,0,0,0,,{{\\an1\\pos({x + pad},{ry - pad - 6}){fade}}}{_ass_escape(heading)}")
+    out.append(f"Dialogue: 2,{t0},{t1},StatRank,,0,0,0,,{{\\an7\\pos({x + pad},{ry}){fade}}}{_ass_escape(str(stat.get('rank') or ''))}")
+    value = int(stat.get("value") or 0)
+    unit = _ass_escape(str(stat.get("unit") or ""))
+    big, small = int(asm["stat_size"]), int(asm["stat_unit_size"])
+
+    def number(v: int, tags: str) -> str:
+        return f"{{\\an1\\pos({x},{ny}){tags}}}{{\\fs{big}}}{v:,}{{\\fs{small}}} {unit}"
+
+    if asm.get("stat_tick", True) and value > 0 and end - start > 0.6:
+        mid = start + (end - start) * sfx.STAT_TICK_AT
+        out.append(f"Dialogue: 2,{t0},{_ass_time(mid)},StatNum,,0,0,0,,{number(value - 1, fade)}")
+        pop = "\\fscx116\\fscy116\\t(0,140,\\fscx100\\fscy100)"
+        out.append(f"Dialogue: 2,{_ass_time(mid)},{t1},StatNum,,0,0,0,,{number(value, pop)}")
+    else:
+        out.append(f"Dialogue: 2,{t0},{t1},StatNum,,0,0,0,,{number(value, fade)}")
+    return out
+
+
+def ass_head(asm: dict, font: str, w: int, h: int, stat_face: str | None = None) -> list[str]:
     """The .ass file up to the [Events] header: the Caption and Label styles for these settings."""
     size = int(asm["caption_size"])
     fill, outline_color = _ass_color(asm["caption_fill"]), _ass_color(asm["caption_outline_color"])
@@ -600,6 +656,15 @@ def ass_head(asm: dict, font: str, w: int, h: int) -> list[str]:
         f"Style: Label,{font},{int(asm['label_size'])},{_ass_color(asm['label_text'])},"
         f"{_ass_color(asm['label_text'])},{_ass_color(asm['label_box'])},&H00000000,"
         f"-1,-1,0,0,100,100,1,0,3,{max(6, int(asm['label_size']) // 4)},0,8,40,40,0,1",
+        # Progress overlay (shot "stat"): a big number, the rank on a dark see-through card, and
+        # a small heading. Upright heavy face, white, with a soft dark edge so it reads on any shot.
+        f"Style: StatNum,{stat_face or font},{int(asm.get('stat_size', 190))},&H00FFFFFF,&H00FFFFFF,&H30000000,&H70000000,"
+        f"-1,0,0,0,100,100,0,0,1,5,5,1,40,40,0,1",
+        f"Style: StatRank,{stat_face or font},{int(asm.get('stat_rank_size', 54))},&H00FFFFFF,&H00FFFFFF,"
+        f"&H38{_ass_color(asm.get('stat_box', '#101522'))[4:]},&H00000000,"
+        f"-1,0,0,0,100,100,1,0,3,{max(8, int(asm.get('stat_rank_size', 54)) // 3)},0,7,40,40,0,1",
+        f"Style: StatHead,{stat_face or font},{max(18, int(asm.get('stat_rank_size', 54)) // 2)},&H10FFFFFF,&H10FFFFFF,&H40000000,&H70000000,"
+        f"-1,0,0,0,100,100,3,0,1,3,2,1,40,40,0,1",
         "",
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
@@ -619,7 +684,8 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
     blur = int(asm["caption_blur"])
     max_words = int(asm["caption_max_words"])
     spoken = asm.get("caption_style") != "off"
-    lines = ass_head(asm, font, w, h)
+    lines = ass_head(asm, font, w, h, stat_face=stat_font(asm, build, font))
+    wrap = str(asm.get("label_wrap") or "")
     pop = caption_pop(asm)
     # Time-jump cards: same style, centred on the black frame, a quick fade in and out, no pop.
     fade = int(asm["card_fade_ms"])
@@ -638,7 +704,8 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
             box = f"\\3c{_ass_bgr(colors[tag])}" if tag in colors else ""
             ly = int(round(h * float(asm["label_y"])))
             lines.append(f"Dialogue: 1,{_ass_time(item['start'])},{_ass_time(item['start'] + item['duration'])},"
-                         f"Label,,0,0,0,,{{\\an8\\pos({w // 2},{ly}){box}}}{_ass_escape(tag)}")
+                         f"Label,,0,0,0,,{{\\an8\\pos({w // 2},{ly}){box}}}{_ass_escape(wrap + tag + wrap)}")
+        lines.extend(stat_events(item, asm, w, h))
         for start, end, text in shot_caption_events(run_dir, item, max_words, spoken=spoken):
             lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
                          f"{{\\an5\\pos({w // 2},{cy})\\blur{blur}{pop}}}{_ass_escape(text)}")

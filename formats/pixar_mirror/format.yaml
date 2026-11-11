@@ -1,0 +1,69 @@
+# Pixar Mirror: the same cast and look as Pixar Arc, a different story shape.
+#
+# Taken from short app ads that tell the story twice: a small public humiliation, the app, three
+# progress shots with a rank and a climbing number, a time card, then the SAME scene again with
+# the roles reversed. About 45-55 seconds, 55-90 spoken words.
+#
+# Everything not listed here (cast, style, captions, grade, app screenshots, the banned
+# wording) comes from formats/pixar_arc/format.yaml. This folder has its own script_prompt.md,
+# shot_rules.md and blocks/app_screens.md.
+
+name: pixar_mirror
+extends: pixar_arc
+title: "Pixar Mirror"
+description: >-
+  A small public humiliation, the hero opens Iro, three progress shots with his rank and a
+  climbing number, a time card, then the same scene replayed with the roles reversed.
+duration_target: "about 45-55 seconds"
+
+beats:
+  - small public humiliation (5-7 lines)
+  - "\"enough is enough\", alone"
+  - the app in his hand
+  - three progress shots (rank + number)
+  - time card
+  - the same scene, roles reversed
+  - flex montage
+  - CTA
+
+rules:
+  story_shots: [20, 28]          # shots, not counting the montage
+  vo_words: [55, 90]             # total spoken words across all shots
+  silent_run_max: 2
+  cards:
+    count: [1, 1]                # one time jump, between the grind and the replay
+    words: [2, 4]
+  montage:
+    name: "FLEX MONTAGE"
+    count: [5, 6]
+  app_screens:
+    max: 1
+    hint: "exactly one, right after the hero decides to change"
+  # The grind: shots with "stat" get the rank and a big number drawn over them (see README,
+  # Progress overlay). Ranks are Iro's own, lowest first; units are what the number counts.
+  stats:
+    count: [3, 3]
+    ranks: [BRONZE, SILVER, GOLD, PLATINUM, DIAMOND, IRIDESCENT]
+    units: ["DAY STREAK", "LESSONS", "XP"]
+  mirror_lines_min: 2            # lines of the second scene that repeat a line of the first
+  labels: true                   # small stage directions on screen: *OPENS IRO*
+  label_max_words: 4
+
+# The small stage-direction tag: dark italic text on a white box in the lower third, with an
+# asterisk on each side.
+labels:
+  y: 0.74
+  size: 40
+  text: "#111111"
+  box: "#FFFFFF"
+  wrap: "*"
+
+# The progress overlay on the three grind shots.
+stat:
+  eyebrow: "IRO RANK"            # the small heading over the rank
+
+timing:
+  montage_seconds: 0.8           # the flex shots sit a little longer here than in Pixar Arc
+
+prompt:
+  app_screen_line: '    * "{{PATH}}": {{SHOWS}}'

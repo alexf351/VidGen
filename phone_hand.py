@@ -59,7 +59,9 @@ def prompt(config: dict, script: dict | None = None) -> str:
 
 def cache_path(config: dict, script: dict | None = None) -> Path:
     key = hashlib.sha1(prompt(config, script).encode()).hexdigest()[:12]
-    name = re.sub(r"[^a-z0-9_-]", "", str((config.get("format") or {}).get("name") or "format").lower())
+    # A format that extends another shares its cast, so it shares the hand too.
+    fmt = config.get("format") or {}
+    name = re.sub(r"[^a-z0-9_-]", "", str(fmt.get("extends") or fmt.get("name") or "format").lower())
     return ROOT / config["characters_cache_dir"] / f"hand@{name}-{key}.png"
 
 

@@ -1010,6 +1010,7 @@ function shotCard(run, s, busy) {
     s.kind !== "shot" ? h("span", { class: "badge kind" }, s.kind === "app_screen" ? "APP" : s.kind.toUpperCase()) : null,
     shot.animate ? h("span", { class: "badge anim", title: s.clip ? "Animated clip (hover to play)" : "Animated: no clip yet" }, s.clip ? "▶ clip" : "▶ —") : null,
     shot.label ? h("span", { class: "badge kind", title: "On-screen label for this shot" }, shot.label) : null,
+    shot.stat ? h("span", { class: "badge stat", title: "Progress overlay: the rank and the number drawn over this shot" }, `${shot.stat.rank} · ${Number(shot.stat.value).toLocaleString("en-US")} ${shot.stat.unit}`) : null,
     shot.same_scene ? h("span", { class: "badge scene", title: "Same scene as the shot before: drawn with that scene's first shot as a reference, so the place and clothes match" }, "↳ scene") : null,
     shot.talk ? h("span", { class: "badge anim", title: s.clip ? "Lip-synced talking clip (hover to play)" : "Talking shot: no clip yet (video step)" }, s.clip ? "🗣 talk" : "🗣 —") : null));
   if (drawable) {
@@ -1128,7 +1129,8 @@ function draftChanged() {
   if (!S.run || !S.run.script || !S.draft) return out;
   S.draft.shots.forEach((s, i) => {
     const o = S.run.script.shots[i] || {};
-    for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt", "same_scene", "sfx"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
+    for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt", "same_scene", "sfx", "label"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
+    if (JSON.stringify(s.stat ?? null) !== JSON.stringify(o.stat ?? null)) out.add(s.n);
   });
   return out;
 }
@@ -1152,7 +1154,20 @@ function scriptPanel(run, busy) {
   const lookEditor = (s, i, row) => {
     const o = run.script.shots[i] || {};
     const touched = (s.motion_prompt ?? "") !== (o.motion_prompt ?? "") || (s.image_prompt ?? "") !== (o.image_prompt ?? "")
-      || (s.same_scene ?? "") !== (o.same_scene ?? "") || (s.sfx ?? "") !== (o.sfx ?? "");
+      || (s.same_scene ?? "") !== (o.same_scene ?? "") || (s.sfx ?? "") !== (o.sfx ?? "")
+      || JSON.stringify(s.stat ?? null) !== JSON.stringify(o.stat ?? null);
+    // The rank and number drawn over a progress shot.
+    const setStat = (key, value) => { S.draft.shots[i].stat = { ...S.draft.shots[i].stat, [key]: value }; update(i, "motion_prompt", S.draft.shots[i].motion_prompt, row); };
+    const statEdit = s.stat && run.stats ? h("div", { class: "look-stat" },
+      h("label", { class: "look-label" }, "Rank shown",
+        h("input", { type: "text", value: s.stat.rank || "", "aria-label": `Shot ${s.n} rank`, placeholder: "GOLD II", title: `One of ${run.stats.ranks.join(", ")}, optionally with I, II or III`,
+          oninput: (e) => setStat("rank", e.target.value.toUpperCase()) })),
+      h("label", { class: "look-label" }, "Number",
+        h("input", { type: "number", min: "0", step: "1", value: String(s.stat.value ?? 0), "aria-label": `Shot ${s.n} number`,
+          oninput: (e) => setStat("value", Math.max(0, Math.round(Number(e.target.value) || 0))) })),
+      h("label", { class: "look-label" }, "Counts",
+        h("select", { "aria-label": `Shot ${s.n} unit`, onchange: (e) => setStat("unit", e.target.value) },
+          run.stats.units.map((u) => h("option", { value: u, selected: s.stat.unit === u }, u))))) : null;
     // Offered on shots that have a drawn shot before them to continue (not the first, not a montage shot).
     const prev = S.draft.shots.slice(0, i).reverse().find((x) => !x.app_screen);
     const canContinue = !s.montage && prev && !prev.card && !prev.montage && (prev.image_prompt || "").trim();
@@ -1169,6 +1184,7 @@ function scriptPanel(run, busy) {
         SOUNDS.map(([v, t]) => h("option", { value: v, selected: (s.sfx || "") === v }, t)))) : null;
     const box = h("details", { class: "look", open: touched || S.lookOpen.has(s.n) },
       h("summary", {}, run.sfx ? "Picture, motion and sound" : "Picture and motion"),
+      statEdit,
       sceneBox,
       h("label", { class: "look-label" }, "Motion: what moves in the clip, and the camera",
         h("textarea", { rows: "3", "aria-label": `Shot ${s.n} motion`, placeholder: "the car drives forward and leaves the frame, camera holds on Marcus",
@@ -1221,6 +1237,11 @@ function scriptPanel(run, busy) {
     panel.append(h("div", { class: "notice" }, `Saved. The sound changed on ${ns.length === 1 ? "shot" : "shots"} ${ns.join(", ")}. `,
       h("button", { class: "btn small", disabled: busy, onclick: () => { S.afterSave.sound = []; runStep(run, "assemble"); } }, "Assemble again to hear it")));
   }
+  if (S.afterSave && S.afterSave.run === run.run_id && (S.afterSave.overlay || []).length) {
+    const ns = S.afterSave.overlay;
+    panel.append(h("div", { class: "notice" }, `Saved. The on-screen rank, number or label changed on ${ns.length === 1 ? "shot" : "shots"} ${ns.join(", ")}. `,
+      h("button", { class: "btn small", disabled: busy, onclick: () => { S.afterSave.overlay = []; runStep(run, "assemble"); } }, "Assemble again to see it")));
+  }
   if (S.afterSave && S.afterSave.run === run.run_id && S.afterSave.voice.length) {
     const ns = S.afterSave.voice;
     panel.append(h("div", { class: "notice" }, `Saved. Lines changed on ${ns.length === 1 ? "shot" : "shots"} ${ns.join(", ")}. `,
@@ -1262,12 +1283,16 @@ async function saveScript(run) {
   });
   const images = [...new Set([...differs("image_prompt"), ...sceneChanged])].sort((a, b) => a - b);
   const sound = differs("sfx");
+  const overlay = changed.filter((n) => {
+    const a = S.draft.shots.find((s) => s.n === n), b = run.script.shots.find((s) => s.n === n) || {};
+    return JSON.stringify(a.stat ?? null) !== JSON.stringify(b.stat ?? null) || (a.label || "") !== (b.label || "");
+  });
   const clipped = new Set(run.shots.filter((s) => s.shot.animate || s.shot.talk).map((s) => s.n));
   const video = differs("motion_prompt").filter((n) => clipped.has(n) && !images.includes(n));
   try {
     await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/script`, S.draft);
     S.saveErrors = null;
-    S.afterSave = { run: run.run_id, voice, images, sound, video: [...video, ...images.filter((n) => clipped.has(n))].sort((a, b) => a - b) };
+    S.afterSave = { run: run.run_id, voice, images, sound, overlay, video: [...video, ...images.filter((n) => clipped.has(n))].sort((a, b) => a - b) };
     toast("Script saved", "ok");
     await loadRun(run.run_id, { keepDraft: false });
   } catch (e) {

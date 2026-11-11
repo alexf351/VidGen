@@ -18,7 +18,8 @@ OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage",   # card / app screenshot
                       "letter", "talk",                    # a line of the letter / a lip-synced clip
                       "label",                             # a short tag on screen for the whole shot
                       "same_scene",                        # continues the previous shot's scene
-                      "sfx"}                               # a sound effect on the shot's first frame
+                      "sfx",                               # a sound effect on the shot's first frame
+                      "stat"}                              # progress overlay: {"rank", "value", "unit"}
 LABEL_MAX_WORDS = 3
 LETTER_MAX_WORDS = 40
 SONG_STYLE_MAX = 300
@@ -70,7 +71,12 @@ def prompt_values(fmt: dict) -> dict:
     if r.get("talking"):
         v["TALK_MAX"] = r["talking"]["max"]
     v["LETTER_MAX_WORDS"] = LETTER_MAX_WORDS
-    v["LABEL_MAX_WORDS"] = LABEL_MAX_WORDS
+    v["LABEL_MAX_WORDS"] = r.get("label_max_words") or LABEL_MAX_WORDS
+    v["MIRROR_MIN"] = r.get("mirror_lines_min", 0)
+    if r.get("stats"):
+        v["STAT_MIN"], v["STAT_MAX"] = r["stats"]["count"]
+        v["STAT_RANKS"] = ", ".join(r["stats"]["ranks"])
+        v["STAT_UNITS"] = ", ".join(f'"{u}"' for u in r["stats"]["units"])
     if r["cards"]:
         v["CARDS_MIN"], v["CARDS_MAX"] = r["cards"]["count"]
         v["CARD_WORDS_MIN"], v["CARD_WORDS_MAX"] = r["cards"]["words"]
@@ -263,6 +269,27 @@ def _is_str(v) -> bool:
     return isinstance(v, str)
 
 
+STAT_DIVISIONS = ("", "I", "II", "III")
+STAT_VALUE_MAX = 9_999_999
+
+
+def stat_rank(text, ranks: list[str]) -> tuple[int, str] | None:
+    """(position in the format's rank ladder, tidy text) for a rank such as "gold ii", or None
+    when it is not one of the format's ranks. A division (I, II, III) after the name is kept."""
+    words = " ".join(str(text or "").upper().split())
+    for i, name in enumerate(ranks):
+        if words == name:
+            return i, name
+        if words.startswith(name + " ") and words[len(name) + 1:] in STAT_DIVISIONS[1:]:
+            return i, words
+    return None
+
+
+def same_line_key(line) -> str:
+    """A spoken line reduced to its words, for telling whether two lines are the same line."""
+    return " ".join(re.sub(r"[^a-z0-9' ]+", " ", str(line or "").lower().replace("’", "'")).split())
+
+
 def validate_and_normalize(data: dict, style: str, max_animated: int,
                            locked: list[dict] | None = None,
                            app_screens: list[dict] | None = None,
@@ -285,6 +312,9 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
     banned = rules["banned_image_prompt"]
     banned_vo = rules.get("banned_vo_line") or {"fix": "", "patterns": []}
     letter_rule, talk_rule, song_rule = rules.get("letter"), rules.get("talking"), rules.get("song")
+    stat_rule = rules.get("stats")
+    label_max = int(rules.get("label_max_words") or LABEL_MAX_WORDS)
+    stats_seen: list[tuple[int, int, int]] = []      # (shot n, rank position, value)
     errors: list[str] = []
     locked = locked or []
     locked_desc = {c["id"]: c["description"] for c in locked}
@@ -501,10 +531,42 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         if tag:
             if not rules.get("labels"):
                 errors.append(f"{label}: this format has no on-screen labels, so leave out \"label\"")
-            elif is_card or is_app:
-                errors.append(f"{label}: a card or app screen shot cannot carry a label")
-            elif len(tag.split()) > LABEL_MAX_WORDS:
-                errors.append(f"{label}.label must be at most {LABEL_MAX_WORDS} words, got {tag!r}")
+            elif is_card:
+                errors.append(f"{label}: a card shot cannot carry a label")
+            elif len(tag.split()) > label_max:
+                errors.append(f"{label}.label must be at most {label_max} words, got {tag!r}")
+        stat = s.get("stat")
+        if stat in ({}, "", False):
+            stat = None
+        if stat is not None:
+            if not stat_rule:
+                errors.append(f"{label}: this format has no progress overlay, so leave out \"stat\"")
+                stat = None
+            elif is_card or is_app or is_montage:
+                errors.append(f"{label}: a card, app screen or montage shot cannot carry \"stat\"")
+                stat = None
+            elif not isinstance(stat, dict) or set(stat) - {"rank", "value", "unit"}:
+                errors.append(f"{label}.stat must be {{\"rank\": ..., \"value\": ..., \"unit\": ...}}, got {stat!r}")
+                stat = None
+            else:
+                rank = stat_rank(stat.get("rank"), stat_rule["ranks"])
+                value = stat.get("value")
+                unit = " ".join(str(stat.get("unit") or "").upper().split())
+                if rank is None:
+                    errors.append(f"{label}.stat.rank must be one of {', '.join(stat_rule['ranks'])} "
+                                  f"(optionally followed by I, II or III), got {stat.get('rank')!r}")
+                if isinstance(value, bool) or not isinstance(value, int) or not (0 <= value <= STAT_VALUE_MAX):
+                    errors.append(f"{label}.stat.value must be a whole number, got {value!r}")
+                    value = None
+                if unit not in stat_rule["units"]:
+                    errors.append(f"{label}.stat.unit must be one of {', '.join(stat_rule['units'])}, got {stat.get('unit')!r}")
+                if vo.strip():
+                    errors.append(f"{label} carries \"stat\", so vo_line must be empty: the number does the talking")
+                if rank is None or value is None or unit not in stat_rule["units"]:
+                    stat = None
+                else:
+                    stat = {"rank": rank[1], "value": value, "unit": unit}
+                    stats_seen.append((i + 1, rank[0], value))
         talk = s.get("talk", False)
         if talk is None:
             talk = False
@@ -537,8 +599,10 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             # Drawn by the assembly step from the real screenshot; nothing else on the shot is used.
             shot.update({"app_screen": app, "characters": [], "vo_line": "", "speaker": "",
                          "caption": "", "animate": False, "image_prompt": "", "motion_prompt": ""})
-            for key in ("card", "letter", "talk", "label"):
+            for key in ("card", "letter", "talk", "label", "stat"):
                 shot.pop(key, None)
+            if tag and rules.get("labels"):
+                shot["label"] = tag.upper()
             normalized_shots.append(shot)
             continue
         shot.pop("app_screen", None)
@@ -551,6 +615,7 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             shot.pop("letter", None)
             shot.pop("talk", None)
             shot.pop("label", None)
+            shot.pop("stat", None)
             shot.update({"card": card.upper(), "characters": [], "vo_line": "", "speaker": "",
                          "caption": "", "animate": False,
                          "image_prompt": (s.get("image_prompt") or "").strip() if _is_str(s.get("image_prompt")) else "",
@@ -582,6 +647,11 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 shot.pop("label", None)
             if _is_str(shot.get("caption")):
                 shot["caption"] = shot["caption"].strip().upper()
+            if stat:
+                shot["stat"] = stat
+                shot["caption"] = ""
+            else:
+                shot.pop("stat", None)
             if not vo.strip() and _is_str(shot.get("speaker")):
                 shot["speaker"] = ""
             if is_montage:
@@ -629,8 +699,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         run: list[int] = []
         worst: list[int] = []
         for s in normalized_shots:
-            if s.get("card") or s.get("montage"):
-                run = []
+            if s.get("card") or s.get("montage") or s.get("stat"):
+                run = []                       # a progress shot is silent by design, like the montage
             elif s.get("app_screen"):
                 continue
             elif str(s.get("vo_line") or "").strip():
@@ -643,6 +713,25 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             errors.append(f"shots {worst[0]}-{worst[-1]} are {len(worst)} story shots in a row with no "
                           f"line; at most {quiet_max} in a row may be silent, so the dialogue keeps "
                           f"telling the story")
+    if stat_rule:
+        lo, hi = stat_rule["count"]
+        if not (lo <= len(stats_seen) <= hi):
+            errors.append(f"use {lo}-{hi} progress shots with \"stat\" (the grind), got {len(stats_seen)}")
+        for (n1, r1, v1), (n2, r2, v2) in zip(stats_seen, stats_seen[1:]):
+            if v2 <= v1:
+                errors.append(f"shot {n2}: stat.value must climb from shot to shot, got {v1} then {v2}")
+            if r2 < r1:
+                errors.append(f"shot {n2}: stat.rank must never drop below the rank on shot {n1}")
+    mirror = int(rules.get("mirror_lines_min") or 0)
+    if mirror:
+        cards_at = [k for k, s in enumerate(normalized_shots) if s.get("card")]
+        if cards_at:
+            before = {same_line_key(s.get("vo_line")) for s in normalized_shots[:cards_at[-1]]} - {""}
+            echoed = {same_line_key(s.get("vo_line")) for s in normalized_shots[cards_at[-1] + 1:]} & before
+            if len(echoed) < mirror:
+                errors.append(f"the scene after the time card must replay the opening scene: at least {mirror} "
+                              f"of its lines repeat, word for word, a line said before the card "
+                              f"(found {len(echoed)}: {sorted(echoed) or 'none'})")
     need = int(rules.get("dialogue_lines_min") or 0)
     if need:
         said = sum(1 for s in normalized_shots if str(s.get("vo_line") or "").strip()

@@ -225,7 +225,13 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
                          ("caption_style", ""),
                          ("music_volume", 0.06), ("saturation", 0.85),
                          ("label_size", 50), ("label_y", 0.12), ("label_text", "#FFFFFF"),
-                         ("label_box", "#1B1E2B"), ("label_colors", {}),
+                         ("label_box", "#1B1E2B"), ("label_colors", {}), ("label_wrap", ""),
+                         # Progress overlay on shots with "stat": a rank card top left and a big
+                         # number lower left that ticks up once during the shot.
+                         ("stat_seconds", 1.7), ("stat_font_file", "assets/fonts/Poppins-Black.ttf"),
+                         ("stat_x", 0.06), ("stat_rank_y", 0.15), ("stat_y", 0.66),
+                         ("stat_size", 190), ("stat_unit_size", 50), ("stat_rank_size", 66),
+                         ("stat_eyebrow", "RANK"), ("stat_box", "#101522"), ("stat_tick", True),
                          ("letter_font_file", "assets/fonts/Caveat.ttf"), ("letter_font_size", 66),
                          ("letter_weight", 500), ("letter_paper", "#FBF7EE"), ("letter_ink", "#26232D"),
                          ("letter_rule", "#9DB4D6"), ("letter_width", 0.84), ("letter_bg_blur", 2),

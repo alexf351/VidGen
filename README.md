@@ -135,10 +135,11 @@ prompt bytes, validation, captions, grade and timing. To make a new format, copy
 | format | look | story |
 |---|---|---|
 | `pixar_arc` | 3D animated feature | the dumped-and-fired hero arc, dialogue, flex montage (default) |
+| `pixar_mirror` | the same look and cast | one small scene played twice: brushed off, opens Iro, three progress shots with his rank and a climbing number, a time card, the same scene with the roles reversed |
 | `pixel_art`, `ps2`, `comic`, `brick`, `claymation`, `paper_cutout`, `retro_anime`, `low_poly`, `risograph`, `miniature` | one look each | a narrated 15-25 s story ad: someone wants something, it goes wrong, they open Iro, it pays off, a twist, SEARCH IRO AI |
 | `style_switch` | a different look every shot, on hard cuts | the same narrated story |
 
-Every format above except `pixar_arc` can also use the Claude Code engine (below).
+Every format above except `pixar_arc` and `pixar_mirror` can also use the Claude Code engine (below).
 
 Six more, from the formats ad buyers rank highest right now:
 
@@ -430,6 +431,7 @@ Set by the format (`formats/<name>/format.yaml`), overridable in `config.local.y
 |----------------------|---------------------------------------------------------------|
 | `style`              | style line prepended word-for-word to every `image_prompt`     |
 | `max_animated_shots` | cap on shots marked `animate: true` (when `animate_all` is off) |
+| `extends`            | another format to start from; this file then lists only what differs |
 | `animate_all`        | `true`: every drawn shot becomes a video clip (set by the format; Pixar Arc: on) |
 | `sfx`                | `true`: sound effects under the cut (set by the format; Pixar Arc: on). `sfx: false` or `sfx: {enabled: true}` in `config.local.yaml` decides for every format |
 | `assemble.caption_style` | caption style for new videos (see Caption styles); empty = the format's own |
@@ -706,6 +708,49 @@ file from a sample pack sits where a built-in one would. If ElevenLabs cannot ma
 built-in one is used and the log says so; the step does not fail. `sfx.volume` scales all
 effects together (1.0 = normal). The effects are written to `build/sfx.wav`, and `build/sfx.json`
 lists each one with its time. Song formats never get effects.
+
+### Pixar Mirror: one scene, played twice
+
+`pixar_mirror` is a second story shape for the Pixar cast, modelled on short app ads that tell
+their story twice (about 45-55 seconds, 55-90 spoken words):
+
+1. a small public brush-off, 5-7 lines, opening on the line that stings
+2. "Enough is enough", alone
+3. the app in his hand, with a small `*OPENS IRO*` label
+4. three progress shots, each with the rank and a number drawn over it
+5. one time card
+6. the same place and people again, with at least two lines repeated word for word and now
+   meaning the opposite; he is polite, brief and leaves
+7. the flex montage, then the `SEARCH IRO AI` shot
+
+Pick it like any format: `python main.py new "..." --format pixar_mirror`, or its card in the
+UI. A premise only needs the small scene: who brushes him off, where, and over what.
+
+It is defined by `extends: pixar_arc` in `formats/pixar_mirror/format.yaml`, so the cast, the
+look, the captions and the app screenshots are Pixar Arc's and are edited there once. A format
+that extends another starts from its settings (mappings merge key by key; lists and single
+values are replaced) and uses its prompt files wherever it has none of its own. Title,
+description and beats are never inherited, and a format cannot extend one that itself extends.
+
+**Progress overlay.** A shot with `"stat": {"rank": "GOLD II", "value": 40, "unit": "DAY STREAK"}`
+gets the rank on a dark card top left and the number, large, lower left. The number starts one
+lower and ticks up partway through the shot, with a pop on the sound track. The image model
+draws none of it, so the digits are always right. The format's `rules.stats` lists how many
+such shots a script has (`count`), the ranks from lowest to highest (`ranks`; a division I, II
+or III may follow the name) and what the number may count (`units`). The validator checks that
+the number climbs and the rank never drops. In the UI, each progress shot has Rank, Number and
+Counts fields under Picture, motion and sound; after changing them, assemble again. The
+format's `stat:` block sets the look (`eyebrow`, `size`, `rank_size`, `x`, `y`, `rank_y`,
+`seconds`, `tick`).
+
+**Labels.** With `rules.labels: true` a shot may carry a short `label`, shown for the whole
+shot: here dark text on a white box with an asterisk either side, on the app screen and on one
+stage direction (`*DROPS THEM ON PURPOSE*`). `rules.label_max_words` caps its length and the
+format's `labels:` block sets `y`, `size`, `text`, `box` and `wrap`.
+
+**Mirrored lines.** `rules.mirror_lines_min: 2` makes the validator count the lines after the
+time card that repeat a line from before it (capitals and punctuation aside) and reject a
+script with fewer than two.
 
 ## Providers: fal or Sume
 
