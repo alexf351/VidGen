@@ -163,8 +163,9 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
                             **{k: v for k, v in providers.items() if v}}
         cfg["_sources"]["env"].append("request (providers)")
     cfg.setdefault("max_animated_shots", 8)
-    if not isinstance(cfg.setdefault("animate_all", False), bool):
-        raise StepError("config: animate_all must be true or false")
+    for flag in ("animate_all", "app_screen_hand"):
+        if not isinstance(cfg.setdefault(flag, False), bool):
+            raise StepError(f"config: {flag} must be true or false")
     cfg.setdefault("script", {})
     cfg["script"].setdefault("model", "claude-sonnet-5-5")
     cfg["script"].setdefault("max_tokens", 64000)

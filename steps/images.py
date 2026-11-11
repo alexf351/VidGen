@@ -253,6 +253,45 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
     return out
 
 
+# ------------------------------------------------- the hand for app screens ----
+
+def ensure_hand(run_dir: Path, config: dict, script: dict) -> None:
+    """For formats with app_screen_hand: the picture of a hand holding a green-screen phone that
+    the assemble step puts the real screenshot on. Drawn once per format and cached. Never fails
+    the step: without it, app screens use the plain phone frame."""
+    import phone_hand
+    if not phone_hand.enabled(config) or not any(s.get("app_screen") for s in script["shots"]):
+        return
+    dest = phone_hand.run_path(run_dir)
+    if dest.exists():
+        return
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    cache = phone_hand.cache_path(config, script)
+    if cache.exists() and phone_hand.usable(cache):
+        shutil.copyfile(cache, dest)
+        print("[images] app screen: the hand holding the phone comes from the cache")
+        return
+    print("[images] app screen: drawing the hand that holds the phone...")
+    progress.add()
+    tmp = dest.with_name("hand.try.png")
+    try:
+        for attempt in (1, 2):
+            _generate_image(config, phone_hand.prompt(config, script), SHOT_ASPECT, [], "hand", tmp)
+            if phone_hand.usable(tmp):
+                tmp.replace(dest)
+                cache.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(dest, cache)
+                print(f"  hand: ready, cached at {cache.relative_to(ROOT)}")
+                break
+            tmp.unlink(missing_ok=True)
+            print("  hand: the picture has no clean green screen" +
+                  (", trying once more" if attempt == 1 else "; app screens will use the plain phone frame"))
+    except StepError as e:
+        tmp.unlink(missing_ok=True)
+        print(f"  hand: could not be drawn ({e}); app screens will use the plain phone frame")
+    progress.tick()
+
+
 # --------------------------------------------------------------- keyframes ----
 
 def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str, Path],
@@ -306,6 +345,8 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
     print(f"[images] reference sheets ({len(script['characters'])} characters)")
     needed = None if only is None else {cid for s in shots for cid in s["characters"]}
     sheets = ensure_sheets(run_dir, config, script, needed)
+    if only is None:
+        ensure_hand(run_dir, config, script)
 
     print(f"[images] keyframes ({len(shots)} shots)")
     done = []

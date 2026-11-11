@@ -298,9 +298,18 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
         return out
 
     if shot.get("app_screen"):
-        # Real screenshot in a phone mockup on the previous shot (blurred), slight push-in.
-        bg_png = last_frame(background, build / f"bg_{n:02d}.png", label) if background else None
-        mock = compose_phone_mockup(app_screen_file(shot), bg_png, build / f"app_{n:02d}.png", w, h)
+        # The real screenshot on a phone: in the hero's hand when the images step drew one
+        # (phone_hand.py), else in a plain phone frame on the previous shot, blurred. Slight push-in.
+        import phone_hand
+        mock = None
+        hand = phone_hand.run_path(run_dir)
+        if hand.is_file():
+            mock = phone_hand.compose(hand, app_screen_file(shot), build / f"app_{n:02d}.png", w, h)
+            if mock is None:
+                print(f"  shot {n}: the hand picture has no clean green screen; using the plain phone frame")
+        if mock is None:
+            bg_png = last_frame(background, build / f"bg_{n:02d}.png", label) if background else None
+            mock = compose_phone_mockup(app_screen_file(shot), bg_png, build / f"app_{n:02d}.png", w, h)
         _push_in(mock, out, frames, float(asm["app_screen_zoom_end"]), asm, label)
         return out
 

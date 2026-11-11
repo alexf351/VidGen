@@ -536,6 +536,15 @@ one retry. The result is saved to `runs/<run_id>/script.json` and printed as a s
 `runs/<run_id>/characters/<id>.png`. The source is, in order: the `image_path` set in
 `locked_characters`, a cached sheet in `characters_cache/`, a sheet already in the run, or a
 freshly generated sheet (front, three-quarter and side view on a plain light grey background).
+**App screens in a hand.** With `app_screen_hand: true` (Pixar Arc), an app-screen shot shows
+the real screenshot on a phone held in the hero's hand, not a bare phone frame. The image model
+never draws the app: the images step draws one picture of a hand holding a phone with a plain
+green screen (once per format, cached as `characters_cache/hand@<format>-<hash>.png`, copied to
+`runs/<id>/app/hand.png`), and the assemble step puts the real screenshot on the green area, so
+a thumb over the edge of the screen stays in front. A picture with no clean green screen is
+thrown away and tried once more; if that fails too, the shot uses the plain phone frame. To get
+the hand on a run made earlier, run its images step again, then assemble.
+
 **Scene continuity.** Each picture is drawn from its own text, so three shots of one
 conversation can come out with three different outfits and backgrounds. A shot marked
 `"same_scene": true` in `script.json` continues the previous shot's scene (same place, same

@@ -46,6 +46,10 @@ style: "3D animated feature film style, soft cinematic lighting, warm saturated 
 animate_all: true
 max_animated_shots: 8
 
+# App-screen shots show the real screenshot on a phone held in the hero's hand (the hand is drawn
+# once with a green screen and reused; see phone_hand.py). false = a plain phone frame.
+app_screen_hand: true
+
 # What the script validator enforces (and the prompt quotes).
 rules:
   story_shots: [15, 22]          # shots, not counting the montage

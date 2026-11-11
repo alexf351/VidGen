@@ -120,10 +120,11 @@ def _overlay(f: dict, where: str) -> dict:
     for key in ("style", "max_animated_shots", "app_screens"):
         if key in f:
             out[key] = f[key]
-    if "animate_all" in f:
-        if not isinstance(f["animate_all"], bool):
-            raise StepError(f"{where}: animate_all must be true or false")
-        out["animate_all"] = f["animate_all"]
+    for key in ("animate_all", "app_screen_hand"):
+        if key in f:
+            if not isinstance(f[key], bool):
+                raise StepError(f"{where}: {key} must be true or false")
+            out[key] = f[key]
     cast = f.get("cast", "locked")
     if cast not in CAST_MODES:
         raise StepError(f"{where}: cast must be one of {', '.join(CAST_MODES)}, got {cast!r}")
