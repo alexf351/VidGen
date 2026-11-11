@@ -158,17 +158,22 @@ def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False,
         which = f"Reference image {at}" if at > 1 or wardrobe else "The reference image"
         parts.append(
             f"{which} is an earlier shot of this same scene: keep its place, time of day and "
-            "lighting, and the clothes of the people who are in it (on those it wins over the "
-            "description above). Anyone who is not in that picture is dressed as described above, "
-            "never in another person's clothes. Faces, bodies and designs still come from each "
-            "character's own sheet. New camera angle and poses, as described above.")
+            "lighting, and the clothes of the people in it (on those it wins over the description "
+            "above). Anyone not in it is dressed as described above, never in another person's "
+            "clothes. Faces and bodies come from each character's own sheet. New camera angle and "
+            "poses, as described above.")
     for ids in wardrobe:
         at += 1
         who = " and ".join(ids)
         parts.append(
-            f"Reference image {at} is an earlier shot of this same scene with {who} in it: {who} "
-            f"{'wear' if len(ids) > 1 else 'wears'} exactly the same clothes here as in that picture. "
-            "Take only the clothes from it, not the pose or the framing.")
+            f"Reference image {at} is an earlier shot of this scene with {who}: {who} "
+            f"{'wear' if len(ids) > 1 else 'wears'} exactly the same clothes here. Take only the clothes from it.")
+    if scene or wardrobe:
+        # An earlier shot shows other people too (the scene's first shot has whoever opened the
+        # scene), and the model would carry one of them into a shot meant for one person.
+        names = " and ".join(shot.get("characters") or [])
+        parts.append(f"Only {names or 'the people described above'} {'is' if len(shot.get('characters') or []) == 1 else 'are'} "
+                     "in this picture: bring nobody else over from the earlier shots, not even in the background.")
     return "\n".join(parts) if len(parts) > 2 else prompt
 
 
