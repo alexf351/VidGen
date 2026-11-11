@@ -113,9 +113,12 @@ EVERY SHOT IS A VIDEO CLIP
 This overrides any limit on "animate" above. Every shot that has an image_prompt becomes a
 moving clip, montage shots included, so set "animate": true on all of them (card and app-screen
 shots stay false). Each of those shots needs a motion_prompt that describes real movement for a
-4 second clip: what the people do (walk, turn, gesture, react, laugh, type), what moves around
-them (hair, clothes, traffic, a crowd, screens, light) and one camera move (push in, pull back,
-pan, orbit, handheld drift). Never write "static", "still", "frozen" or "no movement"."""
+4 second clip, performance first and camera second: what each character does and how their
+expression changes (steps back, turns away, throws up his hands, breaks into a grin, laughs,
+slams the laptop shut), what moves around them (hair, clothes, traffic, a crowd, screens,
+light), then one camera move that follows the action. A camera move alone is not enough: if
+the only thing that moves is the camera, rewrite the shot so the people act. Never write
+"static", "still", "frozen", "stands still" or "no movement"."""
 
 
 def animates(shot: dict) -> bool:
