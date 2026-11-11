@@ -2,7 +2,7 @@
 #
 # Taken from short app ads that tell the story twice: a small public humiliation, the app, three
 # progress shots with a rank and a climbing number, a time card, then the SAME scene again with
-# the roles reversed. About 45-55 seconds, 55-90 spoken words.
+# the roles reversed. About 45-55 seconds, 45-90 spoken words.
 #
 # Everything not listed here (cast, style, captions, grade, app screenshots, the banned
 # wording) comes from formats/pixar_arc/format.yaml. This folder has its own script_prompt.md,
@@ -28,7 +28,7 @@ beats:
 
 rules:
   story_shots: [20, 28]          # shots, not counting the montage
-  vo_words: [55, 90]             # total spoken words across all shots
+  vo_words: [45, 90]             # total spoken words across all shots
   silent_run_max: 2
   cards:
     count: [1, 1]                # one time jump, between the grind and the replay

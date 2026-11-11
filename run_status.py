@@ -193,7 +193,8 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             except (OSError, ValueError):
                 timing = None
         kind = ("card" if s.get("card") else "app_screen" if s.get("app_screen")
-                else "montage" if s.get("montage") else "letter" if s.get("letter") else "shot")
+                else "montage" if s.get("montage") else "flash" if s.get("flash")
+                else "letter" if s.get("letter") else "shot")
         shots.append({"n": n, "kind": kind, "shot": s,
                       "image": file_url(shot_path(run_dir, n)),
                       "clip": file_url(video_path(run_dir, n)),

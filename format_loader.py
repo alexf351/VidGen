@@ -91,7 +91,18 @@ def _rules(raw, where: str) -> dict:
         # At least this many lines after the last time card repeat, word for word, a line said
         # before it (the opening scene replayed with the roles reversed). 0 = no such rule.
         "mirror_lines_min": max(0, int(raw.get("mirror_lines_min") or 0)),
+        # A run of very short silent stills in the middle of the story (the grind in flashes):
+        # {name: ..., count: [min, max]}.
+        "flashes": None,
+        # An app-screen shot may carry a spoken line (said over the phone in the hand).
+        "app_screen_voice": bool(raw.get("app_screen_voice", False)),
     }
+    if raw.get("flashes"):
+        fl = raw["flashes"]
+        if not isinstance(fl, dict):
+            raise StepError(f"{where}: rules.flashes must be a mapping with count: [min, max]")
+        r["flashes"] = {"name": str(fl.get("name") or "FLASHES"),
+                        "count": _pair(fl.get("count"), f"{where}: rules.flashes.count")}
     if raw.get("stats"):
         st = raw["stats"]
         ranks = st.get("ranks") if isinstance(st, dict) else None

@@ -53,10 +53,21 @@ def shot_durations(run_dir: Path, script: dict, asm: dict, song: bool = False) -
     t = 0.0
     for shot in script["shots"]:
         n = shot["n"]
-        if shot.get("card") or shot.get("app_screen") or shot.get("montage"):
-            # Time-jump card, app screen or flex montage: fixed length, no voice.
+        if shot.get("app_screen") and str(shot.get("vo_line") or "").strip():
+            # An app screen with a line said over it: as long as the line, never shorter than usual.
+            vo = audio_path(run_dir, n)
+            if not vo.exists():
+                raise StepError(f"shot {n} has a vo_line but {vo} is missing; run the voice step first")
+            vo_len = probe_duration(vo)
+            duration = max(float(asm["app_screen_seconds"]), vo_len + pad)
+            plan.append({"shot": shot, "n": n, "start": t, "duration": duration, "vo": vo, "vo_len": vo_len})
+            t += duration
+            continue
+        if shot.get("card") or shot.get("app_screen") or shot.get("montage") or shot.get("flash"):
+            # Time-jump card, app screen, flex montage or flash: fixed length, no voice.
             duration = float(asm["card_seconds"] if shot.get("card") else
-                             asm["app_screen_seconds"] if shot.get("app_screen") else asm["montage_seconds"])
+                             asm["app_screen_seconds"] if shot.get("app_screen") else
+                             asm["flash_seconds"] if shot.get("flash") else asm["montage_seconds"])
             plan.append({"shot": shot, "n": n, "start": t, "duration": duration, "vo": None, "vo_len": 0.0})
             t += duration
             continue
@@ -288,11 +299,12 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
     clip = video_path(run_dir, n)
     label = f"shot {n}"
 
-    if shot.get("montage"):
+    if shot.get("montage") or shot.get("flash"):
         # Flex montage: a quick punch-in on the keyframe (or the clip, if one was made), no motion
-        # beyond that; the concat joins montage shots with hard cuts.
-        zoom = float(asm["montage_zoom_end"])
-        if shot.get("animate") and clip.exists():
+        # beyond that; the concat joins montage shots with hard cuts. A flash is the same thing,
+        # shorter, and always the still.
+        zoom = float(asm["flash_zoom_end"] if shot.get("flash") else asm["montage_zoom_end"])
+        if shot.get("animate") and clip.exists() and not shot.get("flash"):
             _push_in(clip, out, frames, zoom, asm, label, ease_out=True, video=True)
             return out
         if not keyframe.exists():
@@ -506,7 +518,9 @@ def shot_caption_events(run_dir: Path, item: dict, max_words: int = MAX_CHUNK_WO
     word-by-word captions and keeps the rest."""
     shot_start = item["start"]
     shot_end = item["start"] + item["duration"]
-    if item["shot"].get("card") or item["shot"].get("app_screen") or item["shot"].get("montage"):
+    if item["shot"].get("card") or item["shot"].get("montage") or item["shot"].get("flash"):
+        return []
+    if item["shot"].get("app_screen") and item.get("vo") is None:
         return []
     if item["shot"].get("letter"):
         # The letter is the text on screen; only a CTA caption goes on top.
@@ -902,7 +916,9 @@ def run(run_dir: Path, config: dict) -> None:
     clips = []
     scene_clip: Path | None = None   # last real scene, the blurred background for app screens
     for it in plan:
-        if it["shot"].get("montage"):
+        if it["shot"].get("flash"):
+            kind = "flash"
+        elif it["shot"].get("montage"):
             kind = "montage punch-in"
         elif it["shot"].get("app_screen"):
             kind = f"app screen {it['shot']['app_screen']}"

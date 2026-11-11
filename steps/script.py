@@ -19,7 +19,8 @@ OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage",   # card / app screenshot
                       "label",                             # a short tag on screen for the whole shot
                       "same_scene",                        # continues the previous shot's scene
                       "sfx",                               # a sound effect on the shot's first frame
-                      "stat"}                              # progress overlay: {"rank", "value", "unit"}
+                      "stat",                              # progress overlay: {"rank", "value", "unit"}
+                      "flash"}                             # one of a run of very short silent stills
 LABEL_MAX_WORDS = 3
 LETTER_MAX_WORDS = 40
 SONG_STYLE_MAX = 300
@@ -73,6 +74,8 @@ def prompt_values(fmt: dict) -> dict:
     v["LETTER_MAX_WORDS"] = LETTER_MAX_WORDS
     v["LABEL_MAX_WORDS"] = r.get("label_max_words") or LABEL_MAX_WORDS
     v["MIRROR_MIN"] = r.get("mirror_lines_min", 0)
+    if r.get("flashes"):
+        v["FLASH_MIN"], v["FLASH_MAX"] = r["flashes"]["count"]
     if r.get("stats"):
         v["STAT_MIN"], v["STAT_MAX"] = r["stats"]["count"]
         v["STAT_RANKS"] = ", ".join(r["stats"]["ranks"])
@@ -145,7 +148,7 @@ def animates(shot: dict) -> bool:
     """With animate_all on, the shots that become clips: every drawn shot except talking shots
     (already clips) and letter shots (the picture is only a backdrop for the letter)."""
     return (isinstance(shot, dict) and not shot.get("card") and not shot.get("app_screen")
-            and not shot.get("talk") and not shot.get("letter")
+            and not shot.get("talk") and not shot.get("letter") and not shot.get("flash")
             and bool(str(shot.get("image_prompt") or "").strip()))
 
 
@@ -359,7 +362,9 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         if cid not in id_set:
             errors.append(f"locked character {cid!r} is missing from 'characters'")
 
-    montage_flags = [isinstance(x, dict) and x.get("montage") is True for x in shots]
+    montage_flags = [isinstance(x, dict) and (x.get("montage") is True or x.get("flash") is True) for x in shots]
+    flash_rule = rules.get("flashes")
+    flash_idx: list[int] = []
     story_count = len(shots) - sum(montage_flags)
     if not (SHOT_MIN <= story_count <= SHOT_MAX):
         on_top = f" (the {montage_rule['name'].lower()} comes on top)" if montage_rule else ""
@@ -414,6 +419,13 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             errors.append(f"{label}.montage must be true or false, got {montage!r}")
             montage = False
         is_montage = montage
+        flash = s.get("flash", False)
+        if flash is None:
+            flash = False
+        if not isinstance(flash, bool):
+            errors.append(f"{label}.flash must be true or false, got {flash!r}")
+            flash = False
+        is_flash = flash
         app = s.get("app_screen", "")
         if app is None:
             app = ""
@@ -430,12 +442,20 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 errors.append(f"{label}.app_screen must be one of {app_paths or 'the configured app_screens (none available)'}, got {app!r}")
             if chars:
                 errors.append(f"{label} is an app_screen shot, so characters must be [], got {chars!r}")
-            if _is_str(s.get("vo_line")) and s["vo_line"].strip():
+            if _is_str(s.get("vo_line")) and s["vo_line"].strip() and not rules.get("app_screen_voice"):
                 errors.append(f"{label} is an app_screen shot, so vo_line must be empty")
             if s.get("animate") is True:
                 errors.append(f"{label} is an app_screen shot, so animate must be false")
             if i == 0 or i == len(shots) - 1:
                 errors.append(f"{label}: an app_screen shot cannot be the first or last shot")
+        if is_flash:
+            flash_idx.append(i)
+            if not flash_rule:
+                errors.append(f"{label}: this format has no flash shots, so leave out \"flash\"")
+            if is_card or is_app or is_montage:
+                errors.append(f"{label} cannot be both a flash shot and a card, app_screen or montage shot")
+            if _is_str(s.get("vo_line")) and s["vo_line"].strip():
+                errors.append(f"{label} is a flash shot, so vo_line must be empty (no dialogue)")
         if is_montage:
             montage_idx.append(i)
             if not montage_rule:
@@ -597,9 +617,11 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         shot = dict(s)
         if is_app and not is_card:
             # Drawn by the assembly step from the real screenshot; nothing else on the shot is used.
-            shot.update({"app_screen": app, "characters": [], "vo_line": "", "speaker": "",
+            said_over = vo.strip() if rules.get("app_screen_voice") else ""
+            shot.update({"app_screen": app, "characters": [], "vo_line": said_over,
+                         "speaker": (speaker if said_over and _is_str(speaker) else ""),
                          "caption": "", "animate": False, "image_prompt": "", "motion_prompt": ""})
-            for key in ("card", "letter", "talk", "label", "stat"):
+            for key in ("card", "letter", "talk", "label", "stat", "flash", "montage"):
                 shot.pop(key, None)
             if tag and rules.get("labels"):
                 shot["label"] = tag.upper()
@@ -610,6 +632,10 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             shot["montage"] = True
         else:
             shot.pop("montage", None)
+        if is_flash and not is_card and not is_montage:
+            shot["flash"] = True
+        else:
+            shot.pop("flash", None)
         if is_card:
             # A card is drawn by the assembly step; nothing else on the shot is used.
             shot.pop("letter", None)
@@ -656,6 +682,11 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 shot["speaker"] = ""
             if is_montage:
                 shot["caption"] = ""
+            if shot.get("flash"):
+                # A flash is a still on screen for a third of a second: never a clip, never a caption.
+                shot.update({"caption": "", "animate": False})
+                shot.pop("talk", None)
+                shot.pop("stat", None)
         normalized_shots.append(shot)
 
     # "same_scene" stays only where there is a scene to continue (not on a scene's first shot,
@@ -664,6 +695,7 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         if "same_scene" not in shot:
             continue
         drawn = (not shot.get("card") and not shot.get("app_screen") and not shot.get("montage")
+                 and not shot.get("flash")
                  and bool(str(shot.get("image_prompt") or "").strip()))
         if shot.get("same_scene") is True and drawn and scene_anchor(normalized_shots, i) is not None:
             shot["same_scene"] = True
@@ -699,9 +731,9 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         run: list[int] = []
         worst: list[int] = []
         for s in normalized_shots:
-            if s.get("card") or s.get("montage") or s.get("stat"):
-                run = []                       # a progress shot is silent by design, like the montage
-            elif s.get("app_screen"):
+            if s.get("card") or s.get("montage") or s.get("stat") or s.get("flash"):
+                run = []                       # progress and flash shots are silent by design, like the montage
+            elif s.get("app_screen") and not str(s.get("vo_line") or "").strip():
                 continue
             elif str(s.get("vo_line") or "").strip():
                 run = []
@@ -756,6 +788,14 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         if not contiguous or montage_idx[-1] != len(shots) - 2:
             errors.append(f"the montage shots must be consecutive and come right before the final CTA "
                           f"shot; they are at shots {[i + 1 for i in montage_idx]} of {len(shots)}")
+    if flash_rule:
+        lo, hi = flash_rule["count"]
+        if not (lo <= len(flash_idx) <= hi):
+            errors.append(f"the {flash_rule['name'].lower()} needs {lo}-{hi} shots with \"flash\": true, got {len(flash_idx)}")
+        elif flash_idx != list(range(flash_idx[0], flash_idx[-1] + 1)):
+            errors.append(f"the flash shots must be consecutive; they are at shots {[i + 1 for i in flash_idx]}")
+        elif flash_idx[0] == 0 or flash_idx[-1] >= len(shots) - 1:
+            errors.append("the flash shots sit in the middle of the story, never first or last")
     if card_rule and not (card_rule["count"][0] <= cards <= card_rule["count"][1]):
         errors.append(f"use {card_rule['count'][0]}-{card_rule['count'][1]} time-jump card shots, got {cards}")
     if app_paths and APP_SCREENS_MAX and not (1 <= app_shots <= APP_SCREENS_MAX):

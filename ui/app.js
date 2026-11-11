@@ -155,12 +155,12 @@ function targetShots(run, step, only) {
   const pick = only ? shots.filter((s) => only.includes(s.n)) : shots;
   if (step === "images") return pick.filter((s) => drawsImage(s) && (only || !s.image));
   if (step === "video") return pick.filter((s) => s.kind !== "card" && s.kind !== "app_screen" && (s.shot.animate || s.shot.talk) && (only || !s.clip));
-  if (step === "voice") return pick.filter((s) => (s.kind === "shot" || s.kind === "letter") && (s.shot.vo_line || "").trim() && (only || !s.audio));
+  if (step === "voice") return pick.filter((s) => (s.kind === "shot" || s.kind === "letter" || s.kind === "app_screen") && (s.shot.vo_line || "").trim() && (only || !s.audio));
   return [];
 }
 
 function drawsImage(s) {
-  return (s.kind === "shot" || s.kind === "montage" || s.kind === "letter") && !!(s.shot.image_prompt || "").trim();
+  return (s.kind === "shot" || s.kind === "montage" || s.kind === "flash" || s.kind === "letter") && !!(s.shot.image_prompt || "").trim();
 }
 
 function missingSheets(run, shots) {
@@ -228,8 +228,9 @@ function formatSize(formatName) {
   const f = S.formats.find((x) => x.name === formatName);
   const L = f && f.limits;
   if (!L) return { ...NEW_RUN_GUESS, guess: true };
-  const images = L.letter ? 4 : L.story_shots[1] + (L.montage ? L.montage[1] : 0) - (L.cards ? L.cards[0] : 0);
-  return { images, sheets: L.letter ? 0 : f.locked_cast.length + 2, clips: L.animate_all ? images : (L.max_animated_shots ?? 8),
+  const flashes = L.flashes ? L.flashes[1] : 0;     // flashes are stills: an image each, never a clip
+  const images = L.letter ? 4 : L.story_shots[1] + (L.montage ? L.montage[1] : 0) + flashes - (L.cards ? L.cards[0] : 0);
+  return { images, sheets: L.letter ? 0 : f.locked_cast.length + 2, clips: L.animate_all ? images - flashes : (L.max_animated_shots ?? 8),
     voiceChars: L.song ? 0 : L.vo_words[1] * 6,
     talkSeconds: L.talking ? L.vo_words[1] / 2.6 : 0,
     songSeconds: L.song ? L.vo_words[1] / 2 + 5 : 0 };
@@ -691,9 +692,9 @@ function renderCreate(formatName) {
     h("summary", {}, h("span", { class: "sec-label" }, "Format details"), h("span", { class: "muted" }, "Show")),
     h("dl", { class: "facts" },
       f.duration_target ? [h("dt", {}, "Length"), h("dd", {}, f.duration_target)] : null,
-      L.story_shots ? [h("dt", {}, "Shots"), h("dd", {}, `${L.story_shots[0]}-${L.story_shots[1]}${L.montage ? ` + ${L.montage[0]}-${L.montage[1]} montage` : ""}`)] : null,
+      L.story_shots ? [h("dt", {}, "Shots"), h("dd", {}, `${L.story_shots[0]}-${L.story_shots[1]}${L.montage ? ` + ${L.montage[0]}-${L.montage[1]} montage` : ""}${L.flashes ? ` + ${L.flashes[0]}-${L.flashes[1]} flashes` : ""}`)] : null,
       L.vo_words ? [h("dt", {}, "Spoken words"), h("dd", {}, `${L.vo_words[0]}-${L.vo_words[1]}${L.narrator ? ", narrated" : ", dialogue only"}`)] : null,
-      h("dt", {}, "Clips"), h("dd", {}, L.animate_all ? `every shot is a clip × ${f.clip_seconds || 4}s` : `up to ${L.max_animated_shots ?? "?"} × ${f.clip_seconds || 4}s`),
+      h("dt", {}, "Clips"), h("dd", {}, L.animate_all ? `${L.flashes ? "every shot but the flashes" : "every shot"} is a clip × ${f.clip_seconds || 4}s` : `up to ${L.max_animated_shots ?? "?"} × ${f.clip_seconds || 4}s`),
       f.locked_cast.length ? [h("dt", {}, "Cast"), h("dd", {}, f.locked_cast.join(", "))] : null,
       L.cta_caption ? [h("dt", {}, "Ends on"), h("dd", {}, L.cta_caption)] : null),
     f.beats.length ? h("ol", { class: "beat-list" }, f.beats.map((b) => h("li", {}, b))) : null);
@@ -1204,8 +1205,15 @@ function scriptPanel(run, busy) {
         h("input", { type: "text", value: s.card, "aria-label": `Shot ${s.n} card text`, oninput: (e) => update(i, "card", e.target.value, row) }));
     } else if (s.app_screen) {
       fields.append(h("span", { class: "kind" }, "app screen"), h("span", { class: "ro" }, s.app_screen));
-    } else if (s.montage) {
-      fields.append(h("span", { class: "kind" }, "montage"), h("span", { class: "ro" }, "silent, no caption"));
+      // A line said over the phone (formats that allow it): the speaker and the words can be changed.
+      if (((run.script.shots[i] || {}).vo_line || "").trim()) {
+        fields.append(h("div", { class: "pair" },
+          h("select", { "aria-label": `Shot ${s.n} speaker`, onchange: (e) => update(i, "speaker", e.target.value, row) },
+            speakers.map((id) => h("option", { value: id, selected: s.speaker === id }, id)))),
+          h("textarea", { rows: "2", "aria-label": `Shot ${s.n} dialogue`, oninput: (e) => update(i, "vo_line", e.target.value, row) }, s.vo_line || ""));
+      }
+    } else if (s.montage || s.flash) {
+      fields.append(h("span", { class: "kind" }, s.flash ? "flash" : "montage"), h("span", { class: "ro" }, s.flash ? "a third of a second, silent" : "silent, no caption"));
       if ((s.image_prompt || "").trim()) fields.append(lookEditor(s, i, row));
     } else {
       const sp = h("select", { "aria-label": `Shot ${s.n} speaker`, onchange: (e) => update(i, "speaker", e.target.value, row) },

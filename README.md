@@ -139,7 +139,11 @@ prompt bytes, validation, captions, grade and timing. To make a new format, copy
 | `pixel_art`, `ps2`, `comic`, `brick`, `claymation`, `paper_cutout`, `retro_anime`, `low_poly`, `risograph`, `miniature` | one look each | a narrated 15-25 s story ad: someone wants something, it goes wrong, they open Iro, it pays off, a twist, SEARCH IRO AI |
 | `style_switch` | a different look every shot, on hard cuts | the same narrated story |
 
-Every format above except `pixar_arc` and `pixar_mirror` can also use the Claude Code engine (below).
+| `pixar_revenge` | the same look and cast | almost wordless: a public rejection, she leaves with a richer man, the grind in quick flashes, a time card, the reunion and one comeback line |
+| `pixar_ladder` | the same look and cast | "I can fix that": doubted, he does the work on screen, gets paid, word spreads, every client is bigger than the last |
+| `pixar_steps` | the same look and cast | a 90-110 s film plus tutorial: the rejection, the method shown working, then the hero gives it in numbered steps, one of them Iro |
+
+Every format above except the five `pixar_*` ones can also use the Claude Code engine (below).
 
 Six more, from the formats ad buyers rank highest right now:
 
@@ -712,7 +716,7 @@ lists each one with its time. Song formats never get effects.
 ### Pixar Mirror: one scene, played twice
 
 `pixar_mirror` is a second story shape for the Pixar cast, modelled on short app ads that tell
-their story twice (about 45-55 seconds, 55-90 spoken words):
+their story twice (about 45-55 seconds, 45-90 spoken words):
 
 1. a small public brush-off, 5-7 lines, opening on the line that stings
 2. "Enough is enough", alone
@@ -751,6 +755,39 @@ format's `labels:` block sets `y`, `size`, `text`, `box` and `wrap`.
 **Mirrored lines.** `rules.mirror_lines_min: 2` makes the validator count the lines after the
 time card that repeat a line from before it (capitals and punctuation aside) and reject a
 script with fewer than two.
+
+### The other Pixar story shapes
+
+Three more formats extend `pixar_arc` the same way `pixar_mirror` does. Each is one proven ad
+template; pick whichever fits the premise.
+
+| format | length | spoken words | where Iro appears |
+|---|---|---|---|
+| `pixar_mirror` | 45-55 s | 45-90 | the app in his hand, then three shots with his rank and a climbing number |
+| `pixar_revenge` | 40-45 s | 20-45 | the app in his hand at the turn; Iro beside him through the flashes |
+| `pixar_ladder` | 45-50 s | 45-90 | the app with `LEARNED IT ON IRO`, before the work |
+| `pixar_steps` | 90-110 s | 160-250 | one of the spoken steps, said over the app |
+
+What a premise needs:
+
+- `pixar_revenge`: where he is rejected and what she leaves him for. "Marcus proposes on a
+  rooftop. Jess says no and leaves with Tyler in his sports car."
+- `pixar_ladder`: the visible problem and who is arguing over it. "Jess and Tyler are fighting
+  over their empty cafe and its ugly menu. Marcus says he can fix it with AI."
+- `pixar_steps`: the rejection and the METHOD the steps teach. Name a real one; without it the
+  script uses the three-part prompt from Iro's first lesson (a role, a goal, what good looks
+  like). The steps never promise money.
+
+**Flash shots.** `pixar_revenge` shows the grind as 8-12 shots with `"flash": true`: stills a
+third of a second long (`timing.flash_seconds`), the hero in the centre of each while the room
+behind him grows. They get a picture but never a clip, so they cost an image each. They must be
+consecutive and in the middle of the story (`rules.flashes`). On the sound track a swish starts
+the run, a riser builds through it and a hit lands on the shot after it.
+
+**A line over the app screen.** With `rules.app_screen_voice: true` (`pixar_steps`), an
+app-screen shot may carry a `vo_line` and a `speaker`. The shot then lasts as long as the line,
+with the usual word captions over the phone, so "Step three. Open Iro..." is said over the real
+app. In the UI, such a shot's line and speaker can be edited like any other.
 
 ## Providers: fal or Sume
 

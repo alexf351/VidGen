@@ -96,7 +96,7 @@ def enabled(config: dict) -> bool:
 # ---------------------------------------------------------------- where they go ----
 
 def _kind(shot: dict) -> str:
-    for k in ("card", "app_screen", "montage", "letter"):
+    for k in ("card", "app_screen", "montage", "flash", "letter"):
         if shot.get(k):
             return k
     return "scene"
@@ -140,10 +140,18 @@ def cues(plan: list[dict]) -> list[dict]:
                 add("impact", "montage starts")
             else:
                 add("swish", "montage cut")
+        elif kind == "flash":
+            if prev_kind != "flash":
+                add("swish", "the flashes start")
         elif kind == "scene" and i > 0 and scenes_marked and shot.get("same_scene") is not True:
-            if t - last_whoosh >= MIN_GAP:
+            if t - last_whoosh >= MIN_GAP and prev_kind != "flash":
                 add("whoosh", "new scene")
                 last_whoosh = t
+        if prev_kind == "flash" and kind != "flash" and own != "none":
+            # The run of flashes builds to the shot it lands on.
+            add("riser", "the flashes build")
+            if not any(c["shot"] == it["n"] and c["sound"] == "impact" for c in out):
+                add("impact", "the flashes land")
         stat = shot.get("stat")
         if own != "none" and isinstance(stat, dict) and int(stat.get("value") or 0) > 0:
             # The number on a progress shot ticks up partway through; a pop lands with it.

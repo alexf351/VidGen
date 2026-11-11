@@ -1,0 +1,50 @@
+# Pixar Steps: the same cast and look as Pixar Arc; a story, then the method in steps.
+#
+# Taken from the long "arc plus steps" ads: a public rejection with a reason, "watch me", a
+# time card, the method shown working once, the rival taken down a peg by a stranger, the
+# hero greeted by name, and then the rival asks "what do you even do?" and the hero walks
+# through the method in numbered steps, one of which is Iro. About 90-110 seconds.
+#
+# The steps must be a real method. Name it in the premise (for example: "the method is the
+# three-part prompt from Iro's first lesson: give the AI a role, a goal, and what good looks
+# like"). Without one, the script uses that three-part prompt.
+#
+# Everything not listed here comes from formats/pixar_arc/format.yaml.
+
+name: pixar_steps
+extends: pixar_arc
+title: "Pixar Steps"
+description: >-
+  A rejection, "watch me", the method shown working, the rival taken down a peg, and then
+  "what do you even do?": the hero walks through it in numbered steps, one of them Iro.
+duration_target: "about 90-110 seconds"
+
+beats:
+  - public rejection with a reason
+  - "\"watch me\""
+  - time card
+  - the method, working once
+  - the rival comes down
+  - the hero arrives
+  - "\"what do you even do?\""
+  - the steps (one is Iro)
+  - the callback
+  - CTA
+
+rules:
+  story_shots: [32, 48]
+  vo_words: [160, 250]
+  silent_run_max: 3
+  cards:
+    count: [1, 1]
+    words: [2, 4]
+  montage: null                  # no flex montage: the steps are the ending
+  app_screens:
+    max: 2
+    hint: "one or two, inside the steps, where the hero says to open Iro"
+  app_screen_voice: true         # the Iro step is said over the phone in his hand
+  labels: true                   # STEP 1, STEP 2 ...
+  label_max_words: 3
+
+prompt:
+  app_screen_line: '    * "{{PATH}}": {{SHOWS}}'

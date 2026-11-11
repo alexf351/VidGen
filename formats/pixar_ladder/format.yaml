@@ -1,0 +1,53 @@
+# Pixar Ladder: the same cast and look as Pixar Arc; a skill that climbs.
+#
+# Taken from the "I can fix that" videos (a car detailer, a barber) that pass 7-11M views:
+# someone has a visible problem, the hero offers, he is doubted, he does the work on screen
+# and it is satisfying to watch, he is paid, word spreads, each client is bigger than the
+# last, and the people from the first scene are the stunned faces at the end.
+# About 45-50 seconds, 45-90 words.
+#
+# Everything not listed here comes from formats/pixar_arc/format.yaml.
+
+name: pixar_ladder
+extends: pixar_arc
+title: "Pixar Ladder"
+description: >-
+  Someone has a problem, the hero says "I can fix that", he is doubted, does the work on
+  screen, gets paid, word spreads and every client is bigger than the last.
+duration_target: "about 45-50 seconds"
+
+beats:
+  - the problem, mid-argument
+  - "\"I can fix that\" and the doubt"
+  - learned it on Iro (the app)
+  - the work, on screen
+  - paid
+  - word spreads
+  - the climb
+  - the big one
+  - the first people, stunned
+  - flex montage
+  - CTA
+
+rules:
+  story_shots: [22, 32]
+  vo_words: [45, 90]
+  silent_run_max: 5              # the work is shown without words
+  cards:
+    count: [0, 1]
+    words: [2, 4]
+  montage:
+    name: "FLEX MONTAGE"
+    count: [4, 5]
+  app_screens:
+    max: 1
+    hint: "exactly one, between the doubt and the work"
+  labels: true
+  label_max_words: 4
+
+timing:
+  min_shot_seconds: 1.5          # the work shots need a moment to change on screen
+  montage_seconds: 0.6
+
+prompt:
+  app_screen_line: '    * "{{PATH}}": {{SHOWS}}'

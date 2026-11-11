@@ -1,0 +1,53 @@
+# Pixar Revenge: the same cast and look as Pixar Arc, told almost without words.
+#
+# Taken from the breakup-revenge videos that pass 5-10M views: a public rejection, she leaves
+# with a richer man, a flashback to her promise, his face hardens, the grind in quick flashes,
+# a time card, the reunion and ONE comeback line. About 40-45 seconds and only 20-45 words.
+#
+# Everything not listed here comes from formats/pixar_arc/format.yaml.
+
+name: pixar_revenge
+extends: pixar_arc
+title: "Pixar Revenge"
+description: >-
+  A public rejection, she leaves with a richer man, a flashback to her promise, the grind in
+  quick flashes, a time card, the reunion and one comeback line. Almost no dialogue.
+duration_target: "about 40-45 seconds"
+
+beats:
+  - public rejection ("hell no")
+  - she leaves with the rival
+  - alone, flashback to her promise
+  - the turn: Iro, the app
+  - the grind in flashes
+  - the new life
+  - time card
+  - the reunion and one comeback line
+  - flex montage
+  - CTA
+
+rules:
+  story_shots: [14, 22]          # shots, not counting the flashes and the montage
+  vo_words: [20, 45]             # the pictures tell it; the words are few
+  silent_run_max: 6
+  cards:
+    count: [1, 1]
+    words: [2, 4]
+  flashes:                       # the grind: stills a third of a second long, hero in the centre
+    name: "GRIND"
+    count: [8, 12]
+  montage:
+    name: "FLEX MONTAGE"
+    count: [4, 5]
+  app_screens:
+    max: 1
+    hint: "exactly one, at the turn"
+  labels: true                   # PREVIOUSLY on the flashback, OPENS IRO on the app
+  label_max_words: 3
+
+timing:
+  min_shot_seconds: 1.8          # silent shots carry an action, so they get time to play
+  montage_seconds: 0.6
+
+prompt:
+  app_screen_line: '    * "{{PATH}}": {{SHOWS}}'
