@@ -25,7 +25,7 @@ _state: dict | None = None
 
 
 def _blank(steps: list[str]) -> dict:
-    return {"steps": list(steps), "step": None, "done": 0, "total": 0, "unit": ""}
+    return {"steps": list(steps), "step": None, "done": 0, "total": 0, "unit": "", "note": ""}
 
 
 def clear() -> None:
@@ -49,14 +49,14 @@ def step(name: str) -> None:
             _state = _blank([name])
         if name not in _state["steps"]:
             _state["steps"].append(name)
-        _state.update(step=name, done=0, total=0, unit="")
+        _state.update(step=name, done=0, total=0, unit="", note="")
 
 
 def plan(total: int, unit: str = "") -> None:
     """How many pieces the current step is about to make (0 = nothing to do)."""
     with _lock:
         if _state is not None:
-            _state.update(done=0, total=max(0, int(total)), unit=unit)
+            _state.update(done=0, total=max(0, int(total)), unit=unit, note="")
 
 
 def add(n: int = 1) -> None:
@@ -73,6 +73,14 @@ def tick(n: int = 1) -> None:
             _state["done"] = min(_state["done"] + max(0, int(n)), max(_state["total"], 0))
 
 
+def note(text: str = "") -> None:
+    """What the step is on right now when it is one long piece of work ("final mix 40%"),
+    shown beside the step's name in place of the count. Empty clears it."""
+    with _lock:
+        if _state is not None:
+            _state["note"] = str(text or "")
+
+
 def snapshot() -> dict | None:
     """Where the job is, or None when nothing has reported yet."""
     with _lock:
@@ -86,4 +94,5 @@ def snapshot() -> dict | None:
     percent = (sum(weights[:index]) + weights[index] * inside) / (sum(weights) or 1) * 100
     return {"step": st["step"], "index": index + 1, "count": len(steps),
             "done": st["done"], "total": st["total"], "unit": st["unit"],
+            "note": st.get("note", ""),
             "percent": max(0, min(99, int(percent)))}

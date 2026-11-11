@@ -747,7 +747,8 @@ function progressKids(job, size) {
   const counted = p.total > 0;
   if (size === "mini") return [bar(p.percent, !counted && p.count === 1)];
   const what = STEP_DOING[p.step] || p.step;
-  const detail = counted ? (p.unit ? `${p.done} of ${p.total} ${p.unit}` : "") : "";
+  // A long single piece of work says where it is itself ("final mix 40%").
+  const detail = p.note ? p.note : counted ? (p.unit ? `${p.done} of ${p.total} ${p.unit}` : "") : "";
   const stepOf = p.count > 1 ? `Step ${p.index} of ${p.count}` : "";
   // A one-step job with nothing to count (the script) has no meaningful percentage.
   const pct = p.count === 1 && !counted ? "" : `${p.percent}%`;

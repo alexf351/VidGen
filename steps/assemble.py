@@ -830,6 +830,20 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
 
 # ------------------------------------------------------------------- mix ----
 
+def _encode_watch(label: str, total: float):
+    """Progress for a long encode: the bar's note ("final mix 40%") and a log line each quarter."""
+    import progress
+    last = [-1]
+
+    def on(seconds: float) -> None:
+        pct = max(0, min(100, int(seconds / total * 100))) if total > 0 else 0
+        progress.note(f"{label} {pct}%")
+        if pct // 25 > last[0]:
+            last[0] = pct // 25
+            print(f"  {label}: {pct}%")
+    return on
+
+
 def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total: float,
                 config: dict, sfx_track: Path | None = None) -> Path:
     asm = config["assemble"]
@@ -900,7 +914,8 @@ def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total:
                 "-t", f"{total:.3f}", "-r", str(fps), "-s", f"{w}x{h}",
                 "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
                 "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
-                "-movflags", "+faststart", str(out)], "final mix", cwd=build)
+                "-movflags", "+faststart", str(out)], "final mix", cwd=build,
+               on_progress=_encode_watch("final mix", total))
     return out
 
 
@@ -922,6 +937,7 @@ def append_outro(build: Path, main: Path, config: dict) -> Path:
     out = build / "with_outro.mp4"
     vf = f"[1:v]{_fill_filter(w, h)},fps={fps},setsar=1,format=yuv420p,trim=0:{outro_len:.3f}[ov]"
     outro_audio = "[2:a]" if len(audio_in) > 2 else "[1:a]"
+    print(f"[assemble] outro: adding {outro} ({outro_len:.1f}s); the whole video is encoded once more")
     run_ffmpeg(["-i", str(main), *audio_in, "-filter_complex",
                 f"{vf};{outro_audio}aresample=44100,aformat=channel_layouts=stereo,"
                 f"atrim=0:{outro_len:.3f}[oa];"
@@ -929,7 +945,7 @@ def append_outro(build: Path, main: Path, config: dict) -> Path:
                 "-map", "[v]", "-map", "[a]", "-r", str(fps),
                 "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
                 "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-movflags", "+faststart", str(out)],
-               "outro", cwd=build)
+               "outro", cwd=build, on_progress=_encode_watch("outro", probe_duration(main) + outro_len))
     print(f"  outro: appended {outro}")
     return out
 
@@ -1053,9 +1069,13 @@ def run(run_dir: Path, config: dict) -> None:
             sfx_track = sfx.render_track(build, plan, total, config)
         except StepError as e:      # effects are an extra: the video is still made without them
             print(f"  sound effects: left out of this cut ({e})")
+    print(f"[assemble] final mix: encoding {total:.1f}s of video with captions and sound in one pass. "
+          f"This is the slowest part of the step (minutes on an older computer); progress follows")
     main = render_main(build, cut, captions, plan, total, config, sfx_track=sfx_track)
+    progress.note("")
     progress.tick()
     final_src = append_outro(build, main, config)
+    progress.note("")
     final = run_dir / "final.mp4"
     shutil.copyfile(final_src, final)
 
