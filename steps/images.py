@@ -103,11 +103,47 @@ def cache_is_current(config: dict, lock: dict) -> bool:
         return False
 
 
-def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False) -> str:
-    """The keyframe prompt. `scene`: the last reference image is the first shot of the scene
-    this shot continues (shot "same_scene"), given so the place and the clothes carry over."""
+MAX_WARDROBE_REFS = 2
+
+
+def wardrobe_shots(shots: list[dict], i: int) -> list[tuple[list[str], dict]]:
+    """For shots[i] marked "same_scene": the earlier pictures that show what its people wear
+    in this scene, for everyone the scene's first shot does not show.
+
+    The first shot of a scene carries the place and the clothes of whoever is in it. Someone
+    who walks in later (the hero arriving at the meeting) is not in that picture, so nothing
+    held his clothes from shot to shot: he came out in his sheet's clothes in one shot and in
+    another man's waistcoat in the next. For each such person this finds the first shot of the
+    scene that has them, which every later shot then copies their clothes from.
+
+    Returns [(character ids, that shot), ...], one entry per picture, at most MAX_WARDROBE_REFS."""
+    from steps.script import scene_anchor
+    a = scene_anchor(shots, i)
+    if a is None:
+        return []
+    shown = set(shots[a].get("characters") or [])
+    found: dict[int, list[str]] = {}
+    for cid in shots[i].get("characters") or []:
+        if cid in shown:
+            continue
+        for j in range(a + 1, i):
+            s = shots[j]
+            if (isinstance(s, dict) and cid in (s.get("characters") or []) and scene_anchor(shots, j) == a
+                    and str(s.get("image_prompt") or "").strip() and not s.get("flash")):
+                found.setdefault(j, []).append(cid)
+                break
+    return [(ids, shots[j]) for j, ids in sorted(found.items())][:MAX_WARDROBE_REFS]
+
+
+def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False,
+                wardrobe: list[list[str]] | None = None) -> str:
+    """The keyframe prompt. `scene`: the next reference image after the sheets is the first shot
+    of the scene this shot continues (shot "same_scene"), given so the place and the clothes
+    carry over. `wardrobe`: after that come earlier shots of the scene, one per entry, each
+    showing the clothes of the characters listed (see wardrobe_shots)."""
     prompt = shot["image_prompt"].strip()
-    if not ref_ids and not scene:
+    wardrobe = wardrobe or []
+    if not ref_ids and not scene and not wardrobe:
         return prompt
     parts = [prompt, ""]
     if ref_ids:
@@ -116,13 +152,23 @@ def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False) -> str:
             f"Reference images, in order: {order}. Each reference is a character sheet; keep that "
             "character's face, hair, skin and build identical to its sheet. Do not copy the sheet "
             "layout or grey background; render the scene described above.")
+    at = len(ref_ids)
     if scene:
-        which = f"Reference image {len(ref_ids) + 1}" if ref_ids else "The reference image"
+        at += 1
+        which = f"Reference image {at}" if at > 1 or wardrobe else "The reference image"
         parts.append(
-            f"{which} is an earlier shot of this same scene: keep its place, time of day, lighting "
-            "and everyone's clothes (on those it wins over the description above). Faces, bodies "
-            "and designs still come from each character's own sheet, including anyone who is not "
-            "in that shot. New camera angle and poses, as described above.")
+            f"{which} is an earlier shot of this same scene: keep its place, time of day and "
+            "lighting, and the clothes of the people who are in it (on those it wins over the "
+            "description above). Anyone who is not in that picture is dressed as described above, "
+            "never in another person's clothes. Faces, bodies and designs still come from each "
+            "character's own sheet. New camera angle and poses, as described above.")
+    for ids in wardrobe:
+        at += 1
+        who = " and ".join(ids)
+        parts.append(
+            f"Reference image {at} is an earlier shot of this same scene with {who} in it: {who} "
+            f"{'wear' if len(ids) > 1 else 'wears'} exactly the same clothes here as in that picture. "
+            "Take only the clothes from it, not the pose or the framing.")
     return "\n".join(parts) if len(parts) > 2 else prompt
 
 
@@ -295,8 +341,11 @@ def ensure_hand(run_dir: Path, config: dict, script: dict) -> None:
 # --------------------------------------------------------------- keyframes ----
 
 def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str, Path],
-                      scene_ref: Path | None = None) -> Path:
-    """`scene_ref`: the keyframe of the first shot of the scene this shot continues."""
+                      scene_ref: Path | None = None,
+                      wardrobe: list[tuple[list[str], Path]] | None = None) -> Path:
+    """`scene_ref`: the keyframe of the first shot of the scene this shot continues.
+    `wardrobe`: [(character ids, keyframe of an earlier shot of the scene with them)], so people
+    the scene's first shot does not show keep their clothes too (wardrobe_shots)."""
     n = shot["n"]
     dest = shot_path(run_dir, n)
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -310,10 +359,13 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
         print(f"  shot {n}: {len(own)} characters plus the scene picture is more reference pictures than "
               f"{image_provider(config)} takes ({limit}), so the scene picture is left out")
         scene_ref = None
+    wardrobe = list(wardrobe or []) if scene_ref is not None else []
+    if wardrobe and limit and len(own) + 1 + len(wardrobe) > limit:
+        wardrobe = wardrobe[:max(0, limit - len(own) - 1)]
     if scene_ref is not None:
         try:
-            _generate_image(config, shot_prompt(shot, ref_ids, scene=True), SHOT_ASPECT,
-                            own + [scene_ref], f"shot {n}", dest)
+            _generate_image(config, shot_prompt(shot, ref_ids, scene=True, wardrobe=[ids for ids, _ in wardrobe]),
+                            SHOT_ASPECT, own + [scene_ref] + [p for _, p in wardrobe], f"shot {n}", dest)
         except StepError as e:
             # A refused request costs nothing. Draw the shot the way it was drawn before scene
             # references existed, rather than failing the step.
@@ -362,6 +414,12 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         if a is not None:
             anchor_of[s["n"]] = every[a]
 
+    # People the scene's first shot does not show take their clothes from the first shot of the
+    # scene that has them (wardrobe_shots), so that shot has to be drawn before the ones after it.
+    index_of = {s["n"]: i for i, s in enumerate(every)}
+    clothes_of: dict[int, list[tuple[list[str], dict]]] = {
+        n: wardrobe_shots(every, index_of[n]) for n in anchor_of}
+
     def make(shot: dict) -> None:
         who = ", ".join(shot["characters"]) or "no characters"
         anchor = anchor_of.get(shot["n"])
@@ -371,8 +429,13 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
                   f"so this one is drawn without it")
             scene_ref = None
         same = f", same scene as shot {anchor['n']}" if scene_ref else ""
+        wardrobe = [(ids, shot_path(run_dir, w["n"])) for ids, w in clothes_of.get(shot["n"], [])
+                    if scene_ref and shot_path(run_dir, w["n"]).exists()]
+        for ids, w in clothes_of.get(shot["n"], []) if scene_ref else []:
+            if shot_path(run_dir, w["n"]).exists():
+                same += f", {' and '.join(ids)} dressed as in shot {w['n']}"
         print(f"  shot {shot['n']}: generating ({who}{same})...")
-        generate_keyframe(run_dir, config, shot, sheets, scene_ref)
+        generate_keyframe(run_dir, config, shot, sheets, scene_ref, wardrobe)
         progress.tick()
         with lock:
             done.append(shot["n"])
@@ -394,10 +457,20 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
             print(f"  shot {n}: exists, skipping")
             continue
         todo.append(shot)
-    for batch in ([s for s in todo if s["n"] not in anchor_of], [s for s in todo if s["n"] in anchor_of]):
+    # Scene starters first, then the shots that continue a scene, and among those the ones that
+    # copy someone's clothes from another shot of the scene after the shot they copy from.
+    level: dict[int, int] = {}
+
+    def level_of(n: int) -> int:
+        if n not in level:
+            level[n] = 0 if n not in anchor_of else 1 + max([level_of(w["n"]) for _, w in clothes_of.get(n, [])] or [0])
+        return level[n]
+
+    for lv in sorted({level_of(s["n"]) for s in todo}):
         runner = TaskRunner(_workers(config))
-        for shot in batch:
-            runner.submit(make, shot)
+        for shot in todo:
+            if level_of(shot["n"]) == lv:
+                runner.submit(make, shot)
         runner.join()
     redrawn = {s["n"] for s in todo}
     for start in sorted({a["n"] for n, a in anchor_of.items()} & redrawn):

@@ -188,16 +188,6 @@
     },
     {
       "characters": [
-        "tyler",
-        "marcus"
-      ],
-      "image_prompt": "medium two shot, a glass-walled meeting room with a long white table and a city view behind it, warm golden late-afternoon light, {tyler}, in a navy waistcoat over a white shirt with the sleeves rolled up, bent almost double as he sets a fresh steaming paper coffee cup down in front of Marcus with both hands, an anxious toothy smile, sweat on his temple, eyes flicking up for approval; {marcus}, in a fitted black blazer over a black tee with a slim silver watch, seated and looking at the cup with his eyebrows raised and an amused half-smile. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Tyler hurries over and sets the cup down with both hands, turning it so the handle side faces Marcus, and backs off bowing; Marcus watches with a raised eyebrow. The camera follows the cup down to the table.",
-      "same_scene": true,
-      "label": "BRINGS HIM COFFEE"
-    },
-    {
-      "characters": [
         "tyler"
       ],
       "image_prompt": "close shot, chest up, a glass-walled meeting room with a long white table and a city view behind it, warm golden late-afternoon light, {tyler}, in a navy waistcoat over a white shirt with the sleeves rolled up, wringing his hands and leaning in toward someone off camera with a desperate eager smile, eyebrows pinched up in the middle, mouth open mid-question. Vertical composition, no text anywhere in the image.",
@@ -205,6 +195,16 @@
       "vo_line": "Two sugars, right?",
       "speaker": "tyler",
       "same_scene": true
+    },
+    {
+      "characters": [
+        "tyler",
+        "marcus"
+      ],
+      "image_prompt": "medium two shot, a glass-walled meeting room with a long white table and a city view behind it, warm golden late-afternoon light, {tyler}, in a navy waistcoat over a white shirt with the sleeves rolled up, bent almost double as he sets a fresh steaming paper coffee cup down in front of Marcus with both hands, an anxious toothy smile, sweat on his temple, eyes flicking up for approval; {marcus}, in a fitted black blazer over a black tee with a slim silver watch, seated and looking at the cup with his eyebrows raised and an amused half-smile. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler hurries over and sets the cup down with both hands, turning it so the handle side faces Marcus, and backs off bowing; Marcus watches with a raised eyebrow. The camera follows the cup down to the table.",
+      "same_scene": true,
+      "label": "BRINGS HIM COFFEE"
     },
     {
       "characters": [
