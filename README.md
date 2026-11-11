@@ -334,20 +334,28 @@ through `progress.py`; `GET /api/jobs` returns it as `progress` on the running j
 
 The editor (`ui/`: `index.html`, `app.css`, `app.js`; plain HTML/CSS/JS, no build step) has:
 
-- **Sidebar**: New video, and every run with its state (video ready, script only, in progress,
-  running, last job failed).
-- **Studio** (New video): every format as a card with its cover, description and an "about $X a
-  video" estimate from the format's own limits. Pick one to open its create screen: premise,
-  output (full video or script only), provider, format details (length, shots, clips, cast, beats)
-  and the cost, next to the format's example video or cover. Setup problems from `doctor` show on
-  top.
-- **Run**: the step pipeline with per-step progress (click a step to run it), the provider for
-  actions, the estimated cost so far; the cast sheets; a 9:16 card per shot (keyframe, clip
-  plays on hover, play button for the line, Reroll / Image / Voice, ★ to use it as the format's
-  cover); select several shots to
-  redo images, video or voice for just those; the final video with Download; and the script
-  editor (dialogue, speaker, caption, time-card text) that validates on save and offers to
-  redo the voice for changed lines.
+- **Sidebar**: New video, Characters, and every run with its format and state (video ready,
+  script only, in progress, running, last job failed).
+- **Studio** (New video): the formats grouped by kind (Pixar stories, People talking, Animated
+  looks, Letters and songs) with a search box. Each card shows its cover, description, length
+  and an "about $X a video" estimate from the format's own limits. Pick one to open its create
+  screen: premise, output (full video or script only), provider, and the Generate button with the
+  cost, which stays in view as you scroll. Beside it, "How this video goes": length, shots, clips,
+  cast, the beats in order, and the reference videos the format is modelled on. Setup problems
+  from `doctor` show in one line on top; open Details for the list.
+- **Run**: one bright button top right is always the next thing to do ("Make the images",
+  "Record the voices", then "Download video"). Under it, the numbered steps with their progress
+  (click any step to run it again). Two tabs:
+  - **Shots**: the cast sheets and a 9:16 card per shot (keyframe, clip plays on hover, play
+    button for the line, Reroll / Image / Voice, the star to use it as the format's cover).
+    Select several shots to redo images, video or voice for just those.
+  - **Script and editing**: every shot as a row with its picture, speaker, caption and line.
+    "Picture, motion and sound" under a row opens the rest (scene description, motion, sound
+    effect, progress number, time-card text). Save with the button or Ctrl+S (Cmd+S on a Mac);
+    it validates and offers to redo only what changed. A dot on the tab means unsaved edits.
+  The right column holds the final video with Download, the caption style, the voices and the
+  cost so far. A run made with the Claude Code engine has the same header and steps (Story,
+  Scenes, Voice, Render), its stills, and the story editor in the right column.
 - **Jobs drawer**: the live log of the running job, the queue, and recent jobs with the error
   line of any that failed.
 

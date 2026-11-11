@@ -25,6 +25,8 @@ const S = {
   chars: [], charsLoaded: false, storyDraft: null, storyFor: null, storyErrors: null,
   voices: null, voicesError: null, preview: null,
   lookOpen: new Set(),         // shots whose Picture and motion editor is open
+  runTab: {},                  // run id -> "shots" | "script": the tab open on that video's page
+  studioQuery: "",             // what is typed in the format search box
 };
 const CODE_STEPS = ["story", "scenes", "voice", "render"];
 
@@ -47,6 +49,28 @@ function h(tag, props, ...kids) {
   return el;
 }
 const $ = (sel) => document.querySelector(sel);
+
+// Line icons, drawn inline (no icon font, no network). icon("check", 14) -> an <svg>.
+const ICONS = {
+  plus: ["M12 5v14", "M5 12h14"], check: ["M20 6L9 17l-5-5"], x: ["M18 6L6 18", "M6 6l12 12"],
+  search: ["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "M21 21l-4.3-4.3"],
+  "chevron-left": ["M15 18l-6-6 6-6"], "chevron-up": ["M18 15l-6-6-6 6"], "chevron-down": ["M6 9l6 6 6-6"],
+  "arrow-right": ["M5 12h14", "M12 5l7 7-7 7"],
+  alert: ["M12 9v4", "M12 17h.01", "M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"],
+  external: ["M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6", "M15 3h6v6", "M10 14L21 3"],
+  download: ["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M7 10l5 5 5-5", "M12 15V3"],
+  star: ["M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"],
+  grid: ["M3 3h7v7H3z", "M14 3h7v7h-7z", "M14 14h7v7h-7z", "M3 14h7v7H3z"],
+  text: ["M4 6h16", "M4 12h16", "M4 18h10"],
+};
+function icon(name, size = 16) {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  for (const [k, v] of Object.entries({ viewBox: "0 0 24 24", width: size, height: size, fill: "none", stroke: "currentColor",
+    "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", class: "ic" })) svg.setAttribute(k, v);
+  for (const d of ICONS[name] || []) { const p = document.createElementNS(NS, "path"); p.setAttribute("d", d); svg.append(p); }
+  return svg;
+}
 const usd = (n) => (n == null ? "–" : n < 0.01 && n > 0 ? "<$0.01" : `$${n.toFixed(2)}`);
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
@@ -585,22 +609,26 @@ function renderSidebar() {
     return h("a", { class: `run-item${r.run_id === S.runId ? " active" : ""}`, href: `#/run/${encodeURIComponent(r.run_id)}`,
       title: `${r.premise}\n${STATE_LABEL[st]}` },
       h("div", { class: "premise" }, h("span", { class: `dot ${st}`, "aria-label": STATE_LABEL[st] }), h("span", {}, r.premise || r.run_id)),
-      h("div", { class: "meta" }, h("span", {}, r.format), r.engine === "claude_code" ? h("span", { class: "eng" }, "Claude Code") : null,
-        h("span", {}, "·"), h("span", {}, when(r.created_at))),
+      h("div", { class: "meta" }, h("span", {}, formatName(r.format)), r.engine === "claude_code" ? h("span", { class: "eng" }, "Claude Code") : null,
+        h("span", {}, "·"), h("span", {}, st === "done" ? when(r.created_at) : STATE_LABEL[st])),
       progressSlot(r.run_id, "mini"));
   }));
 }
 
 // ---------------------------------------------------------- studio views
 function formatTitle(f) { return f.title || f.name.replace(/_/g, " "); }
+// A format's display name from its id ("pixar_mirror" -> "Pixar Mirror").
+function formatName(id) {
+  const f = S.formats.find((x) => x.name === id);
+  return f && !f.error ? formatTitle(f) : String(id || "").replace(/_/g, " ");
+}
 
 // A format with no cover yet gets a quiet stand-in: a dark tint keyed to its name, its initial.
 function coverArt(f, big) {
   const hue = [...f.name].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
   return h("div", { class: `cover-art${big ? " big" : ""}`,
     style: `background: radial-gradient(110% 70% at 50% 30%, hsl(${hue} 38% 24%), hsl(${hue} 30% 11%) 72%, #0a0c13)` },
-    h("span", { class: "cover-initial" }, formatTitle(f).slice(0, 1)),
-    h("span", { class: "cover-none" }, "no cover yet"));
+    h("span", { class: "cover-initial" }, formatTitle(f).slice(0, 1)));
 }
 
 function coverImg(f) {
@@ -608,25 +636,61 @@ function coverImg(f) {
   return h("img", { src: f.cover, alt: "", loading: "lazy" });
 }
 
-function renderStudio() {
-  const formats = S.formats.filter((f) => !f.error).sort((x, y) => (y.default ? 1 : 0) - (x.default ? 1 : 0));
-  const broken = S.formats.filter((f) => f.error);
-  const cards = formats.map((f) => {
-    const est = estimateNew(f.name, "");
-    return h("a", { class: `fcard${f.default ? " default" : ""}`, href: `#/new/${encodeURIComponent(f.name)}`,
-      title: f.description },
-      h("div", { class: "fcard-img" }, coverImg(f), f.default ? h("span", { class: "fcard-tag" }, "Default") : null),
-      h("div", { class: "fcard-body" },
-        h("div", { class: "fcard-title" }, formatTitle(f)),
-        h("div", { class: "fcard-desc" }, f.description)),
-      h("div", { class: "fcard-cost" }, `about ${usd(est.total)} a video`));
+// The gallery is grouped by what kind of video a format makes.
+const FAMILIES = [
+  ["pixar", "Pixar stories", "3D animated character stories. One cast, five story shapes."],
+  ["people", "People talking", "Someone to camera, an interview, a podcast clip."],
+  ["looks", "Animated looks", "A short narrated story ad in one visual style."],
+  ["other", "Letters and songs", "The words are the picture."],
+];
+function formatFamily(f) {
+  const L = f.limits || {};
+  if (f.name.startsWith("pixar_")) return "pixar";
+  if (L.talking) return "people";
+  if (L.song || L.letter) return "other";
+  return "looks";
+}
+function formatCard(f) {
+  const est = estimateNew(f.name, "");
+  const len = (f.duration_target || "").replace(/^about\s+/i, "");
+  return h("a", { class: `fcard${f.default ? " default" : ""}${f.cover ? "" : " nocover"}`, href: `#/new/${encodeURIComponent(f.name)}`,
+    title: f.description },
+    h("div", { class: "fcard-img" }, coverImg(f), f.default ? h("span", { class: "fcard-tag" }, "Default") : null),
+    h("div", { class: "fcard-body" },
+      h("div", { class: "fcard-title" }, formatTitle(f)),
+      h("div", { class: "fcard-desc" }, f.description)),
+    h("div", { class: "fcard-cost" }, h("span", {}, len), h("span", { class: "fcard-price", title: "A rough cost for one video" }, `about ${usd(est.total)}`)));
+}
+function studioSections() {
+  const q = S.studioQuery.trim().toLowerCase();
+  const formats = S.formats.filter((f) => !f.error
+    && (!q || `${formatTitle(f)} ${f.description} ${f.name}`.toLowerCase().includes(q)));
+  if (!formats.length) {
+    return [h("div", { class: "empty" }, `No format matches \u201c${S.studioQuery.trim()}\u201d. Try a look ("comic") or a kind of story ("interview").`)];
+  }
+  return FAMILIES.map(([key, title, sub]) => {
+    const list = formats.filter((f) => formatFamily(f) === key)
+      .sort((x, y) => (y.default ? 1 : 0) - (x.default ? 1 : 0) || formatTitle(x).localeCompare(formatTitle(y)));
+    if (!list.length) return null;
+    return h("section", { class: "fsec", "aria-label": title },
+      h("div", { class: "fsec-head" }, h("h2", {}, title), h("span", { class: "fsec-sub" }, sub)),
+      h("div", { class: "fgrid" }, list.map(formatCard)));
   });
+}
+function renderStudio() {
+  const broken = S.formats.filter((f) => f.error);
+  const total = S.formats.length - broken.length;
+  const sections = h("div", { id: "fsections" }, studioSections());
+  const search = h("label", { class: "search" }, icon("search"),
+    h("input", { type: "search", placeholder: `Search ${total} formats`, value: S.studioQuery, "aria-label": "Search formats",
+      oninput: (e) => { S.studioQuery = e.target.value; sections.replaceChildren(...studioSections().filter(Boolean)); } }));
   $("#main").replaceChildren(h("div", { class: "view studio" },
     doctorNotice(),
     h("div", { class: "studio-head" },
-      h("div", {}, h("h1", {}, "Studio"), h("p", { class: "lede" }, "Pick a format. Each one is a look and a story shape.")),
-      h("span", { class: "muted", style: "font-size:12px" }, `${formats.length} formats`)),
-    h("div", { class: "fgrid" }, cards),
+      h("div", {}, h("h1", {}, "What are we making?"),
+        h("p", { class: "lede" }, "Pick a format: a look and a story shape. You write a sentence or two, VidGen makes the video.")),
+      search),
+    sections,
     broken.length ? h("div", { class: "notice bad", style: "margin-top:18px" },
       h("b", {}, "Formats that did not load"), h("ul", {}, broken.map((f) => h("li", {}, h("b", {}, f.name), ": ", f.error)))) : null));
   if (!S.doctor) loadDoctor();
@@ -697,7 +761,12 @@ function renderCreate(formatName) {
       h("dt", {}, "Clips"), h("dd", {}, L.animate_all ? `${L.flashes ? "every shot but the flashes" : "every shot"} is a clip × ${f.clip_seconds || 4}s` : `up to ${L.max_animated_shots ?? "?"} × ${f.clip_seconds || 4}s`),
       f.locked_cast.length ? [h("dt", {}, "Cast"), h("dd", {}, f.locked_cast.join(", "))] : null,
       L.cta_caption ? [h("dt", {}, "Ends on"), h("dd", {}, L.cta_caption)] : null),
-    f.beats.length ? h("ol", { class: "beat-list" }, f.beats.map((b) => h("li", {}, b))) : null);
+    f.beats.length ? h("ol", { class: "beat-list" }, f.beats.map((b) => h("li", {}, b))) : null,
+    (f.references || []).length ? h("div", { class: "refs" },
+      h("div", { class: "refs-title" }, "Modelled on"),
+      f.references.map((r) => h("a", { class: "ref", href: r.url, target: "_blank", rel: "noopener noreferrer" },
+        icon("external", 14), h("span", {}, r.note || r.url)))) : null);
+  if ((f.references || []).length) details.open = true;
 
   const outputBox = h("div");
   const drawOutput = () => outputBox.replaceChildren(chips(
@@ -747,7 +816,6 @@ function renderCreate(formatName) {
     provSec,
     capSec,
     castSection(f, st, update),
-    details,
     h("section", { class: "card-sec cost-card" }, h("div", {}, costLine, costSub), go));
   premise.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) form.requestSubmit(); });
 
@@ -768,16 +836,23 @@ function renderCreate(formatName) {
     video.muted = !video.muted; if (!video.muted) { video.currentTime = 0; video.play(); }
     soundBtn.textContent = video.muted ? "Play with sound" : "Mute";
   } }, "Play with sound") : null;
-  const right = h("section", { class: "create-right" },
-    h("div", { class: "sec-label" }, "Your result"),
-    h("div", { class: "example-wrap" }, frame,
-      soundBtn ? h("div", { class: "example-actions" }, soundBtn) : null,
-      h("p", { class: "example-note" }, f.example_video || f.cover
-        ? `A finished ${formatTitle(f)}. Your video replaces it once you generate.`
-        : `No example yet. Make one, then use "Use as cover" on a shot or "Use as example" on the finished video.`)));
+  // Beside the form: what this format makes. An example when there is one, and always how the
+  // story goes and which videos it is modelled on.
+  const hasExample = !!(f.example_video || f.cover);
+  details.open = true;
+  details.querySelector("summary").replaceChildren(h("span", { class: "sec-label" }, "How this video goes"));
+  const right = h("div", { class: "create-side" },
+    hasExample ? h("section", { class: "create-right" },
+      h("div", { class: "sec-label" }, "An example"),
+      h("div", { class: "example-wrap" }, frame,
+        soundBtn ? h("div", { class: "example-actions" }, soundBtn) : null,
+        h("p", { class: "example-note" }, `A finished ${formatTitle(f)}. Yours follows the same shape.`))) : null,
+    details,
+    hasExample ? null : h("p", { class: "example-note left" },
+      "No example video for this format yet. After you make one, \u201cUse as example\u201d on the finished video puts it here."));
 
   $("#main").replaceChildren(h("div", { class: "view create" },
-    h("a", { class: "back-link", href: "#/new" }, "‹ Studio"),
+    h("a", { class: "back-link", href: "#/new" }, icon("chevron-left", 14), "All formats"),
     h("h1", {}, formatTitle(f)),
     h("p", { class: "lede" }, f.description),
     doctorNotice(),
@@ -814,9 +889,13 @@ function fillDoctor(box) {
   if (S.doctor.error) { box.replaceChildren(h("div", { class: "notice" }, `Could not run the setup check: ${S.doctor.error}`)); return; }
   const fails = S.doctor.checks.filter((c) => c.status === "FAIL");
   if (!fails.length) { box.replaceChildren(); return; }
-  box.replaceChildren(h("div", { class: "notice bad" },
-    h("b", {}, `${plural(fails.length, "setup check")} failed`), " (python main.py doctor)",
-    h("ul", {}, fails.map((c) => h("li", {}, h("b", {}, c.item), ": ", c.detail)))));
+  box.replaceChildren(h("details", { class: "setup" },
+    h("summary", {}, icon("alert"),
+      h("span", { class: "setup-title" }, `Setup: ${plural(fails.length, "thing")} to fix before a video can be made`),
+      h("span", { class: "setup-items" }, fails.map((c) => c.item).join(" · ")),
+      h("span", { class: "setup-more" }, "Details")),
+    h("ul", {}, fails.map((c) => h("li", {}, h("b", {}, c.item), ": ", c.detail))),
+    h("p", { class: "field-note" }, "To check again from a terminal: python main.py doctor")));
 }
 async function loadDoctor() {
   try { S.doctor = await api("GET", "/api/doctor"); } catch (e) { S.doctor = { error: e.message }; }
@@ -897,6 +976,9 @@ function castSection(f, st, onChange) {
 }
 
 // -------------------------------------------------------------- run view
+const STEP_NAME = { script: "Script", images: "Images", video: "Clips", voice: "Voices", assemble: "Final cut" };
+const STEP_GO = { script: "Write the script", images: "Make the images", video: "Make the clips", voice: "Record the voices",
+  assemble: "Assemble the video" };
 function renderRun() {
   if (S.run.engine === "claude_code") { renderCodeRun(); return; }
   const run = S.run;
@@ -909,21 +991,37 @@ function renderRun() {
     h("option", { value: "sume", selected: S.provider === "sume" }, "Sume"));
   const lastProv = lastProvider(run.run_id);
 
+  // The next step that still has work to do gets the one bright button on the page.
+  const next = STEPS.find((s) => !["done", "n/a"].includes(run.steps[s].status));
   const stepBtns = [];
   STEPS.forEach((step, i) => {
     const st = run.steps[step];
-    if (i) stepBtns.push(h("span", { class: "step-arrow" }, "›"));
-    stepBtns.push(h("button", { class: "step-btn", disabled: busy || (step !== "script" && !run.script),
-      title: `Run the ${step} step`, onclick: () => runStep(run, step) },
-      h("span", { class: `dot ${st.status}` }), step,
+    if (i) stepBtns.push(h("span", { class: `step-arrow${st.status === "done" ? " done" : ""}` }));
+    stepBtns.push(h("button", { class: `step-btn ${st.status === "n/a" ? "na" : st.status}${step === next ? " next" : ""}`,
+      disabled: busy || (step !== "script" && !run.script),
+      title: `${STEP_GO[step]}${st.status === "done" ? " again" : ""}`, onclick: () => runStep(run, step) },
+      h("span", { class: `dot ${st.status}` }),
+      h("span", { class: "step-num" }, st.status === "done" ? icon("check", 12) : String(i + 1)),
+      h("span", { class: "step-name" }, STEP_NAME[step]),
       st.total > 1 ? h("span", { class: "count" }, `${st.done}/${st.total}`) : null));
   });
+  const finalSrc = run.final_video ? bust(run.final_video, run.run_id) : null;
+  const cta = next
+    ? h("button", { class: "btn primary cta", disabled: busy || (next !== "script" && !run.script), onclick: () => runStep(run, next) },
+      h("span", {}, STEP_GO[next]), icon("arrow-right"))
+    : finalSrc ? h("a", { class: "btn primary cta", href: finalSrc, download: `${run.run_id}.mp4` }, icon("download"), h("span", {}, "Download video")) : null;
+  const tab = S.runTab[run.run_id] || (run.script && !run.steps.images.done ? "script" : "shots");
+  const unsaved = draftChanged().size;
+  const tabBtn = (id, label, extra) => h("button", { class: `tab${tab === id ? " on" : ""}`, role: "tab", "aria-selected": tab === id ? "true" : "false",
+    onclick: () => { S.runTab[run.run_id] = id; renderMain(); } }, icon(id === "shots" ? "grid" : "text", 15), h("span", {}, label), extra);
 
   const head = h("header", { class: "run-head" },
-    h("h1", { class: "run-title" }, run.premise || run.run_id),
+    h("div", { class: "run-top" },
+      h("h1", { class: "run-title", title: run.premise || "" }, run.premise || run.run_id),
+      cta),
     h("div", { class: "run-sub" },
-      h("span", {}, "format ", h("b", {}, run.format)),
-      h("span", {}, "provider ", provSel),
+      h("span", { class: "pill" }, formatName(run.format)),
+      h("span", { class: "run-prov" }, "Made with ", provSel),
       lastProv ? h("span", { class: "dim" }, `last run with ${lastProv}`) : null,
       h("span", { class: "cost", title: run.cost.rows.map((r) => `${r.item}: ${usd(r.usd)}`).join("\n") }, `est. ${usd(run.cost.total)}`),
       h("span", { class: "dim" }, when(run.created_at)),
@@ -933,9 +1031,15 @@ function renderRun() {
     h("div", { class: "steps" }, stepBtns,
       h("span", { style: "flex:1" }),
       h("button", { class: "btn small ghost", disabled: busy || !run.script, onclick: () => recast(run),
-        title: "Apply the format's locked character descriptions to this run" }, "Recast")));
+        title: "Apply the format's locked character descriptions to this run" }, "Recast")),
+    run.script ? h("div", { class: "tabs", role: "tablist", "aria-label": "What to look at" },
+      tabBtn("shots", "Shots", h("span", { class: "tab-count" }, String(run.shots.length))),
+      tabBtn("script", "Script and editing", unsaved ? h("span", { class: "tab-dot", title: "Unsaved changes" }) : null)) : null);
 
-  const body = h("div", { class: "run-body" }, shotsColumn(run, busy), sideColumn(run, busy));
+  const mainCol = tab === "script" && run.script
+    ? h("section", { class: "shots-col script-col", "aria-label": "Script" }, scriptPanel(run, busy))
+    : shotsColumn(run, busy);
+  const body = h("div", { class: "run-body" }, mainCol, sideColumn(run, busy));
   const main = $("#main");
   const scroll = main.scrollTop;
   main.replaceChildren(head, body);
@@ -1013,7 +1117,7 @@ function shotCard(run, s, busy) {
     shot.label ? h("span", { class: "badge kind", title: "On-screen label for this shot" }, shot.label) : null,
     shot.stat ? h("span", { class: "badge stat", title: "Progress overlay: the rank and the number drawn over this shot" }, `${shot.stat.rank} · ${Number(shot.stat.value).toLocaleString("en-US")} ${shot.stat.unit}`) : null,
     shot.same_scene ? h("span", { class: "badge scene", title: "Same scene as the shot before: drawn with that scene's first shot as a reference, so the place and clothes match" }, "↳ scene") : null,
-    shot.talk ? h("span", { class: "badge anim", title: s.clip ? "Lip-synced talking clip (hover to play)" : "Talking shot: no clip yet (video step)" }, s.clip ? "🗣 talk" : "🗣 —") : null));
+    shot.talk ? h("span", { class: "badge anim", title: s.clip ? "Lip-synced talking clip (hover to play)" : "Talking shot: no clip yet (video step)" }, s.clip ? "talk" : "talk —") : null));
   if (drawable) {
     thumb.append(h("input", { type: "checkbox", class: "sel", checked: selected, "aria-label": `Select shot ${s.n}`,
       onchange: (e) => {
@@ -1025,7 +1129,7 @@ function shotCard(run, s, busy) {
   }
   if (s.image) {
     thumb.append(h("button", { class: "set-cover", title: "Use as this format's cover in the Studio",
-      "aria-label": `Use shot ${s.n} as the format cover`, onclick: (e) => { e.stopPropagation(); setFormatMedia(run, "cover", s.n); } }, "★"));
+      "aria-label": `Use shot ${s.n} as the format cover`, onclick: (e) => { e.stopPropagation(); setFormatMedia(run, "cover", s.n); } }, icon("star", 12)));
   }
   if (s.audio && !run.song) {
     let audio = null;
@@ -1052,31 +1156,33 @@ function shotCard(run, s, busy) {
 
 function sideColumn(run, busy) {
   const col = h("aside", { class: "side-col" });
-  col.append(h("div", { class: "panel-title" }, "Final video"));
+  const final = h("section", { class: "side-card", "aria-label": "Final video" }, h("div", { class: "panel-title" }, "Final video"));
   if (run.final_video) {
     const src = bust(run.final_video, run.run_id);
-    col.append(h("video", { class: "player", controls: true, playsinline: true, preload: "metadata", src }),
+    final.append(h("video", { class: "player", controls: true, playsinline: true, preload: "metadata", src }),
       h("div", { class: "final-actions" },
-        h("a", { class: "btn small", href: src, download: `${run.run_id}.mp4` }, "Download mp4"),
+        h("a", { class: "btn small", href: src, download: `${run.run_id}.mp4` }, icon("download", 14), "Download"),
         h("a", { class: "btn small ghost", href: src, target: "_blank", rel: "noopener" }, "Open"),
-        h("button", { class: "btn small ghost", onclick: () => setFormatMedia(run, "example") }, "Use as example")));
+        h("button", { class: "btn small ghost", onclick: () => setFormatMedia(run, "example"),
+          title: "Show this video on the format's page as its example" }, "Use as example")));
   } else {
-    col.append(h("div", { class: "player-empty" }, run.script ? "Not assembled yet. Run Assemble once images, clips and voice are in." : "No video yet."));
+    final.append(h("div", { class: "player-empty" }, run.script ? "Not assembled yet. It appears here once the images, clips and voices are in." : "No video yet."));
   }
+  col.append(final);
   if (run.script && captionStyles().length) col.append(captionsPanel(run, busy));
   if (run.voices && run.voices.length) col.append(voicesPanel(run, busy));
   if (run.song) {
-    col.append(h("div", { class: "panel-title" }, "Song"),
+    col.append(h("section", { class: "side-card", "aria-label": "Song" }, h("div", { class: "panel-title" }, "Song"),
       h("div", { class: "song-style" }, run.song.style),
       run.song.audio ? h("audio", { class: "voice-player", controls: true, preload: "none", src: bust(run.song.audio, run.run_id) })
-        : h("div", { class: "field-note" }, "Not made yet: run the voice step."));
+        : h("div", { class: "field-note" }, "Not made yet: run the voice step.")));
   }
   if (run.cost.rows.length) {
-    col.append(h("div", { class: "cost-rows" },
-      run.cost.rows.map((r) => h("div", {}, h("span", {}, r.item), h("span", {}, usd(r.usd)))),
-      h("div", { class: "total" }, h("span", {}, "estimated so far"), h("span", {}, usd(run.cost.total)))));
+    col.append(h("section", { class: "side-card", "aria-label": "Cost" }, h("div", { class: "panel-title" }, "Cost so far"),
+      h("div", { class: "cost-rows" },
+        run.cost.rows.map((r) => h("div", {}, h("span", {}, r.item), h("span", {}, usd(r.usd)))),
+        h("div", { class: "total" }, h("span", {}, "Estimated total"), h("span", {}, usd(run.cost.total))))));
   }
-  if (run.script) col.append(scriptPanel(run, busy));
   return col;
 }
 
@@ -1229,7 +1335,11 @@ function scriptPanel(run, busy) {
           oninput: (e) => update(i, "vo_line", e.target.value, row) }, s.vo_line || "")].filter(Boolean));
       if ((s.image_prompt || "").trim()) fields.append(lookEditor(s, i, row));
     }
-    row.append(h("span", { class: "num" }, `#${s.n}`), fields);
+    const meta = run.shots.find((x) => x.n === s.n);
+    const pic = meta && meta.image
+      ? h("img", { class: "srow-thumb", src: bust(meta.image, run.run_id), alt: "", loading: "lazy" })
+      : h("div", { class: "srow-thumb none" }, s.card ? "card" : s.app_screen ? "app" : "no picture");
+    row.append(h("div", { class: "srow-side" }, h("span", { class: "num" }, `#${s.n}`), pic), fields);
     return row;
   });
   const saveBtn = h("button", { class: "btn primary small", disabled: busy || !changed.size, onclick: () => saveScript(run) }, "Save script");
@@ -1239,7 +1349,7 @@ function scriptPanel(run, busy) {
   const topSave = h("button", { class: "btn primary small", disabled: busy || !changed.size, onclick: () => saveScript(run) }, "Save");
   const panel = h("section", { "aria-label": "Script" },
     h("div", { class: "panel-title" }, h("span", {}, "Script"), topSave),
-    h("div", { class: "notice info" }, `Saving changes script.json only. Rerun Voice for changed lines, then Assemble. To change what a clip does, open ${run.sfx ? "Picture, motion and sound" : "Picture and motion"} on its shot.`));
+    h("p", { class: "script-help" }, `Change any line, speaker or caption, then save. After saving, VidGen offers to redo just the parts that changed. To change what a shot shows or how it moves, open \u201c${run.sfx ? "Picture, motion and sound" : "Picture and motion"}\u201d under it.`));
   if (S.afterSave && S.afterSave.run === run.run_id && (S.afterSave.sound || []).length) {
     const ns = S.afterSave.sound;
     panel.append(h("div", { class: "notice" }, `Saved. The sound changed on ${ns.length === 1 ? "shot" : "shots"} ${ns.join(", ")}. `,
@@ -1438,7 +1548,7 @@ function renderCharEditor(cid) {
   const field = (label, el, note) => h("label", { class: "field" }, h("span", {}, label), el, note ? h("div", { class: "field-note" }, note) : null);
   const drawing = S.jobs.some((j) => j.action === "draw_character" && ACTIVE.has(j.status) && j.params.character === cid);
   $("#main").replaceChildren(h("div", { class: "view create" },
-    h("a", { class: "back-link", href: "#/characters" }, "‹ Characters"),
+    h("a", { class: "back-link", href: "#/characters" }, icon("chevron-left", 14), "Characters"),
     h("h1", {}, isNew ? "New character" : c.name),
     h("p", { class: "lede" }, "The description is what every shot's prompt says about them, word for word. The picture keeps their look the same from shot to shot."),
     h("div", { class: "create-grid" },
@@ -1478,27 +1588,36 @@ function renderCodeRun() {
   const busy = runBusy(run.run_id);
   const active = S.jobs.find((j) => j.run_id === run.run_id && ACTIVE.has(j.status));
   const has = (k) => run.steps[k].status === "done";
+  const next = !run.story ? "story" : !has("scenes") ? "scenes" : !has("voice") ? "voice" : !has("render") ? "render" : null;
   const stepBtns = [];
   CODE_STEPS.forEach((step, i) => {
     const st = run.steps[step];
-    if (i) stepBtns.push(h("span", { class: "step-arrow" }, "›"));
-    stepBtns.push(h("button", { class: "step-btn", disabled: busy || (step !== "story" && !run.story),
+    if (i) stepBtns.push(h("span", { class: `step-arrow${st.status === "done" ? " done" : ""}` }));
+    stepBtns.push(h("button", { class: `step-btn ${st.status}${step === next ? " next" : ""}`,
+      disabled: busy || (step !== "story" && !run.story),
       title: CODE_STEP_HELP[step], onclick: () => runCodeStep(run, step) },
-      h("span", { class: `dot ${st.status}` }), step, st.note && st.note !== "claude" && st.note !== "voiced" ? h("span", { class: "count" }, st.note) : null));
+      h("span", { class: "step-num" }, st.status === "done" ? icon("check", 12) : String(i + 1)),
+      h("span", { class: "step-name" }, CODE_STEP_NAME[step]),
+      st.note && st.note !== "claude" && st.note !== "voiced" ? h("span", { class: "count" }, st.note) : null));
   });
-  const next = !run.story ? null : !has("scenes") ? "scenes" : !has("voice") ? "voice" : !has("render") ? "render" : null;
+  const finalSrc = run.final_video ? bust(run.final_video, run.run_id) : null;
+  const cta = !run.story
+    ? h("button", { class: "btn primary cta", disabled: busy, onclick: () => runCodeStep(run, "story") }, h("span", {}, "Write the story"), icon("arrow-right"))
+    : next ? h("button", { class: "btn primary cta", disabled: busy, onclick: () => runCodeRest(run, next) },
+      h("span", {}, next === "scenes" ? "Code the scenes and render" : `Continue from ${CODE_STEP_NAME[next].toLowerCase()}`), icon("arrow-right"))
+    : finalSrc ? h("a", { class: "btn primary cta", href: finalSrc, download: `${run.run_id}.mp4` }, icon("download"), h("span", {}, "Download video")) : null;
   const head = h("header", { class: "run-head" },
-    h("h1", { class: "run-title" }, run.premise || run.run_id),
+    h("div", { class: "run-top" },
+      h("h1", { class: "run-title", title: run.premise || "" }, run.premise || run.run_id),
+      cta),
     h("div", { class: "run-sub" },
-      h("span", {}, "format ", h("b", {}, run.format)),
+      h("span", { class: "pill" }, formatName(run.format)),
       h("span", { class: "eng-pill" }, "Claude Code engine"),
       h("span", { class: "cost", title: run.cost.rows.map((r) => `${r.item}: ${usd(r.usd)}`).join("\n") }, `est. ${usd(run.cost.total)}`),
       h("span", { class: "dim" }, when(run.created_at)),
       busy ? h("span", { class: "busy-note" }, h("span", { class: `dot ${active.status}` }),
         `${active.action}${active.params.step ? ` ${active.params.step}` : ""} ${active.status}…`) : null),
-    h("div", { class: "steps" }, stepBtns, h("span", { style: "flex:1" }),
-      next && !busy ? h("button", { class: "btn small primary", onclick: () => runCodeRest(run, next) },
-        next === "scenes" ? "Code the scenes and render" : `Continue from ${next}`) : null));
+    h("div", { class: "steps" }, stepBtns));
 
   const left = h("div", { class: "shots-col" });
   if (run.cast && run.cast.length) {
@@ -1511,32 +1630,41 @@ function renderCodeRun() {
   left.append(run.stills.length ? h("div", { class: "grid" }, run.stills.map((p) =>
     h("a", { class: "shot", href: bust(p.url, run.run_id), target: "_blank", rel: "noopener", title: p.name },
       h("div", { class: "thumb" }, h("img", { src: bust(p.url, run.run_id), alt: p.name, loading: "lazy" }),
-        h("div", { class: "badges" }, h("span", { class: "badge n" }, p.name.replace(/^t0*/, "").replace(/\.jpg$/, "s")))))))
+        h("div", { class: "badges" }, h("span", { class: "badge n" }, `${Number(p.name.replace(/^t/, "").replace(/\.jpg$/, "")) || 0}s`))))))
     : h("div", { class: "player-empty wide" }, run.story ? "Claude Code saves stills here while it codes the scenes." : "Write the story first."));
   if (run.story_notes) {
     left.append(h("details", { class: "card-sec notes" }, h("summary", {}, h("span", { class: "sec-label" }, "Claude's notes (story.md)"), h("span", { class: "muted" }, "Show")),
       h("pre", {}, run.story_notes)));
   }
 
-  const side = h("aside", { class: "side-col" }, h("div", { class: "panel-title" }, "Final video"));
+  const final = h("section", { class: "side-card", "aria-label": "Final video" }, h("div", { class: "panel-title" }, "Final video"));
   if (run.final_video) {
     const src = bust(run.final_video, run.run_id);
-    side.append(h("video", { class: "player", controls: true, playsinline: true, preload: "metadata", src }),
+    final.append(h("video", { class: "player", controls: true, playsinline: true, preload: "metadata", src }),
       h("div", { class: "final-actions" },
-        h("a", { class: "btn small", href: src, download: `${run.run_id}.mp4` }, "Download mp4"),
-        h("button", { class: "btn small ghost", onclick: () => setFormatMedia(run, "example") }, "Use as example")));
+        h("a", { class: "btn small", href: src, download: `${run.run_id}.mp4` }, icon("download", 14), "Download"),
+        h("a", { class: "btn small ghost", href: src, target: "_blank", rel: "noopener" }, "Open"),
+        h("button", { class: "btn small ghost", onclick: () => setFormatMedia(run, "example"),
+          title: "Show this video on the format's page as its example" }, "Use as example")));
   } else {
-    side.append(h("div", { class: "player-empty" }, run.story ? "Not rendered yet." : "No video yet."));
+    final.append(h("div", { class: "player-empty" }, run.story ? "Not rendered yet. It appears here after the render step." : "No video yet."));
   }
-  if (run.voice) side.append(h("audio", { class: "voice-player", controls: true, preload: "none", src: bust(run.voice, run.run_id) }));
-  side.append(h("div", { class: "cost-rows" }, run.cost.rows.map((r) => h("div", {}, h("span", {}, r.item), h("span", {}, usd(r.usd))))));
+  if (run.voice) final.append(h("audio", { class: "voice-player", controls: true, preload: "none", src: bust(run.voice, run.run_id) }));
+  const side = h("aside", { class: "side-col" }, final);
   if (run.story) side.append(storyPanel(run, busy));
+  if (run.cost.rows.length) {
+    side.append(h("section", { class: "side-card", "aria-label": "Cost" }, h("div", { class: "panel-title" }, "Cost so far"),
+      h("div", { class: "cost-rows" },
+        run.cost.rows.map((r) => h("div", {}, h("span", {}, r.item), h("span", {}, usd(r.usd)))),
+        h("div", { class: "total" }, h("span", {}, "Estimated total"), h("span", {}, usd(run.cost.total))))));
+  }
   const main = $("#main");
   const scroll = main.scrollTop;
   main.replaceChildren(head, h("div", { class: "run-body" }, left, side));
   main.scrollTop = scroll;
 }
 
+const CODE_STEP_NAME = { story: "Story", scenes: "Scenes", voice: "Voice", render: "Render" };
 const CODE_STEP_HELP = {
   story: "Claude Code writes the story (one line per beat)",
   scenes: "Claude Code codes every scene for this story and checks stills",
@@ -1596,9 +1724,9 @@ function storyPanel(run, busy) {
   const discard = h("button", { class: "btn ghost small", disabled: !changed,
     onclick: () => { S.storyDraft = structuredClone(run.story); S.storyErrors = null; renderMain(); } }, "Discard");
   const secs = h("span", { class: "word-count" }, `${total.toFixed(1)}s`);
-  return h("section", { "aria-label": "Story" },
+  return h("section", { class: "side-card story-card", "aria-label": "Story" },
     h("div", { class: "panel-title" }, h("span", {}, "Story"), h("span", { class: "dim" }, "one line per beat")),
-    h("div", { class: "notice info" }, "Edit before the scenes are coded. The voice retimes the seconds to the reading."),
+    h("p", { class: "script-help" }, "Edit before the scenes are coded. The voice retimes the seconds to the reading."),
     S.storyErrors ? h("div", { class: "notice bad errors" }, h("b", {}, "Not saved"), h("ul", {}, S.storyErrors.map((e) => h("li", {}, e)))) : null,
     h("div", { class: "script-list" }, rows),
     h("div", { class: "script-actions" }, save, discard, secs));
@@ -1608,7 +1736,7 @@ function storyPanel(run, busy) {
 function openDrawer(open) {
   const d = $("#drawer");
   d.classList.toggle("collapsed", !open);
-  $("#drawer-toggle").textContent = open ? "▾" : "▴";
+  $("#drawer-toggle").replaceChildren(icon(open ? "chevron-down" : "chevron-up", 14));
   $("#drawer-toggle").setAttribute("aria-expanded", String(open));
   try { localStorage.setItem("vidgen.drawer", open ? "1" : "0"); } catch { /* private mode */ }
   if (open) scrollLog(true);
@@ -1740,6 +1868,13 @@ function renderMain() {
 
 window.addEventListener("beforeunload", (e) => {
   if (draftChanged().size || storyChanged()) { e.preventDefault(); e.returnValue = ""; }
+});
+// Ctrl+S / Cmd+S saves the script while it has unsaved changes.
+window.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s" && S.run && S.draft && draftChanged().size && !runBusy(S.run.run_id)) {
+    e.preventDefault();
+    saveScript(S.run);
+  }
 });
 window.addEventListener("hashchange", () => {
   route();
