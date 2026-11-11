@@ -67,6 +67,8 @@ def _rules(raw, where: str) -> dict:
         "caption_max_words": int(raw.get("caption_max_words", 2)),
         "cta_caption": str(raw.get("cta_caption") or "").strip(),
         "narrator": bool(raw.get("narrator", False)),
+        # With a narrator: at least this many lines must still be spoken by characters.
+        "dialogue_lines_min": max(0, int(raw.get("dialogue_lines_min") or 0)),
         "cards": None, "montage": None,
         "app_screens": {"max": 0, "hint": ""},
         "banned_image_prompt": {"fix": "", "patterns": []},

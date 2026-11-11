@@ -25,15 +25,26 @@
           move that follows the action (a fast push-in on his face, a pull-back as he walks off,
           a handheld follow). Two sentences, 20-40 words. Never a camera move alone, and never a
           character who only stands there while the camera drifts.
-        - "vo_line" is a line of dialogue spoken by one of the cast: {{SPEAKERS}}.
-          There is NO narrator: no voice-over that describes events, explains the story or
-          talks about the hero in the third person. Every spoken line is a character talking.
-          Shots with no dialogue have "vo_line": "" and let the visual carry the beat; MOST
-          shots should be silent. Spoken lines are short, usually 2-8 words. The TOTAL word
-          count of all vo_lines across the script must be {{VO_WORDS_MIN}}-{{VO_WORDS_MAX}} words.
-          Count before you answer.
-        - "speaker" is the id of the character who speaks the vo_line (one of {{SPEAKERS}}),
-          or "" when vo_line is "". Never "narrator".
+        - "vo_line" is either NARRATION or one line of DIALOGUE. A shot carries one or the
+          other, never both.
+          NARRATION ("speaker": "narrator") is a storyteller's voice over the pictures: third
+          person, past tense, short punchy sentences of 4-10 words. "Marcus got dumped for a
+          guy with a rented Lambo." "So he made a bet. Thirty days." "By day ten, he wanted to
+          quit." The narrator tells the viewer what the pictures cannot: who these people are,
+          what just happened, what is at stake, how much time passed, what changed. Someone who
+          only LISTENS to the narration must be able to follow the whole story, start to end.
+          The narrator never describes what is plainly on screen, never explains the app's
+          features and never comments on the story ("little did he know").
+          DIALOGUE ("speaker": a character id, one of {{SPEAKERS}}) is for the moments that
+          hit hardest when a person says them: the insult, the firing, the bet, the mentor's
+          push, the ex asking to come back, the hero's answer. 2-8 words each. At least
+          {{DIALOGUE_MIN}} lines are dialogue.
+          Narration carries about two thirds of the words and runs through most story shots,
+          so the viewer is never lost. A quick reaction shot may be silent ("vo_line": ""), but
+          never two silent story shots in a row. The TOTAL word count of all vo_lines across
+          the script must be {{VO_WORDS_MIN}}-{{VO_WORDS_MAX}} words. Count before you answer.
+        - "speaker" is "narrator" for narration, the id of the character who says a line of
+          dialogue (one of {{SPEAKERS}}), or "" when vo_line is "".
         - "caption" is "" or ONE OR TWO WORDS IN ALL CAPS that hit the beat ("LOSER", "DAY 1",
           "DIAMOND", "I'M GOOD"). The only three-word caption allowed is "{{CTA_CAPTION}}" on the
           last shot.

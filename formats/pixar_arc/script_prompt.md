@@ -117,8 +117,10 @@
           in the middle of the video, not saved for the end.
         - No two shots in a row carry the same information. Every shot moves the story forward.
 
-        DIALOGUE
-        - Write lines people actually say out loud to each other. Plain, short words.
+        NARRATION AND DIALOGUE
+        - The narrator sounds like a friend telling you a story they can't believe: plain,
+          short words, dry and a little amused, never a movie-trailer voice.
+        - Write dialogue people actually say out loud to each other. Plain, short words.
         - Never use: em dashes or semicolons; "it's not X, it's Y" or "not just X but Y";
           filler such as "here's the thing", "let that sink in", "the truth is", "at the end of
           the day", "buckle up"; "spoiler:" or "plot twist:"; the words delve, unlock, unleash,

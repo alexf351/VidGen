@@ -61,7 +61,8 @@ def prompt_values(fmt: dict) -> dict:
     r = fmt["rules"]
     v = {"SHOT_MIN": r["story_shots"][0], "SHOT_MAX": r["story_shots"][1],
          "VO_WORDS_MIN": r["vo_words"][0], "VO_WORDS_MAX": r["vo_words"][1],
-         "CTA_CAPTION": r["cta_caption"], "APP_SCREENS_MAX": r["app_screens"]["max"]}
+         "CTA_CAPTION": r["cta_caption"], "APP_SCREENS_MAX": r["app_screens"]["max"],
+         "DIALOGUE_MIN": r.get("dialogue_lines_min", 0)}
     if r["montage"]:
         v["MONTAGE_MIN"], v["MONTAGE_MAX"] = r["montage"]["count"]
     if r.get("talking"):
@@ -591,6 +592,13 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         errors.append(f"at most {max_animated} shots may have animate: true, got {animated}")
     if talk_rule and talks > talk_rule["max"]:
         errors.append(f"at most {talk_rule['max']} shots may have talk: true, got {talks}")
+    need = int(rules.get("dialogue_lines_min") or 0)
+    if need:
+        said = sum(1 for s in normalized_shots if str(s.get("vo_line") or "").strip()
+                   and s.get("speaker") and s.get("speaker") != "narrator")
+        if said < need:
+            errors.append(f"at least {need} lines must be dialogue spoken by a character (the narrator "
+                          f"tells the story, the characters speak its big moments), got {said}")
     if not (VO_WORDS_MIN <= vo_words <= VO_WORDS_MAX):
         errors.append(f"total vo_line words must be {VO_WORDS_MIN}-{VO_WORDS_MAX}, got {vo_words}")
     if not montage_rule:

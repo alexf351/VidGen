@@ -200,7 +200,9 @@ The ten looks and the narrated story shape come from the claude-animation-styles
 (`skills/claude-animation-styles/`). That skill renders with hand-written three.js code in
 Claude Code; here each look is a style line plus image rules for the image model, so it runs on
 the normal pipeline. The narrated formats set `rules.narrator: true`: the narrator speaks with
-`voices.narrator` (falling back to `voice_id`). `pixar_arc` still rejects a narrator.
+`voices.narrator` (falling back to `voice_id`). `pixar_arc` mixes the two: a narrator tells the
+story and the characters speak its big moments (`rules.dialogue_lines_min` sets how many lines
+must still be dialogue).
 
 A format can carry `title:` (shown in the UI), `cover.jpg` (its gallery card) and `example.mp4`
 (its preview). Set the last two from any run in the UI: "Use as cover" on a shot, "Use as
@@ -486,9 +488,10 @@ Rules enforced by the prompt and checked by the validator (the numbers and wordi
 
 - 15 to 22 shots, numbered from 1 with no gaps
 - every locked character is present and its description matches config exactly
-- there is no narrator: every `vo_line` is dialogue spoken by a cast member (marcus, jess,
-  tyler, boss, sofia, iro), `speaker` names who says it, and silent shots have an empty
-  `vo_line` and `speaker`; a `narrator` speaker fails validation
+- a narrator tells the story (third person, short lines, about two thirds of the 80-130 words) and
+  the cast (marcus, jess, tyler, boss, sofia, iro) speak its big moments: the insult, the bet,
+  "I'm good". A shot carries narration or one line of dialogue, never both; `speaker` names who
+  says it (`narrator` or a character id), and a silent shot has an empty `vo_line` and `speaker`
 - total `vo_line` words across the script is 60 to 100, and most shots are silent
 - the image model never draws the Iro app: a character using a phone is shown with the back
   of the phone toward camera and the screen glow on their face, and an `image_prompt` that
@@ -512,7 +515,8 @@ Rules enforced by the prompt and checked by the validator (the numbers and wordi
 - the style line opens every `image_prompt` (prepended if the model forgets)
 - no more than `max_animated_shots` shots are `animate: true`, reserved for shots where motion is the beat;
   with `animate_all` on (the default for this format) every drawn shot is `animate: true` instead
-- `speaker` is a known character id (never `narrator`); captions are at most two words (except the CTA)
+- `speaker` is `narrator` or a known character id, and at least `dialogue_lines_min` (5) lines are
+  spoken by characters; captions are at most two words (except the CTA)
 - dialogue sounds spoken, not written by AI: a `vo_line` with an em dash, a semicolon, "it's not X,
   it's Y", "not just X but Y", filler ("here's the thing", "let that sink in"), fake suspense
   ("plot twist:") or an AI word (unlock, game-changer, next level, ...) fails validation
