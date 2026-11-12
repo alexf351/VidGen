@@ -1212,7 +1212,10 @@ function fillDoctor(box) {
   if (!fails.length) { box.replaceChildren(); return; }
   box.replaceChildren(h("details", { class: "setup" },
     h("summary", {}, icon("alert"),
-      h("span", { class: "setup-title" }, `Setup: ${plural(fails.length, "thing")} to fix before a video can be made`),
+      // A failure that only concerns the Claude Code engine does not stop a normal video.
+      h("span", { class: "setup-title" }, fails.every((c) => CODE_CHECKS.includes(c.item))
+        ? "Setup: the Claude Code engine is not ready. Normal videos are not affected"
+        : `Setup: ${plural(fails.length, "thing")} to fix before a video can be made`),
       h("span", { class: "setup-items" }, fails.map((c) => c.item).join(" · ")),
       h("span", { class: "setup-more" }, "Details")),
     h("ul", {}, fails.map((c) => h("li", {}, h("b", {}, c.item), ": ", c.detail))),
