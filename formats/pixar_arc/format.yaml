@@ -167,7 +167,7 @@ locked_characters:
   - id: tyler
     role: rival / doubter
     description: "a 28 year old man with slick blond hair and a smug grin"
-    voice_style: "a smug, confident American man in his late twenties, a deeper voice with a drawl"
+    voice_style: "a stern, commanding American man around thirty with a deep voice, slow and smug, used to being obeyed"
     image_path: ""
   - id: iro
     role: mentor, the Iro AI mascot, never a human
@@ -177,7 +177,7 @@ locked_characters:
   - id: boss
     role: the boss, only ever delivers the firing
     description: "a 50 year old man with slicked-back grey hair, a square jaw, light skin, and cold blue eyes"
-    voice_style: "a gruff American man of about fifty, low and clipped"
+    voice_style: "a stern, gruff American man of about fifty with a very deep voice, low and clipped"
     image_path: ""
   - id: sofia
     role: new partner in the reversal
