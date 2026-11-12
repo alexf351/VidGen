@@ -330,7 +330,9 @@ async function runStep(run, step, only) {
       return;
     }
     const ok = await confirmDialog({ title: `Run ${what}?`, rows: est.rows, total: est.total, note: est.note,
-      text: only ? "The selected shots are generated again." : "Shots that already have output are skipped." });
+      text: only ? (step === "video" && run.clip_sound
+          ? "The selected shots are generated again. Lines spoken in them are then read again from the new clips, so there is no need to redo their voice."
+          : "The selected shots are generated again.") : "Shots that already have output are skipped." });
     if (!ok) return;
   }
   releaseMedia();        // a clip still open in the page cannot be replaced on Windows

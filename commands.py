@@ -147,8 +147,27 @@ def new(premise: str, config: dict, dry_run: bool = False, captions: str | None 
     return run_dir
 
 
+def _spoken_among(run_dir: Path, only: str) -> str:
+    """Of the shots named in `only` ("2,4"), the ones that say a line in their own clip."""
+    from run_status import load_script
+    want = {int(x) for x in only.split(",") if x.strip().isdigit()}
+    shots = [s for s in (load_script(run_dir) or {}).get("shots", []) if isinstance(s, dict)]
+    return ",".join(str(s["n"]) for s in shots
+                    if s.get("n") in want and str(s.get("vo_line") or "").strip() and not s.get("app_screen"))
+
+
 def step(run_id: str, step_name: str, config: dict, only: str | None = None) -> None:
-    run_step(step_name, run_dir_for(run_id), config, only=only)
+    run_dir = run_dir_for(run_id)
+    run_step(step_name, run_dir, config, only=only)
+    # Clip sound: a spoken shot's voice is cut from its clip, so shots whose clip was just made
+    # again have their line read again, the same as a reroll does.
+    if step_name == "video" and only and run_engine(run_dir) != "claude_code":
+        import clip_sound
+        if clip_sound.on(config, run_dir):
+            spoken = _spoken_among(run_dir, only)
+            if spoken:
+                print(f"\nClip sound: reading the line again from the new clip of shot{'s' if ',' in spoken else ''} {spoken}.")
+                run_step("voice", run_dir, config, only=spoken)
 
 
 def _image_pipeline_only(run_dir: Path, what: str) -> None:
