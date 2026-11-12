@@ -508,6 +508,7 @@ runs/<run_id>/
   shots/<n>.mp4         clip, only for shots with animate: true
   audio/<n>.mp3         voice-over per spoken shot
   audio/<n>.json        per-word timings for that clip
+  app/                  the hand holding the phone, previews, the drawn chat screens of texts shots
   build/                intermediate clips, captions.ass, sfx.wav + sfx.json, the pre-outro mix
   final.mp4             the finished short
 characters_cache/<id>.png   generated sheets for locked characters, reused by every run
@@ -682,6 +683,9 @@ Rules enforced by the prompt and checked by the validator (the numbers and wordi
   in the grind, using a path from the app screen library (see App screens). An app_screen shot has no
   characters, no `vo_line`, `animate: false`, and is never the first or last shot. If no listed
   screenshot exists, none are asked for
+- text messages go on the same phone with a `texts` shot (see Text messages on the phone): at
+  most two in a script, no characters, no `vo_line`, never first or last. It sits on top of the
+  story shots like the montage, so it does not use up the format's shot count
 - a FLEX MONTAGE of 6 to 8 consecutive shots right before the CTA (after the "that's my boy"
   reversal): the hero living the life (luxury car, watch close-up, suit outside a glass tower,
   rooftop at night, holographic AI dashboards with Iro, private jet, beach sunset with sofia,
@@ -880,6 +884,28 @@ Things to know:
 - A line has to fit in the clip: a long line in a 4 second clip is rushed or cut off, and then
   falls back to the ElevenLabs voice.
 
+### Text messages on the phone
+
+The story ads this copies cut to the hero's phone when a text lands ("OMG TYLER JUST KISSED
+ME", then "best wingman ever"). A `texts` shot does that:
+
+```json
+{ "texts": { "from": "Jess", "messages": ["OMG TYLER JUST KISSED ME <3", "best wingman ever"] } }
+```
+
+- `phone_texts.py` draws the chat screen itself (bundled Inter font), so every letter is right;
+  the image model is never asked to write text. The assemble step puts it on the phone exactly
+  as it does a real app screenshot: in the hero's hand when the format has `app_screen_hand`,
+  else in the plain phone frame over the shot before it.
+- One to three messages of at most 60 characters, from a name of at most 18. They arrive one at
+  a time, a beat each (`assemble.texts_seconds`, 1.2), with a soft pop when sound effects are on.
+  `<3` (or a heart emoji) is drawn as a red heart; other emoji are left out.
+- No picture, clip or voice is generated for it, so it costs nothing. On the run page its card
+  shows the screen straight away, and under Script and editing the name and each message are
+  plain text boxes: change them, save, assemble again.
+- Any format can use one in a ready-made script or by editing a script. The script prompts do
+  not ask Claude for them yet.
+
 ### Sound effects
 
 With `sfx: true` (Pixar Arc), the assemble step lays short effects under the voice. `sfx.py`
@@ -890,6 +916,7 @@ decides where from the cut itself:
 | a change of scene                       | `whoosh`, its loudest point on the cut     |
 | a time-jump card                        | `impact`                                   |
 | an app screen                           | `pop`                                      |
+| a `texts` shot                          | `pop` as the phone lights up, and one for each later message |
 | the first montage shot                  | `riser` that ends on the cut, then `impact` |
 | every montage cut after it              | `swish` (a short whoosh)                   |
 | every other cut between two drawn shots | a quieter `swish` (`sfx.cuts`, on by default) |

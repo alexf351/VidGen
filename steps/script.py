@@ -21,6 +21,7 @@ OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage",   # card / app screenshot
                       "sfx",                               # a sound effect on the shot's first frame
                       "stat",                              # progress overlay: {"rank", "value", "unit"}
                       "flash",                             # one of a run of very short silent stills
+                      "texts",                             # text messages on the phone (phone_texts.py)
                       "app_still"}                         # app screen: show the still, not its recording
 LABEL_MAX_WORDS = 3
 LETTER_MAX_WORDS = 40
@@ -395,7 +396,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
     montage_flags = [isinstance(x, dict) and (x.get("montage") is True or x.get("flash") is True) for x in shots]
     flash_rule = rules.get("flashes")
     flash_idx: list[int] = []
-    story_count = len(shots) - sum(montage_flags)
+    # A texts shot is a two-second look at the phone, on top of the story like the montage.
+    story_count = len(shots) - sum(montage_flags) - sum(1 for x in shots if isinstance(x, dict) and x.get("texts"))
     if not (SHOT_MIN <= story_count <= SHOT_MAX):
         on_top = f" (the {montage_rule['name'].lower()} comes on top)" if montage_rule else ""
         errors.append(f"need {SHOT_MIN}-{SHOT_MAX} story shots{on_top}, got {story_count}")
@@ -408,6 +410,7 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
     montage_idx: list[int] = []
     app_paths = [e["path"] for e in (app_screens or [])]
     app_shots = 0
+    texts_shots = 0
     # Who may speak: the locked cast (or, with no locked cast, any character in the script),
     # plus a narrator voice when the format allows one (rules.narrator).
     speakers = set(locked_desc) or set(id_set)
@@ -478,6 +481,25 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 errors.append(f"{label} is an app_screen shot, so animate must be false")
             if i == 0 or i == len(shots) - 1:
                 errors.append(f"{label}: an app_screen shot cannot be the first or last shot")
+        texts = s.get("texts")
+        if texts in (None, "", {}, [], False):
+            texts = None
+        is_texts = texts is not None
+        if is_texts:
+            import phone_texts
+            texts, problems = phone_texts.check(texts, label)
+            errors.extend(problems)
+            texts_shots += 1
+            if is_card or is_app or is_montage or is_flash:
+                errors.append(f"{label} cannot be both a texts shot and a card, app_screen, montage or flash shot")
+            if chars:
+                errors.append(f"{label} is a texts shot, so characters must be [], got {chars!r}")
+            if _is_str(s.get("vo_line")) and s["vo_line"].strip():
+                errors.append(f"{label} is a texts shot, so vo_line must be empty: the messages are read, not said")
+            if s.get("animate") is True:
+                errors.append(f"{label} is a texts shot, so animate must be false")
+            if i == 0 or i == len(shots) - 1:
+                errors.append(f"{label}: a texts shot cannot be the first or last shot")
         if is_flash:
             flash_idx.append(i)
             if not flash_rule:
@@ -509,7 +531,7 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 errors.append(f"{label} is a card shot, so animate must be false")
             if i == 0 or i == len(shots) - 1:
                 errors.append(f"{label}: a card cannot be the first or last shot")
-        elif not is_app:
+        elif not is_app and not is_texts:
             letter = s.get("letter", "")
             letter = letter.strip() if _is_str(letter) else letter
             if letter not in ("", None) and not _is_str(letter):
@@ -592,8 +614,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             if not stat_rule:
                 errors.append(f"{label}: this format has no progress overlay, so leave out \"stat\"")
                 stat = None
-            elif is_card or is_app or is_montage:
-                errors.append(f"{label}: a card, app screen or montage shot cannot carry \"stat\"")
+            elif is_card or is_app or is_montage or is_texts:
+                errors.append(f"{label}: a card, app screen, texts or montage shot cannot carry \"stat\"")
                 stat = None
             elif not isinstance(stat, dict) or set(stat) - {"rank", "value", "unit"}:
                 errors.append(f"{label}.stat must be {{\"rank\": ..., \"value\": ..., \"unit\": ...}}, got {stat!r}")
@@ -627,8 +649,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             talks += 1
             if not talk_rule:
                 errors.append(f"{label}: this format has no talking shots, so leave out \"talk\"")
-            if is_card or is_app or is_montage:
-                errors.append(f"{label}: a card, app screen or montage shot cannot talk")
+            if is_card or is_app or is_montage or is_texts:
+                errors.append(f"{label}: a card, app screen, texts or montage shot cannot talk")
             elif not vo.strip():
                 errors.append(f"{label} has talk: true, so it needs a vo_line for the speaker to say")
             elif speaker == "narrator" or speaker not in id_set:
@@ -637,7 +659,7 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             elif chars != [speaker]:
                 errors.append(f"{label} has talk: true, so it shows only the speaker: \"characters\" "
                               f"must be [{speaker!r}], got {chars!r}")
-        if song_rule and not (is_card or is_app or is_montage) and not vo.strip():
+        if song_rule and not (is_card or is_app or is_montage or is_texts) and not vo.strip():
             errors.append(f"{label}.vo_line must be this shot's lyric line: in a song every shot is sung")
         if not isinstance(s.get("animate"), bool):
             errors.append(f"{label}.animate must be true or false")
@@ -663,6 +685,17 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             continue
         shot.pop("app_screen", None)
         shot.pop("app_still", None)
+        if is_texts and not is_card:
+            # Drawn by the assembly step (phone_texts.py); nothing else on the shot is used.
+            shot.update({"characters": [], "vo_line": "", "speaker": "", "caption": "", "animate": False,
+                         "image_prompt": "", "motion_prompt": ""})
+            for key in ("card", "letter", "talk", "label", "stat", "flash", "montage", "same_scene"):
+                shot.pop(key, None)
+            if texts:
+                shot["texts"] = texts
+            normalized_shots.append(shot)
+            continue
+        shot.pop("texts", None)
         if is_montage:
             shot["montage"] = True
         else:
@@ -768,8 +801,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         for s in normalized_shots:
             if s.get("card") or s.get("montage") or s.get("stat") or s.get("flash"):
                 run = []                       # progress and flash shots are silent by design, like the montage
-            elif s.get("app_screen") and not str(s.get("vo_line") or "").strip():
-                continue
+            elif (s.get("app_screen") and not str(s.get("vo_line") or "").strip()) or s.get("texts"):
+                continue                       # a cutaway to the phone neither counts nor resets
             elif str(s.get("vo_line") or "").strip():
                 run = []
             else:
@@ -842,6 +875,9 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
         errors.append(f"this format uses no app_screen shots, so remove the {app_shots} app_screen shot(s)")
     if not app_paths and app_shots:
         errors.append(f"no app screenshots are available, so remove the {app_shots} app_screen shot(s)")
+    texts_max = int(rules.get("texts_max", 2))
+    if texts_shots > texts_max:
+        errors.append(f"at most {texts_max} texts shots (messages on the phone), got {texts_shots}")
     if require_screens:
         shown = [str(s.get("app_screen") or "").strip() for s in shots if isinstance(s, dict)]
         for path in require_screens:

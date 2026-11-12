@@ -10,6 +10,7 @@ import struct
 import subprocess
 from pathlib import Path
 
+import phone_texts
 from common import ROOT, StepError, read_json, read_script
 from media import ffmpeg_version, has_audio_stream, probe_duration, require_ffmpeg, run_ffmpeg
 from steps.images import shot_path
@@ -84,10 +85,11 @@ def shot_durations(run_dir: Path, script: dict, asm: dict, song: bool = False) -
             plan.append({"shot": shot, "n": n, "start": t, "duration": duration, "vo": vo, "vo_len": vo_len})
             t += duration
             continue
-        if shot.get("card") or shot.get("app_screen") or shot.get("montage") or shot.get("flash"):
-            # Time-jump card, app screen, flex montage or flash: fixed length, no voice.
+        if shot.get("card") or shot.get("app_screen") or shot.get("texts") or shot.get("montage") or shot.get("flash"):
+            # Time-jump card, app screen, text messages, flex montage or flash: fixed length, no voice.
             duration = float(asm["card_seconds"] if shot.get("card") else
                              app_screen_length(shot, asm) if shot.get("app_screen") else
+                             phone_texts.seconds(shot["texts"], asm) if shot.get("texts") else
                              asm["flash_seconds"] if shot.get("flash") else asm["montage_seconds"])
             plan.append({"shot": shot, "n": n, "start": t, "duration": duration, "vo": None, "vo_len": 0.0})
             t += duration
@@ -437,6 +439,40 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
         _push_in(mock, out, frames, float(asm["app_screen_zoom_end"]), asm, label)
         return out
 
+    if shot.get("texts"):
+        # Text messages on the same phone, drawn by phone_texts.py. Each message arrives in turn:
+        # one picture per message count, cut together under one slow push-in.
+        import phone_hand
+        texts = shot["texts"]
+        hand = phone_hand.run_path(run_dir)
+        bg_png = None
+        stages = []
+        for k in range(1, len(texts["messages"]) + 1):
+            screen = phone_texts.render(texts, build / f"texts_{n:02d}_{k}_screen.png", shown=k)
+            mock = phone_hand.compose(hand, screen, build / f"texts_{n:02d}_{k}.png", w, h) if hand.is_file() else None
+            if mock is None:
+                if bg_png is None and background:
+                    bg_png = last_frame(background, build / f"bg_{n:02d}.png", label)
+                mock = compose_phone_mockup(screen, bg_png, build / f"texts_{n:02d}_{k}.png", w, h)
+            stage = build / f"texts_{n:02d}_{k}.mp4"
+            _push_in(mock, stage, frames, float(asm["app_screen_zoom_end"]), asm, label)
+            stages.append(stage)
+        if len(stages) == 1:
+            shutil.copyfile(stages[0], out)
+            return out
+        # The same push-in was made over each picture, so switching between them at a message's
+        # moment is seamless: only the new message appears.
+        times = phone_texts.arrivals(texts, duration)
+        inputs, chain, last = [], [], "[0:v]"
+        for k, stage in enumerate(stages):
+            inputs += ["-i", str(stage)]
+            if k:
+                chain.append(f"{last}[{k}:v]overlay=enable='gte(t,{times[k]:.3f})'[v{k}]")
+                last = f"[v{k}]"
+        run_ffmpeg([*inputs, "-filter_complex", ";".join(chain), "-map", last, "-frames:v", str(frames), "-an",
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p", str(out)], label)
+        return out
+
     if shot.get("card"):
         # Plain black frames; the card text is drawn by the caption pass with its own fade.
         run_ffmpeg(["-f", "lavfi", "-i", f"color=c=black:s={w}x{h}:r={fps}",
@@ -632,7 +668,7 @@ def shot_caption_events(run_dir: Path, item: dict, max_words: int = MAX_CHUNK_WO
     shot_end = item["start"] + item["duration"]
     if item["shot"].get("card") or item["shot"].get("montage") or item["shot"].get("flash"):
         return []
-    if item["shot"].get("app_screen") and item.get("vo") is None:
+    if (item["shot"].get("app_screen") and item.get("vo") is None) or item["shot"].get("texts"):
         return []
     if item["shot"].get("letter"):
         # The letter is the text on screen; only a CTA caption goes on top.
@@ -869,7 +905,7 @@ def own_sound_shots(run_dir: Path, plan: list[dict], config: dict) -> list[dict]
     for it in plan:
         shot = it["shot"]
         if (it["vo"] is not None or not shot.get("animate") or shot.get("talk") or shot.get("card")
-                or shot.get("app_screen") or shot.get("montage") or shot.get("flash") or shot.get("letter")):
+                or shot.get("app_screen") or shot.get("texts") or shot.get("montage") or shot.get("flash") or shot.get("letter")):
             continue
         clip = video_path(run_dir, it["n"])
         if clip.exists() and has_audio_stream(clip):
@@ -1108,6 +1144,8 @@ def run(run_dir: Path, config: dict) -> None:
             kind = "montage punch-in"
         elif it["shot"].get("app_screen"):
             kind = f"app screen {it['shot']['app_screen']}" + (" (recording)" if app_clip_file(it["shot"], asm) else "")
+        elif it["shot"].get("texts"):
+            kind = f"{len(it['shot']['texts']['messages'])} text message(s) from {it['shot']['texts']['from']}"
         elif it["shot"].get("card"):
             kind = f"card \"{it['shot']['card']}\""
         elif it.get("letter_page"):
@@ -1121,7 +1159,7 @@ def run(run_dir: Path, config: dict) -> None:
         print(f"  shot {it['n']}: {kind} {it['duration']:.2f}s{voiced}")
         clip = build_shot_clip(run_dir, build, it, asm, background=scene_clip)
         progress.tick()
-        if not (it["shot"].get("card") or it["shot"].get("app_screen")):
+        if not (it["shot"].get("card") or it["shot"].get("app_screen") or it["shot"].get("texts")):
             scene_clip = clip
         clips.append(clip)
 

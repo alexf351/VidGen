@@ -22,7 +22,18 @@ def app_preview(run_dir: Path, n: int, shot: dict) -> Path | None:
     from common import ROOT
     try:
         hand = phone_hand.run_path(run_dir)
-        src = ROOT / str(shot.get("app_screen") or "")
+        if shot.get("texts"):
+            import phone_texts
+            src = run_dir / "app" / f"texts_{n:02d}.png"
+            key = repr(shot["texts"])
+            note = src.with_suffix(".txt")
+            if not src.is_file() or not note.is_file() or note.read_text(encoding="utf-8") != key:
+                phone_texts.render(shot["texts"], src)
+                note.write_text(key, encoding="utf-8")
+            if not hand.is_file():
+                return src                 # no hand yet: the screen on its own
+        else:
+            src = ROOT / str(shot.get("app_screen") or "")
         if not hand.is_file() or not src.is_file():
             return None
         out = run_dir / "app" / f"preview_{n:02d}_{src.stem}.jpg"
@@ -84,7 +95,7 @@ def load_script(run_dir: Path) -> dict | None:
 
 
 def _special(shot: dict) -> bool:
-    return bool(shot.get("card") or shot.get("app_screen"))
+    return bool(shot.get("card") or shot.get("app_screen") or shot.get("texts"))
 
 
 def _status(done: int, total: int) -> dict:
@@ -230,10 +241,10 @@ def detail(run_dir: Path, config: dict | None) -> dict:
                 own_voice = data.get("source") == "clip"
             except (OSError, ValueError, AttributeError):
                 timing = None
-        kind = ("card" if s.get("card") else "app_screen" if s.get("app_screen")
+        kind = ("card" if s.get("card") else "app_screen" if s.get("app_screen") else "texts" if s.get("texts")
                 else "montage" if s.get("montage") else "flash" if s.get("flash")
                 else "letter" if s.get("letter") else "shot")
-        preview = app_preview(run_dir, n, s) if kind == "app_screen" else None
+        preview = app_preview(run_dir, n, s) if kind in ("app_screen", "texts") else None
         shots.append({"n": n, "kind": kind, "shot": s, "own_voice": own_voice,
                       "image": file_url(preview) if preview else file_url(shot_path(run_dir, n)),
                       "clip": file_url(video_path(run_dir, n)),

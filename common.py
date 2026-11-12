@@ -220,6 +220,8 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
                          ("app_screen_seconds", 1.5), ("app_screen_zoom_end", 1.04),
                          # An app screen with a recording plays it (app_assets.py), for at most this long.
                          ("app_screen_clips", True), ("app_clip_max_seconds", 6.0),
+                         # A texts shot (phone_texts.py): a beat for each message.
+                         ("texts_seconds", 1.2),
                          ("montage_seconds", 0.5), ("montage_zoom_end", 1.12),
                          ("caption_font", "Montserrat Black Italic"),
                          ("caption_font_file", "assets/fonts/Montserrat-BlackItalic.ttf"),

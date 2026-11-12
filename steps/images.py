@@ -44,7 +44,7 @@ def cache_path(config: dict, char_id: str) -> Path:
 def needs_keyframe(shot: dict) -> bool:
     """Cards and app screens are drawn at assembly; a letter shot with an empty image_prompt
     keeps the previous shot's picture. Everything else gets its own keyframe."""
-    if shot.get("card") or shot.get("app_screen"):
+    if shot.get("card") or shot.get("app_screen") or shot.get("texts"):
         return False
     return bool(str(shot.get("image_prompt") or "").strip())
 
@@ -311,7 +311,7 @@ def ensure_hand(run_dir: Path, config: dict, script: dict) -> None:
     the assemble step puts the real screenshot on. Drawn once per format and cached. Never fails
     the step: without it, app screens use the plain phone frame."""
     import phone_hand
-    if not phone_hand.enabled(config) or not any(s.get("app_screen") for s in script["shots"]):
+    if not phone_hand.enabled(config) or not any(s.get("app_screen") or s.get("texts") for s in script["shots"]):
         return
     dest = phone_hand.run_path(run_dir)
     if dest.exists():
@@ -453,6 +453,9 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
             continue
         if shot.get("app_screen"):
             print(f"  shot {n}: real app screenshot {shot['app_screen']}, no image needed")
+            continue
+        if shot.get("texts"):
+            print(f"  shot {n}: text messages from {shot['texts']['from']}, no image needed")
             continue
         if not needs_keyframe(shot):
             print(f"  shot {n}: keeps the previous background, no image needed")

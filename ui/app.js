@@ -1421,6 +1421,11 @@ function shotCard(run, s, busy) {
       if (scr.clip_url && !shot.app_still) hoverPlay(thumb, scr.clip_url);
     }
     else thumb.append(h("div", { class: "placeholder" }, "App screen", h("br"), (shot.app_screen || "").split("/").pop()));
+  } else if (s.kind === "texts") {
+    // Text messages on the phone: the screen is drawn by the tool, so the card shows it right away.
+    const t = shot.texts || { from: "", messages: [] };
+    if (s.image) thumb.append(h("img", { class: /preview_/.test(s.image) ? "" : "texts-pic", src: bust(s.image, run.run_id), alt: `Text messages from ${t.from}: ${t.messages.join(". ")}`, loading: "lazy" }));
+    else thumb.append(h("div", { class: "placeholder" }, `Texts from ${t.from}`));
   } else if (s.image) {
     thumb.append(h("img", { src: bust(s.image, run.run_id), alt: `Shot ${s.n}`, loading: "lazy" }));
     if (!spoken && shot.caption) thumb.append(h("div", { class: "cap" }, shot.caption));
@@ -1473,10 +1478,13 @@ function shotCard(run, s, busy) {
   }
   const info = h("div", { class: "shot-info" },
     spoken ? [h("div", { class: "speaker" }, shot.speaker), h("div", { class: "line" }, shot.vo_line)]
+      : s.kind === "texts" ? [h("div", { class: "speaker" }, `texts from ${(shot.texts || {}).from || "?"}`), h("div", { class: "line" }, ((shot.texts || {}).messages || []).join(" / "))]
       : h("div", { class: "line silent" }, s.kind === "card" ? "time card" : s.kind === "app_screen" ? `App screen: ${screenTitle(shot.app_screen)}${(screenFor(shot.app_screen) || {}).clip_url && !shot.app_still ? " (recording)" : ""}` :
         shot.caption ? `caption: ${shot.caption}` : "silent"),
     s.kind === "app_screen" && run.app_hand
       ? h("div", { class: "line-note" }, s.image ? "On the phone in the hero's hand, as in the video." : "In the video this sits on a phone in the hero's hand. The hand is drawn with the images.")
+      : s.kind === "texts"
+      ? h("div", { class: "line-note" }, "The messages arrive one at a time, each with a soft pop. Edit them under Script and editing; it costs nothing.")
       : null);
   const actions = h("div", { class: "shot-actions" },
     h("button", { disabled: busy || !drawable, title: shot.talk ? "New keyframe and talking clip" : shot.animate ? "New keyframe and clip" : "New keyframe", onclick: () => reroll(run, s) }, "Reroll"),
@@ -1723,6 +1731,7 @@ function draftChanged() {
     const o = S.run.script.shots[i] || {};
     for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt", "same_scene", "sfx", "label", "app_screen", "app_still"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
     if (JSON.stringify(s.stat ?? null) !== JSON.stringify(o.stat ?? null)) out.add(s.n);
+    if (JSON.stringify(s.texts ?? null) !== JSON.stringify(o.texts ?? null)) out.add(s.n);
   });
   return out;
 }
@@ -1794,6 +1803,16 @@ function scriptPanel(run, busy) {
     if (s.card) {
       fields.append(h("span", { class: "kind" }, "time card"),
         h("input", { type: "text", value: s.card, "aria-label": `Shot ${s.n} card text`, oninput: (e) => update(i, "card", e.target.value, row) }));
+    } else if (s.texts) {
+      // Text messages on the phone: who they are from, and each message. Drawn by the tool, so
+      // changing them is free; only Assemble has to run again.
+      const setTexts = (fn) => { const cur = S.draft.shots[i].texts; const t = { from: cur.from, messages: [...cur.messages] }; fn(t); update(i, "texts", t, row); };
+      fields.append(h("span", { class: "kind" }, "text messages"),
+        h("label", { class: "look-label" }, "From",
+          h("input", { type: "text", value: s.texts.from, maxlength: 18, "aria-label": `Shot ${s.n}: who the messages are from`, oninput: (e) => setTexts((t) => { t.from = e.target.value; }) })),
+        ...s.texts.messages.map((m, k) => h("input", { type: "text", value: m, maxlength: 60, "aria-label": `Shot ${s.n} message ${k + 1}`,
+          oninput: (e) => setTexts((t) => { t.messages[k] = e.target.value; }) })),
+        h("span", { class: "ro" }, "Each message arrives in turn. Type <3 for a heart. Saving is free; assemble again to see it."));
     } else if (s.app_screen) {
       const scr = screenFor(s.app_screen);
       fields.append(h("span", { class: "kind" }, "app screen"),
@@ -1839,7 +1858,7 @@ function scriptPanel(run, busy) {
     const pic = shown && shown.url ? h("img", { class: "srow-thumb", src: shown.url, alt: "", loading: "lazy" })
       : meta && meta.image
       ? h("img", { class: "srow-thumb", src: bust(meta.image, run.run_id), alt: "", loading: "lazy" })
-      : h("div", { class: "srow-thumb none" }, s.card ? "card" : s.app_screen ? "app" : "no picture");
+      : h("div", { class: "srow-thumb none" }, s.card ? "card" : s.app_screen ? "app" : s.texts ? "texts" : "no picture");
     // Move the shot one place earlier or later. Its picture, clip and voice go with it.
     const last = S.draft.shots.length;
     const why = busy ? "Wait for the running job to finish" : changed.size ? "Save or discard your changes first" : "";

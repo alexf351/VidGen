@@ -108,7 +108,7 @@ def enabled(config: dict) -> bool:
 # ---------------------------------------------------------------- where they go ----
 
 def _kind(shot: dict) -> str:
-    for k in ("card", "app_screen", "montage", "flash", "letter"):
+    for k in ("card", "app_screen", "texts", "montage", "flash", "letter"):
         if shot.get(k):
             return k
     return "scene"
@@ -134,8 +134,8 @@ def cues(plan: list[dict], every_cut: bool = False) -> list[dict]:
         shot, t, kind = it["shot"], float(it["start"]), _kind(it["shot"])
         own = str(shot.get("sfx") or "").strip().lower()
 
-        def add(sound: str, why: str, gain: float = 1.0) -> None:
-            cue = {"t": round(t, 3), "sound": sound, "shot": it["n"], "why": why}
+        def add(sound: str, why: str, gain: float = 1.0, after: float = 0.0) -> None:
+            cue = {"t": round(t + after, 3), "sound": sound, "shot": it["n"], "why": why}
             if gain != 1.0:
                 cue["gain"] = gain
             out.append(cue)
@@ -150,6 +150,10 @@ def cues(plan: list[dict], every_cut: bool = False) -> list[dict]:
             add("impact", "time card")
         elif kind == "app_screen":
             add("pop", "app screen")
+        elif kind == "texts":
+            import phone_texts
+            for k, at in enumerate(phone_texts.arrivals(shot["texts"], float(it["duration"]))):
+                add("pop", "a message arrives" if k else "the phone lights up", after=at)
         elif kind == "montage":
             if prev_kind != "montage":
                 if t >= 0.6:
@@ -164,7 +168,7 @@ def cues(plan: list[dict], every_cut: bool = False) -> list[dict]:
             if t - last_whoosh >= MIN_GAP and prev_kind != "flash":
                 add("whoosh", "new scene")
                 last_whoosh = t
-        elif kind == "scene" and i > 0 and every_cut and prev_kind in ("scene", "app_screen"):
+        elif kind == "scene" and i > 0 and every_cut and prev_kind in ("scene", "app_screen", "texts"):
             # A cut inside a scene (or back from the phone): a quick, quiet swish.
             if t - last_whoosh >= CUT_GAP:
                 add("swish", "cut", CUT_GAIN)
