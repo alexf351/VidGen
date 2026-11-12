@@ -172,7 +172,7 @@ locked_characters:
   - id: iro
     role: mentor, the Iro AI mascot, never a human
     description: "Iro, a small round robotic penguin mascot with glossy black and gold armor, big round eyes, and a glowing orange core on its chest"
-    voice_style: "a small, cute, high-pitched robot voice, cheerful and a little cheeky"
+    voice_style: "a deep, calm, wise mentor's voice, a grown man's, warm and steady, with a faint robotic edge"
     image_path: "assets/iro.png"
   - id: boss
     role: the boss, only ever delivers the firing
