@@ -238,7 +238,7 @@
       ],
       "image_prompt": "close shot, chest up, the street outside the corner cafe, a row of small shops in warm afternoon light, {marcus}, in a sharp tailored navy suit with no tie and a slim steel watch, leaning out of the car window with a warm easy smile and a small shrug, one hand open, mouth open mid-sentence. He is turned toward the right of the frame, looking at someone just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus shrugs with one hand out of the window and his mouth moves as he says it kindly, almost laughing. Small push-in on his smile.",
-      "vo_line": "You argued. I got paid.",
+      "vo_line": "You were busy arguing. I was busy getting paid.",
       "speaker": "marcus",
       "same_scene": true
     },
