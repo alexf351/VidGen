@@ -50,11 +50,14 @@ def _motion(config: dict, shot: dict, descriptions: dict[str, str] | None, sound
     # what should be heard: the line in the speaker's kind of voice, or nobody speaking.
     if config.get("mouths_move", True) is False and not sound:
         return f"{shot['motion_prompt'].strip()} {ONE_TAKE}"
-    text = clip_prompt(shot, descriptions)
     if sound:
+        # Nobody is named: a model that makes sound takes a name in the prompt as a word to say.
         import clip_sound
-        text = f"{text} {clip_sound.sound_note(shot, config.get('locked_characters'))}"
-    return f"{text} {ONE_TAKE}"
+        cast = config.get("locked_characters")
+        shot = {**shot, "motion_prompt": clip_sound.unname(shot["motion_prompt"], shot, cast)}
+        who = clip_sound.speaker_tag(shot, cast)
+        return f"{clip_prompt(shot, descriptions, who)} {clip_sound.sound_note(shot, cast)} {ONE_TAKE}"
+    return f"{clip_prompt(shot, descriptions)} {ONE_TAKE}"
 
 
 def _workers(config: dict) -> int:
@@ -106,7 +109,7 @@ def generate_talk_clip(run_dir: Path, config: dict, shot: dict) -> Path:
     return dest
 
 
-def clip_prompt(shot: dict, descriptions: dict[str, str] | None = None) -> str:
+def clip_prompt(shot: dict, descriptions: dict[str, str] | None = None, who: str = "") -> str:
     """The motion prompt sent to the video model. When someone in the shot speaks a line, the
     prompt also says so, so their mouth moves while the line is heard (the voice itself is
     added at assembly; this is not exact lip-sync)."""
@@ -116,7 +119,9 @@ def clip_prompt(shot: dict, descriptions: dict[str, str] | None = None) -> str:
     on_screen = shot.get("characters") or []
     if not line or not speaker or speaker not in on_screen:
         return prompt
-    if len(on_screen) == 1:
+    if who:
+        pass                                                    # the caller's own words for the speaker
+    elif len(on_screen) == 1:
         who = "The character"
     else:
         # Name the speaker by how they look: the first clause of their description

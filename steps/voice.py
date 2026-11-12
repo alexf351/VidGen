@@ -146,7 +146,7 @@ def voice_from_clip(run_dir: Path, config: dict, shot: dict) -> bool:
               f"ElevenLabs voice; reroll the shot for another try at the clip's own.")
         return False
     words = clip_sound.align(line, heard)
-    start, length = clip_sound.window(words, probe_duration(clip))
+    start, length = clip_sound.window(words, probe_duration(clip), heard)
     clip_sound.cut_voice(clip, start, length, audio_path(run_dir, n), label)
     write_json(timing_path(run_dir, n), {
         "shot": n,
@@ -162,7 +162,10 @@ def voice_from_clip(run_dir: Path, config: dict, shot: dict) -> bool:
         "said": said,
         "match": score,
     })
-    print(f"  shot {n}: said in the clip, {start:.2f}s to {start + length:.2f}s (match {score:.0%})")
+    before, after = clip_sound.strays(words, heard)
+    cut = "; ".join(x for x in (f'"{before}" before the line' if before else "", f'"{after}" after it' if after else "") if x)
+    print(f"  shot {n}: said in the clip, {start:.2f}s to {start + length:.2f}s (match {score:.0%})"
+          + (f". The clip also says {cut}: cut out" if cut else ""))
     return True
 
 

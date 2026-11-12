@@ -41,7 +41,7 @@ API_BASE = "https://api.elevenlabs.io"
 LEAD = 0.12            # seconds kept before the first word
 TAIL = 0.28            # and after the last
 MIN_WINDOW = 0.7       # a spoken stretch is never cut shorter than this
-FADE = 0.05            # the cut ends of a stretch are faded this long, so they do not click
+FADE = 0.03            # the cut ends of a stretch are faded this long, so they do not click
 
 
 # ------------------------------------------------------------------ settings ----
@@ -106,7 +106,61 @@ def set_for_run(run_dir: Path, value: bool | None) -> bool | None:
 # ------------------------------------------------------- what the model is told ----
 
 SILENT_NOTE = "Nobody speaks. Only the natural sound of the scene, no music."
-SPOKEN_NOTE = "Only that one line is spoken, once, in clear English. The natural sound of the scene under it, no music."
+SPOKEN_NOTE = ("The words in quotes are the only words spoken, said once, in clear English. No name, no greeting "
+               "and no other word before or after them. The natural sound of the scene under it, no music.")
+
+
+def _tag(character: dict, alone: bool) -> str:
+    """What to call a character in a prompt for a clip with sound, in place of the name: "the
+    man" when they are alone in the shot, else enough of their look to tell them apart ("the
+    man with slick blond hair and a smug grin")."""
+    import voice_cast
+    desc = str(character.get("description") or "")
+    clauses = [c.strip() for c in desc.split(",") if c.strip()]
+    first = clauses[0] if clauses else ""
+    if len(first.split()) < 3 and len(clauses) > 1:              # "Iro, a small round robotic penguin mascot with ..."
+        first = clauses[1].split(" with ")[0]
+        return "the " + re.sub(r"^an?\s+", "", first)
+    person = {"male": "man", "female": "woman"}.get(voice_cast.traits(desc)["gender"], "")
+    if alone and person:
+        return f"the {person}"
+    look = re.sub(r"^an?\s+(\d+[\s-]*year[\s-]*old\s+)?", "", first)
+    return "the " + " ".join(look.split()[:12]) if look else "the person"
+
+
+def speaker_tag(shot: dict, characters: list[dict] | None) -> str:
+    """The speaker by their look, for a shot with more than one person in it ("The man with
+    slick blond hair and a smug grin"); "" when the shot's usual words will do."""
+    on_screen = shot.get("characters") or []
+    speaker = shot.get("speaker") or ""
+    if len(on_screen) < 2 or speaker not in on_screen:
+        return ""
+    for c in characters or []:
+        if isinstance(c, dict) and c.get("id") == speaker:
+            tag = _tag(c, alone=False)
+            return tag[0].upper() + tag[1:]
+    return "The speaker"
+
+
+def unname(text: str, shot: dict, characters: list[dict] | None) -> str:
+    """The motion prompt without anyone's name in it. A video model that makes sound reads a
+    name in the prompt as something to say: "Marcus leans forward and says ..." came back with
+    him saying "Marcus?" first. It never knew who Marcus was anyway; it sees the picture."""
+    on_screen = shot.get("characters") or []
+    out = str(text or "")
+    for c in characters or []:
+        if not isinstance(c, dict) or not isinstance(c.get("id"), str):
+            continue
+        name = c["id"].replace("_", " ").replace("-", " ").title()
+        if not re.search(rf"\b{re.escape(name)}\b", out):
+            continue
+        tag = _tag(c, alone=on_screen == [c["id"]])
+
+        def swap(m: re.Match) -> str:
+            before = out[:m.start()].rstrip()
+            return tag[0].upper() + tag[1:] if not before or before[-1] in ".!?" else tag
+        out = re.sub(rf"\b{re.escape(name)}\b", swap, out)
+    return out
 
 
 def voice_hint(speaker: str, characters: list[dict] | None) -> str:
@@ -182,14 +236,23 @@ def transcribe(clip: Path, config: dict, label: str) -> list[dict]:
 
 
 def match(line: str, heard: list[dict]) -> float:
-    """How much of the line is in what was heard, 0 to 1 (1 = every word, in order)."""
+    """How much of the line is in what was heard, 0 to 1 (1 = every word, in order).
+
+    A word said before the line starts or after it ends ("Marcus? I could do it with AI.") costs
+    little: the stretch that is kept begins on the line's first word and ends on its last, so
+    it is cut away. A word said in the middle of the line cannot be cut and costs a whole word."""
     want = [_norm(w) for w in line_words(line)]
     got = [_norm(w["word"]) for w in heard]
     if not want or not got:
         return 0.0
-    same = sum(b.size for b in difflib.SequenceMatcher(None, want, got, autojunk=False).get_matching_blocks())
-    extra = max(0, len(got) - len(want))                    # words said that are not in the line
-    return round(max(0.0, same / len(want) - 0.5 * extra / len(want)), 3)
+    blocks = [b for b in difflib.SequenceMatcher(None, want, got, autojunk=False).get_matching_blocks() if b.size]
+    if not blocks:
+        return 0.0
+    same = sum(b.size for b in blocks)
+    first, last = blocks[0].b, blocks[-1].b + blocks[-1].size
+    outside = first + (len(got) - last)                     # said before or after the line: cut away
+    inside = (last - first) - same                          # said within it: stays in
+    return round(max(0.0, same / len(want) - inside / len(want) - 0.05 * outside), 3)
 
 
 def align(line: str, heard: list[dict]) -> list[dict]:
@@ -216,14 +279,33 @@ def align(line: str, heard: list[dict]) -> list[dict]:
     return [w for w in out if w]
 
 
-def window(words: list[dict], clip_seconds: float) -> tuple[float, float]:
-    """(start, length) of the stretch of the clip that holds the words, with a little room."""
-    start = max(0.0, min(w["start"] for w in words) - LEAD)
-    end = min(clip_seconds, max(w["end"] for w in words) + TAIL)
-    if end - start < MIN_WINDOW:
-        end = min(clip_seconds, start + MIN_WINDOW)
-        start = max(0.0, end - MIN_WINDOW)
-    return round(start, 3), round(end - start, 3)
+def window(words: list[dict], clip_seconds: float, heard: list[dict] | None = None) -> tuple[float, float]:
+    """(start, length) of the stretch of the clip that holds the line's words, with a little
+    room. `heard` is everything said in the clip: a word that is not part of the line and sits
+    right before or after it is kept out, so the room never reaches into it."""
+    first, last = min(w["start"] for w in words), max(w["end"] for w in words)
+    lo, hi, gap = 0.0, clip_seconds, 0.02                   # how far the stretch may reach
+    for w in heard or []:
+        if w["end"] <= first + 0.001:                        # said before the line
+            lo = max(lo, min(first, w["end"] + gap))
+        elif w["start"] >= last - 0.001:                     # said after it
+            hi = min(hi, max(last, w["start"] - gap))
+    start, end = max(lo, first - LEAD), min(hi, last + TAIL)
+    if end - start < MIN_WINDOW:                             # a one-word line still gets a beat
+        end = min(hi, start + MIN_WINDOW)
+        start = max(lo, end - MIN_WINDOW)
+    return round(start, 3), round(max(0.2, end - start), 3)
+
+
+def strays(words: list[dict], heard: list[dict]) -> tuple[str, str]:
+    """What the clip says before the line starts and after it ends ("Marcus", ""): the words
+    the window leaves out."""
+    if not words:
+        return "", ""
+    first, last = min(w["start"] for w in words), max(w["end"] for w in words)
+    before = " ".join(w["word"] for w in heard if w["end"] <= first + 0.001)
+    after = " ".join(w["word"] for w in heard if w["start"] >= last - 0.001)
+    return before, after
 
 
 def cut_voice(clip: Path, start: float, length: float, dest: Path, label: str) -> None:

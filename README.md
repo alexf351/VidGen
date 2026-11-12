@@ -864,8 +864,8 @@ What each step then does:
 
 | step     | with clip sound                                                                    |
 |----------|------------------------------------------------------------------------------------|
-| video    | every clip is requested with sound. The prompt says who speaks, the line, and how the voice sounds (the character's `voice_style` in `format.yaml`, so it stays alike from shot to shot), and asks for the sound of the scene with no music |
-| voice    | for a spoken shot, the words in its clip are found with ElevenLabs Speech to Text (one short call per shot). If they are the line, that stretch of the clip becomes the shot's voice file and the captions follow those words. If the clip says something else, or nothing, the line is spoken by the ElevenLabs voice as before, and the log says so |
+| video    | every clip is requested with sound. The prompt says who speaks, the line, and how the voice sounds (the character's `voice_style` in `format.yaml`, so it stays alike from shot to shot), and asks for the sound of the scene with no music. Nobody is named in it: characters are called by their look ("the man with slick blond hair"), because a model that makes sound says a name it reads |
+| voice    | for a spoken shot, the words in its clip are found with ElevenLabs Speech to Text (one short call per shot). If they are the line, that stretch of the clip becomes the shot's voice file and the captions follow those words. A stray word before or after the line ("Marcus? I could do it with AI.") is cut off and named in the log; a word in the middle of the line cannot be cut and counts against the match. If the clip says something else, or nothing, the line is spoken by the ElevenLabs voice as before, and the log says so |
 | assemble | a shot that speaks from its clip shows the same stretch of the clip, so sound and picture stay together. A shot where nobody speaks plays its clip's own sound under the cut |
 
 Things to know:
