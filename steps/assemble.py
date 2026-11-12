@@ -1161,6 +1161,7 @@ def run(run_dir: Path, config: dict, sound_only: bool = False) -> None:
     style = caption_styles.for_run(run_dir, config)
     asm = caption_styles.apply(config["assemble"], style)
     asm = caption_styles.with_words(asm, caption_styles.words_for_run(run_dir, asm))
+    asm = caption_styles.with_size(asm, caption_styles.size_for_run(run_dir))
     config = {**config, "assemble": asm}
     build = run_dir / "build"
     build.mkdir(parents=True, exist_ok=True)

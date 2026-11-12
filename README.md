@@ -870,6 +870,11 @@ question mark or an exclamation mark always ends a caption; at three words a com
 so "Wait, what?" is one caption. At three words the lettering is 16% smaller so a caption fits
 on one line. Like the style, it takes effect when the assemble step runs again.
 
+**Size.** The Captions panel also has Small, Normal, Large and Extra large: 0.85, 1, 1.2 and 1.45
+times the format's own size (`"caption_size": 1.2` in `run.json`,
+`PUT /api/runs/{run_id}/caption-size`). `pixar_mirror` is 92 at Normal. A caption too wide for
+the frame at the larger sizes wraps onto two lines.
+
 - Each shot lasts its voice-over length plus 0.25 s, with a 1.2 s minimum.
 - Animated shots are trimmed to that length (the last frame is held if the clip is shorter).
   Still shots get a slow push-in from 1.00 to 1.08 on the keyframe.
@@ -992,7 +997,9 @@ The **Music** panel on a video's page sets the track and how loud everything is:
   plays it at the first level all the way.
 - **Voices and clip sound**: one level for every spoken line and for the clips' own sound.
 - **Speed**: Slowed (85%), Slower (80%) and Very slow (75%) play the track slower and lower in
-  pitch, the way a slowed version of a song sounds; Sped up is 115%. **Start the track at** skips its opening seconds.
+  pitch, the way a slowed version of a song sounds; Sped up is 115%. The player in the panel plays the
+  track the way the video will, at the chosen speed and from the chosen start, and follows the
+  speed while it plays, so the choices can be compared by ear before anything is assembled. **Start the track at** skips its opening seconds.
 - **Mix the sound again** puts the new sound on the picture the video already has. Only the
   sound is made, so it takes seconds and makes no API calls. It is offered once a video has
   been assembled; if a shot's length has changed since (a new line, a new clip), the whole

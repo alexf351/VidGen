@@ -218,6 +218,14 @@ def _caption_words(run_dir: Path, config: dict | None) -> int:
         return 1
 
 
+def _caption_size(run_dir: Path) -> float:
+    try:
+        import caption_styles
+        return caption_styles.size_for_run(run_dir)
+    except Exception:
+        return 1.0
+
+
 def _clip_sound_on(run_dir: Path, config: dict | None) -> bool:
     try:
         import clip_sound
@@ -285,6 +293,7 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             "captions": file_url(run_dir / "build" / "captions.ass"),
             "caption_style": _caption_style(run_dir, config),
             "caption_words": _caption_words(run_dir, config),
+            "caption_size": _caption_size(run_dir),
             "animate_all": bool((config or {}).get("animate_all")),
             # app-screen shots go on a phone in the hero's hand (the hand is drawn by the images step)
             "app_hand": bool((config or {}).get("app_screen_hand")),

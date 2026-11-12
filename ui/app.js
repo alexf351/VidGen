@@ -29,6 +29,7 @@ const S = {
   studioQuery: "",             // what is typed in the format search box
   screens: [], screenGroups: [],   // the app screenshot library (GET /api/screens)
   logText: [],                 // the lines of the log on show, as they came (for Copy log)
+  musicPlayer: null,           // the Music panel's one <audio>, kept while the page is drawn again
 };
 const CODE_STEPS = ["story", "scenes", "voice", "render"];
 
@@ -874,9 +875,20 @@ function captionsPanel(run, busy) {
       } catch (err) { toast(err.message, "bad"); }
       draw();
     };
+    const setSize = async (v) => {
+      if (v === (run.caption_size || 1)) return;
+      try {
+        const r = await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/caption-size`, { size: v });
+        run.caption_size = r.caption_size;
+        S.captionRedo = r.assembled ? run.run_id : null;
+      } catch (err) { toast(err.message, "bad"); }
+      draw();
+    };
     box.replaceChildren(...[
       h("div", { class: "panel-title" }, "Captions"),
       h("div", { class: "cap-row" }, captionPreview(run.format, current), sel),
+      current !== "off" ? h("div", { class: "mix-row" }, h("label", {}, "Size"),
+        chips([[0.85, "Small"], [1, "Normal"], [1.2, "Large"], [1.45, "Extra large"]], run.caption_size || 1, setSize, "Caption size")) : null,
       current !== "off" ? h("div", { class: "mix-row" }, h("label", {}, "Words at a time"),
         chips([[1, "1"], [2, "2"], [3, "3"]], run.caption_words || 1, setWords, "Words shown at a time"),
         h("div", { class: "field-note" }, "One word pops with the voice. Two or three read like a sentence, split evenly so no word is left on its own.")) : null,
@@ -949,6 +961,21 @@ function musicPanel(run, busy) {
       toast(`Added \u201c${r.added.title}\u201d`, "ok");
     } catch (e) { S.musicBusy = false; toast(e.message, "bad"); draw(); }
   };
+  // One player for the panel, kept through redraws so the track keeps playing while a speed is
+  // picked. It plays the way the video will: at the chosen speed, lower with it (the browser
+  // is told not to hold the pitch), and from the chosen start.
+  // (One element for the whole page, S.musicPlayer: the run page is drawn again whenever a job
+  // reports, and a player made afresh each time would stop, or keep playing with no controls.)
+  const player = S.musicPlayer || (S.musicPlayer = h("audio", { class: "voice-player", controls: true, preload: "none" }));
+  const tryOut = (track, m) => {
+    if (player.getAttribute("src") !== track.url) player.src = track.url;
+    for (const k of ["preservesPitch", "mozPreservesPitch", "webkitPreservesPitch"]) { try { player[k] = false; } catch { /* not in this browser */ } }
+    player.defaultPlaybackRate = m.speed; player.playbackRate = m.speed;
+    const from = Number(m.start) || 0;
+    player.onplay = () => { if (player.currentTime < from - 0.05) player.currentTime = from; };
+    player.onloadedmetadata = () => { player.playbackRate = m.speed; if (from > 0 && player.currentTime < from) player.currentTime = from; };
+    return player;
+  };
   const slider = (key, label, note) => {
     const [, low, high] = (S.musicLib.limits || {})[key] || [0, 0, 1];
     const out = h("span", { class: "mix-val" }, `${Math.round(run.music[key] * 100)}%`);
@@ -979,7 +1006,10 @@ function musicPanel(run, busy) {
       h("div", { class: "music-pick" }, sel,
         h("button", { class: "btn small", type: "button", disabled: busy || S.musicBusy, onclick: () => pick.click() }, S.musicBusy ? "Adding\u2026" : "Add a track"), pick),
       !lib.tracks.length ? h("div", { class: "field-note" }, `Add an mp3, wav or m4a you have (or a video file, and its sound is used). Up to ${lib.max_mb} MB. It stays on this computer.`) : null,
-      picked ? h("audio", { class: "voice-player", controls: true, preload: "none", src: picked.url }) : null,
+      picked ? tryOut(picked, m) : null,
+      picked && m.own ? h("div", { class: "field-note" }, Math.abs(m.speed - 1) > 0.001 || m.start > 0
+        ? `Plays as the video will: at ${Math.round(m.speed * 100)}% speed${m.start > 0 ? `, from ${clock(m.start)} in` : ""}. Change the speed while it plays to compare.`
+        : "Press play, then try the speeds below: the track changes as you pick.") : null,
       hasMusic ? slider("level", "Music under the talking") : null,
       hasMusic ? slider("loud", "Music in the montage",
         m.loud_shot ? `Comes up at shot ${m.loud_shot}, where the montage starts, and stays up to the end.` : "This script has no montage, so the music stays at the first level all the way.") : null,

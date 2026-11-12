@@ -191,6 +191,44 @@ def with_words(asm: dict, words: int) -> dict:
     return out
 
 
+SIZES = (0.85, 1.0, 1.2, 1.45)     # small, normal (the format's own), large, extra large
+
+
+def size_for_run(run_dir: Path) -> float:
+    """How big this video's captions are next to the format's own (run.json "caption_size";
+    1.0 when it has not chosen)."""
+    from common import read_json
+    try:
+        saved = read_json(Path(run_dir) / "run.json").get("caption_size")
+    except (OSError, ValueError, AttributeError):
+        saved = None
+    if isinstance(saved, (int, float)) and not isinstance(saved, bool) and float(saved) in SIZES:
+        return float(saved)
+    return 1.0
+
+
+def set_size_for_run(run_dir: Path, size: float | None) -> float | None:
+    """Save this video's caption size (None = the format's own again)."""
+    from common import read_json, write_json
+    if size is not None and (isinstance(size, bool) or not isinstance(size, (int, float)) or float(size) not in SIZES):
+        raise StepError(f"caption size must be one of {', '.join(f'{s:g}' for s in SIZES)}, got {size!r}")
+    path = Path(run_dir) / "run.json"
+    meta = read_json(path) if path.is_file() else {"run_id": Path(run_dir).name}
+    if size is None or float(size) == 1.0:
+        meta.pop("caption_size", None)
+    else:
+        meta["caption_size"] = float(size)
+    write_json(path, meta)
+    return size
+
+
+def with_size(asm: dict, scale: float) -> dict:
+    """assemble settings with the captions made `scale` times as big (a copy)."""
+    out = dict(asm)
+    out["caption_size"] = max(12, int(round(float(asm["caption_size"]) * float(scale))))
+    return out
+
+
 # ------------------------------------------------------------------ previews ----
 
 PREVIEW_TEXT = "LOCK IN"

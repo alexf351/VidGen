@@ -88,6 +88,10 @@ class DrawRequest(BaseModel):
     provider: ProviderChoice = None
 
 
+class CaptionSize(BaseModel):
+    size: float | None = None         # 0.85, 1, 1.2 or 1.45 times the format's own; None = the format's own
+
+
 class CaptionWords(BaseModel):
     words: int | None = None          # 1, 2 or 3 words at a time; None = the format's own
 
@@ -952,6 +956,22 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         except StepError as e:
             raise HTTPException(400, str(e)) from e
         return {"caption_style": saved, "assembled": (run_dir / "final.mp4").is_file()}
+
+    @app.put("/api/runs/{run_id}/caption-size")
+    def set_run_caption_size(run_id: str, body: CaptionSize) -> dict:
+        """How big this video's captions are next to the format's own. Takes effect when the
+        assemble step runs again."""
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "caption styles")
+        active = runner.active_for_run(run_id)
+        if active:
+            raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
+                                     f"wait for it to finish")
+        try:
+            caption_styles.set_size_for_run(run_dir, body.size)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        return {"caption_size": caption_styles.size_for_run(run_dir), "assembled": (run_dir / "final.mp4").is_file()}
 
     @app.put("/api/runs/{run_id}/caption-words")
     def set_run_caption_words(run_id: str, body: CaptionWords) -> dict:
