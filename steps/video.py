@@ -215,13 +215,14 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         n = shot["n"]
         print(f"  shot {n}: generating...")
         generate_clip(run_dir, config, shot, descriptions)
-        if sound:
-            # A voice file cut from the old clip no longer goes with the picture.
+        if sound and str(shot.get("vo_line") or "").strip() and not shot.get("app_screen"):
+            # The new clip says the line itself, so whatever voice file the shot had (cut from
+            # the old clip, or spoken by ElevenLabs before clip sound was on) is out of date.
             from steps.voice import audio_path, timing_path
-            if clip_sound.timing_source(timing_path(run_dir, n)):
+            if audio_path(run_dir, n).exists() or timing_path(run_dir, n).exists():
                 audio_path(run_dir, n).unlink(missing_ok=True)
                 timing_path(run_dir, n).unlink(missing_ok=True)
-                print(f"  shot {n}: its line was read from the old clip; run the voice step for it again")
+                print(f"  shot {n}: new clip, so its line will be read again: run the voice step for it")
         progress.tick()
         cost = seconds * rate
         with lock:
