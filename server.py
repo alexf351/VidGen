@@ -97,6 +97,10 @@ class VoiceChoice(BaseModel):
     voice_id: str | None = None       # None or "" goes back to the config / default voice
 
 
+class ClipVoiceChoice(BaseModel):
+    on: bool = True                   # True = this shot's clip says its line: use its voice
+
+
 class ClipSoundChoice(BaseModel):
     on: bool | None = None            # None = follow the config again
 
@@ -779,6 +783,24 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                                      f"wait for it to finish")
         clip_sound.set_for_run(run_dir, body.on)
         return {"clip_sound": clip_sound.on(config_for_run(run_dir), run_dir)}
+
+    @app.put("/api/runs/{run_id}/shots/{n}/clip-voice")
+    def set_shot_clip_voice(run_id: str, n: int, body: ClipVoiceChoice) -> dict:
+        """You listened to shot n's clip and it says the line: take the voice from the clip
+        whatever the word finder heard. Only marks the shot; run the voice step for it after."""
+        import clip_sound
+        from run_status import load_script
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "clip sound")
+        active = runner.active_for_run(run_id)
+        if active:
+            raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
+                                     f"wait for it to finish")
+        shot = next((s for s in (load_script(run_dir) or {}).get("shots", [])
+                     if isinstance(s, dict) and s.get("n") == n), None)
+        if shot is None or not str(shot.get("vo_line") or "").strip():
+            raise HTTPException(404, f"shot {n} has no line")
+        return {"clip_voice": sorted(clip_sound.trust(run_dir, n, body.on))}
 
     @app.get("/api/voices/library")
     def voice_library(gender: str = "", age: str = "", search: str = "", page: int = 0) -> dict:

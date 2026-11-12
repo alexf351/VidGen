@@ -506,6 +506,7 @@ that was running or queued when the server stopped is marked failed on the next 
 | `GET /api/runs/{run_id}` | the script, per-shot image / clip / audio URLs and word timings, step status, cost rows |
 | `POST /api/runs/{run_id}/step` `{step, only, provider}` | reruns one step (`only`: shot numbers, for images / video / voice) |
 | `POST /api/runs/{run_id}/reroll` `{shot, provider}` | new image + clip for one shot |
+| `PUT /api/runs/{run_id}/shots/{n}/clip-voice` `{on}` | mark (or unmark) a spoken shot as "its clip says the line": the voice step then takes the line from the clip whatever the word finder heard |
 | `POST /api/runs/{run_id}/reroll-many` `{shots, provider}` | the same for several shots as one job: their pictures, then their clips (and, with clip sound, their lines) |
 | `POST /api/runs/{run_id}/recast` | recast |
 | `DELETE /api/runs/{run_id}` | deletes the video's folder (409 while a job is working on it, or while one of its files is open in another program: nothing is half deleted) |
@@ -921,6 +922,11 @@ Things to know:
 - A card also says when its line is the added voice laid over a clip that said something else
   (the lips will not match), and shows what the clip said. **Check again** listens to the same
   clip once more, at no cost for a new clip; **Redo clip** makes a new one.
+- **Use the clip's voice** on such a card is for when you have played the clip and it does say
+  the line, but the word finder heard something else. The shot is marked in `run.json`
+  (`"clip_voice": [25]`), the words found in the clip are taken as the line, and the video
+  uses the clip's own voice and lips. **Undo** on the card takes it back; a new clip for the
+  shot takes it back by itself.
 - Changing a line under Script and editing: the clip still says the old one, so the editor
   offers **Redo its clip** rather than redoing the voice.
 - Clips made before the switch stay silent. After switching a finished video over, redo its

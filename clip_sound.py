@@ -103,6 +103,45 @@ def set_for_run(run_dir: Path, value: bool | None) -> bool | None:
     return run_choice(run_dir)
 
 
+def trusted(run_dir: Path | None) -> set[int]:
+    """The shots whose clip you have listened to and said is right ("Use the clip's voice" on
+    the card): their line is taken from the clip whatever the word finder made of it. Kept in
+    run.json as "clip_voice": [25]."""
+    if run_dir is None:
+        return set()
+    try:
+        raw = read_json(Path(run_dir) / "run.json").get("clip_voice")
+    except (OSError, ValueError, AttributeError):
+        return set()
+    return {n for n in raw if isinstance(n, int) and not isinstance(n, bool)} if isinstance(raw, list) else set()
+
+
+def trust(run_dir: Path, n: int, on: bool) -> set[int]:
+    """Say (or take back) that shot n's clip says its line. A new clip for the shot takes it
+    back by itself: it has not been listened to."""
+    from common import write_json
+    path = Path(run_dir) / "run.json"
+    meta = read_json(path)
+    now = trusted(run_dir)
+    (now.add if on else now.discard)(int(n))
+    if now:
+        meta["clip_voice"] = sorted(now)
+    else:
+        meta.pop("clip_voice", None)
+    write_json(path, meta)
+    return now
+
+
+def spread(line: str, start: float, end: float) -> list[dict]:
+    """The line's words shared out evenly between two times: for the captions of a clip that is
+    used on your say-so when no words were found in it."""
+    want = line_words(line)
+    if not want:
+        return []
+    step = max(0.0, end - start) / len(want)
+    return [{"word": w, "start": round(start + i * step, 3), "end": round(start + (i + 1) * step, 3)} for i, w in enumerate(want)]
+
+
 # ------------------------------------------------------- what the model is told ----
 
 SILENT_NOTE = "Nobody speaks. Only the natural sound of the scene, no music."

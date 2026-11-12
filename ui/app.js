@@ -347,6 +347,21 @@ async function runStep(run, step, only) {
     { step, only: only || null, provider: providerBody() }), `${step}`);
 }
 
+// "I listened to this clip and it says the line": take the shot's voice from its clip whatever
+// the word finder made of it (on = false takes that back and lets the word finder judge again).
+async function useClipVoice(run, n, on = true) {
+  const ok = await confirmDialog({ title: on ? `Use the clip's own voice for shot ${n}?` : `Check shot ${n}'s clip by ear again?`, ok: on ? "Use it" : "Check it",
+    text: on ? "For when you have played the clip and it says the line, but VidGen heard something else. The words found in the clip are taken as the line, and the video uses the clip's own voice and lips. No new clip is made."
+      : "The words in the clip are compared with the line again, and the added voice is used if they differ." });
+  if (!ok) return;
+  try {
+    await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/shots/${n}/clip-voice`, { on });
+  } catch (e) { toast(e.message, "bad"); return; }
+  releaseMedia();
+  await submit(api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/step`,
+    { step: "voice", only: [n], provider: providerBody() }), "voice");
+}
+
 async function reroll(run, shot) {
   const est = estimateReroll(run, shot);
   const ok = await confirmDialog({ title: `Reroll shot ${shot.n}?`, rows: est.rows, total: est.total,
@@ -1565,6 +1580,9 @@ function shotCard(run, s, busy) {
   const redoClipBtn = () => h("button", { class: "btn small", type: "button", disabled: busy,
     title: "Make this shot's clip again from the same picture. Its line is then read from the new clip.",
     onclick: () => runStep(run, "video", [s.n]) }, "Redo clip");
+  const trustBtn = () => h("button", { class: "btn small primary", type: "button", disabled: busy,
+    title: "You played the clip and it says the line: take the voice from the clip anyway. No new clip is made.",
+    onclick: () => useClipVoice(run, s.n) }, "Use the clip’s voice");
   const againBtn = (label, cls = "btn small") => h("button", { class: cls, type: "button", disabled: busy,
     title: "Listen to the clip again and take the line from it if it is there. No new clip is made.",
     onclick: () => runStep(run, "voice", [s.n]) }, label);
@@ -1588,8 +1606,12 @@ function shotCard(run, s, busy) {
       ? h("div", { class: "line-note trip" },
           h("div", {}, s.clip_said ? `The clip says “${s.clip_said}” instead, so the added voice is laid over it.`
             : "Nobody speaks in the clip, so the added voice is laid over it."),
-          h("div", { class: "trip-btns" }, againBtn("Check again"), redoClipBtn()))
-      : h("div", { class: "line-note" }, "Added voice, not the clip’s own. ", againBtn("Check the clip again", "link-btn"))) : null);
+          h("div", { class: "trip-btns" }, trustBtn(), againBtn("Check again"), redoClipBtn()))
+      : h("div", { class: "line-note trip" },
+          h("div", {}, "Added voice, not the clip’s own, so the lips may not match."),
+          h("div", { class: "trip-btns" }, trustBtn(), againBtn("Check again"), redoClipBtn()))) : null,
+    spoken && s.trusted ? h("div", { class: "line-note" }, "The clip’s own voice, on your say-so. ",
+      h("button", { class: "link-btn", type: "button", disabled: busy, onclick: () => useClipVoice(run, s.n, false) }, "Undo")) : null);
   const actions = h("div", { class: "shot-actions" },
     h("button", { disabled: busy || !drawable, title: shot.talk ? "New keyframe and talking clip" : shot.animate ? "New keyframe and clip" : "New keyframe", onclick: () => reroll(run, s) }, "Reroll"),
     h("button", { disabled: busy || !drawable, title: "Redo the keyframe only", onclick: () => runStep(run, "images", [s.n]) }, "Image"),

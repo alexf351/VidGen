@@ -235,6 +235,10 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
                 audio_path(run_dir, n).unlink(missing_ok=True)
                 timing_path(run_dir, n).unlink(missing_ok=True)
                 print(f"  shot {n}: new clip, so its line will be read again: run the voice step for it")
+            import clip_sound as _cs
+            if n in _cs.trusted(run_dir):              # "use the clip's voice" was said of the old clip
+                with lock:
+                    _cs.trust(run_dir, n, False)
         progress.tick()
         cost = seconds * rate
         with lock:

@@ -140,16 +140,26 @@ def voice_from_clip(run_dir: Path, config: dict, shot: dict, said_instead: dict 
     said = " ".join(w["word"] for w in heard)
     score = clip_sound.match(line, heard)
     need = clip_sound.settings(config)["match"]
-    if score < need:
+    told = score < need and n in clip_sound.trusted(run_dir)   # you listened and said the clip is right
+    if score < need and not told:
         what = f'says "{said}"' if said else "has no words in it"
         print(f"  shot {n}: the clip {what}, not the line (match {score:.0%}, needs {need:.0%}). Using the "
               f"ElevenLabs voice; redo the shot's video for another try at the clip's own.")
         if said_instead is not None:
             said_instead[n] = said                     # the shot's card shows what the clip said
         return False
-    words = clip_sound.align(line, heard)
-    trip = clip_sound.stumble(line, heard)             # said, but not cleanly: the shot will say so
-    start, length = clip_sound.window(words, probe_duration(clip), heard)
+    seconds = probe_duration(clip)
+    if told:
+        # Every word found in the clip is taken to be the line, start to finish. With none
+        # found, the whole clip is the line.
+        words = (clip_sound.spread(line, heard[0]["start"], heard[-1]["end"]) if heard
+                 else clip_sound.spread(line, min(0.3, seconds / 4), max(seconds - 0.3, seconds * 3 / 4)))
+        trip = ""
+        heard = []                                     # nothing in it is a stray to cut around
+    else:
+        words = clip_sound.align(line, heard)
+        trip = clip_sound.stumble(line, heard)         # said, but not cleanly: the shot will say so
+    start, length = clip_sound.window(words, seconds, heard)
     clip_sound.cut_voice(clip, start, length, audio_path(run_dir, n), label)
     write_json(timing_path(run_dir, n), {
         "shot": n,
@@ -165,7 +175,13 @@ def voice_from_clip(run_dir: Path, config: dict, shot: dict, said_instead: dict 
         "said": said,
         "match": score,
         **({"stumble": trip} if trip else {}),
+        **({"trusted": True} if told else {}),
     })
+    if told:
+        heard_as = f'the word finder heard "{said}"' if said else "the word finder found no words in it"
+        print(f"  shot {n}: the clip's own voice, {start:.2f}s to {start + length:.2f}s, because you said the clip "
+              f"is right ({heard_as})")
+        return True
     before, after = clip_sound.strays(words, heard)
     cut = "; ".join(x for x in (f'"{before}" before the line' if before else "", f'"{after}" after it' if after else "") if x)
     print(f"  shot {n}: said in the clip, {start:.2f}s to {start + length:.2f}s (match {score:.0%})"
