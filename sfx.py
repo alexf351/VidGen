@@ -40,8 +40,14 @@ PEAK_DB = -3.0                    # every sound is brought to this peak before i
 # ("center" = its loudest point lands on the cut, "start" = it begins on the cut, "end" = it
 # finishes on the cut), and the ElevenLabs prompt and length for it.
 SOUNDS: dict[str, dict] = {
-    "whoosh": {"level": 0.32, "at": "center", "seconds": 1.0,
-               "prompt": "A single fast cinematic whoosh, quick air swoosh transition, clean and dry, no music"},
+    # Light and high: the first whoosh was a low cinematic rush that sat under the voices like
+    # a rumble. "shape" is applied to the generated sound whatever comes back: everything under
+    # `highpass` Hz is cut and the pitch is raised by `pitch`. Your own assets/sfx file is never
+    # shaped.
+    "whoosh": {"level": 0.28, "at": "center", "seconds": 0.7,
+               "prompt": "One very short light airy whoosh, a quick high-pitched swish of air like a fast "
+                         "page flick, thin and bright, no bass, no rumble, clean and dry, no music",
+               "shape": {"highpass": 650, "pitch": 1.15}},
     "swish":  {"level": 0.36, "at": "center", "seconds": 0.5,
                "prompt": "One very short light swish, a quick fast air movement, clean and dry, no music"},
     "impact": {"level": 0.50, "at": "start", "seconds": 1.5,
@@ -55,7 +61,7 @@ NAMES = tuple(SOUNDS)
 SHOT_VALUES = NAMES + ("none",)   # what a shot's "sfx" key may say
 MAX_SHOT_SFX = 5                  # at most this many shots carry their own "sfx"
 MIN_GAP = 0.9                     # two scene whooshes are never closer than this (seconds)
-BUILTIN_VERSION = 1               # bump when the synthesized sounds change
+BUILTIN_VERSION = 2               # bump when the synthesized sounds change
 STAT_TICK_AT = 0.55               # how far into a progress shot its number ticks up (0-1)
 
 
@@ -190,8 +196,8 @@ def _sweep(a: float, b: float, x: float) -> float:
 
 def _synth(name: str) -> list[float]:
     if name == "whoosh":      # air rushing past: the band sweeps up and back, loudest in the middle
-        return _svf_noise(0.62, lambda x: _sweep(350, 3200, 1 - abs(2 * x - 1)),
-                          lambda x: _bell(x, 0.5, 0.22), 0.55, 11)
+        return _svf_noise(0.46, lambda x: _sweep(1100, 6800, 1 - abs(2 * x - 1)),
+                          lambda x: _bell(x, 0.5, 0.2), 0.6, 11)
     if name == "swish":       # the same, shorter and brighter, for fast cuts
         return _svf_noise(0.28, lambda x: _sweep(1200, 5200, 1 - abs(2 * x - 1)),
                           lambda x: _bell(x, 0.5, 0.2), 0.6, 12)
@@ -321,11 +327,27 @@ def _envelope(path: Path) -> tuple[float, float, float]:
     return peak / 32768, (best_at + block / 2) / ch / rate, n / rate
 
 
-def _prepare(name: str, src: Path) -> dict:
+def _shape_filters(shape: dict | None) -> str:
+    """ffmpeg filters for a sound's "shape": raise the pitch (the sound gets shorter by the same
+    factor), then cut the lows. "" for no shaping."""
+    if not shape:
+        return ""
+    parts = []
+    pitch = float(shape.get("pitch") or 1.0)
+    if abs(pitch - 1.0) > 0.001:
+        parts.append(f"aresample={RATE},asetrate={int(round(RATE * pitch))},aresample={RATE}")
+    cut = float(shape.get("highpass") or 0)
+    if cut > 0:
+        parts.append(f"highpass=f={cut:.0f}")
+    return ",".join(parts)
+
+
+def _prepare(name: str, src: Path, shape: dict | None = None) -> dict:
     """`src` as a 44.1 kHz stereo wav that starts on the sound and peaks at PEAK_DB, plus where its
-    loudest point is. Kept in cache/sfx/ready/, keyed by the source file's contents."""
+    loudest point is. Kept in cache/sfx/ready/, keyed by the source file's contents and the shape."""
     from media import run_ffmpeg
-    digest = hashlib.sha1(src.read_bytes()).hexdigest()[:12]
+    shaping = _shape_filters(shape)
+    digest = hashlib.sha1(src.read_bytes() + shaping.encode()).hexdigest()[:12]
     folder = ROOT / "cache" / "sfx" / "ready"
     wav, note = folder / f"{name}-{digest}.wav", folder / f"{name}-{digest}.json"
     if wav.exists() and note.exists():
@@ -336,7 +358,8 @@ def _prepare(name: str, src: Path) -> dict:
             pass
     folder.mkdir(parents=True, exist_ok=True)
     plain = folder / f"{name}-{digest}.plain.wav"
-    run_ffmpeg(["-i", str(src), "-vn", "-t", "20", "-ar", str(RATE), "-ac", "2", "-c:a", "pcm_s16le", str(plain)],
+    run_ffmpeg(["-i", str(src), "-vn", "-t", "20", *(["-af", shaping] if shaping else []),
+                "-ar", str(RATE), "-ac", "2", "-c:a", "pcm_s16le", str(plain)],
                f"sound effect {name}")
     peak, _, length = _envelope(plain)
     if peak <= 0.0005 or length < 0.03:
@@ -381,7 +404,7 @@ def library(config: dict, names: list[str]) -> dict[str, dict]:
         if use_el:
             fresh = not _el_path(name).exists()
             try:
-                lib[name] = _prepare(name, _elevenlabs(name))
+                lib[name] = _prepare(name, _elevenlabs(name), SOUNDS[name].get("shape"))
                 if fresh:
                     made.append(name)
                 continue
