@@ -115,7 +115,7 @@ def generate_voice(run_dir: Path, config: dict, shot: dict) -> Path:
     return mp3
 
 
-def voice_from_clip(run_dir: Path, config: dict, shot: dict) -> bool:
+def voice_from_clip(run_dir: Path, config: dict, shot: dict, said_instead: dict | None = None) -> bool:
     """Clip sound (clip_sound.py): the line as the shot's own clip says it. Finds the words in
     the clip, and when they are the line, cuts that stretch of the clip's sound as the shot's
     voice file, with the words' times for the captions. False when the clip cannot be used (no
@@ -143,9 +143,12 @@ def voice_from_clip(run_dir: Path, config: dict, shot: dict) -> bool:
     if score < need:
         what = f'says "{said}"' if said else "has no words in it"
         print(f"  shot {n}: the clip {what}, not the line (match {score:.0%}, needs {need:.0%}). Using the "
-              f"ElevenLabs voice; reroll the shot for another try at the clip's own.")
+              f"ElevenLabs voice; redo the shot's video for another try at the clip's own.")
+        if said_instead is not None:
+            said_instead[n] = said                     # the shot's card shows what the clip said
         return False
     words = clip_sound.align(line, heard)
+    trip = clip_sound.stumble(line, heard)             # said, but not cleanly: the shot will say so
     start, length = clip_sound.window(words, probe_duration(clip), heard)
     clip_sound.cut_voice(clip, start, length, audio_path(run_dir, n), label)
     write_json(timing_path(run_dir, n), {
@@ -161,11 +164,15 @@ def voice_from_clip(run_dir: Path, config: dict, shot: dict) -> bool:
         "clip_offset": start,
         "said": said,
         "match": score,
+        **({"stumble": trip} if trip else {}),
     })
     before, after = clip_sound.strays(words, heard)
     cut = "; ".join(x for x in (f'"{before}" before the line' if before else "", f'"{after}" after it' if after else "") if x)
     print(f"  shot {n}: said in the clip, {start:.2f}s to {start + length:.2f}s (match {score:.0%})"
           + (f". The clip also says {cut}: cut out" if cut else ""))
+    if trip:
+        print(f'  shot {n}: NOT A CLEAN TAKE. The clip says "{said}" ({trip}). Redo this shot\'s video for '
+              f"another try.")
     return True
 
 
@@ -198,13 +205,17 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         if audio_path(run_dir, n).exists() and timing_path(run_dir, n).exists() and not force:
             print(f"  shot {n}: exists, skipping")
             continue
-        if from_clips and voice_from_clip(run_dir, config, shot):
+        instead: dict[int, str] = {}
+        if from_clips and voice_from_clip(run_dir, config, shot, instead):
             heard += 1
             progress.tick()
             continue
         speaker = shot.get("speaker") or "narrator"
         print(f"  shot {n}: {speaker} ({voice_cast.voice_for(run_dir, speaker, config)}) \"{shot['vo_line'].strip()}\"")
         generate_voice(run_dir, config, shot)
+        if n in instead:                               # the clip spoke, but not this line
+            from common import read_json
+            write_json(timing_path(run_dir, n), {**read_json(timing_path(run_dir, n)), "clip_said": instead[n]})
         progress.tick()
         clip = run_dir / "shots" / f"{n}.mp4"
         if shot.get("talk") and clip.exists():

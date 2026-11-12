@@ -880,12 +880,17 @@ function soundPanel(run, busy) {
     const clips = run.shots.filter((s) => s.clip).map((s) => s.n);
     const spoken = run.shots.filter((s) => (s.shot.vo_line || "").trim() && s.kind === "shot");
     const own = spoken.filter((s) => s.own_voice).length;
+    const tripped = spoken.filter((s) => s.stumble).map((s) => s.n);
     const changed = S.soundChanged === run.run_id && clips.length;
     box.replaceChildren(...[
       h("div", { class: "panel-title" }, "Sound"),
       chips([[false, "Voices added after"], [true, "Clips speak for themselves"]], on, set, "Sound for this video"),
       on && spoken.length && run.steps.voice && run.steps.voice.done ? h("div", { class: "field-note" },
         `${own} of ${spoken.length} spoken shots use their clip's own voice.${own < spoken.length ? " The rest use the ElevenLabs voice: their clip is silent or said the line wrong. Reroll one to try again." : ""}`) : null,
+      on && tripped.length ? h("div", { class: "notice" },
+        `${tripped.length === 1 ? "Shot" : "Shots"} ${tripped.join(", ")} did not say ${tripped.length === 1 ? "its" : "their"} line cleanly (a word twice, or extra words). `,
+        h("button", { class: "btn small", disabled: busy, onclick: () => runStep(run, "video", tripped) },
+          tripped.length === 1 ? "Redo its clip" : `Redo those ${tripped.length} clips`)) : null,
       changed ? h("div", { class: "notice" }, on
         ? "The clips made so far have the sound they were made with. To hear them speak, redo the clips, then the voices, then assemble. "
         : "Lines taken from clips stay until the voices are redone. Redo the voices, then assemble. ",
@@ -1556,6 +1561,13 @@ function shotCard(run, s, busy) {
       } }, icon("volume", 13));
   }
   if (playBtn || voiceBtn) thumb.append(h("div", { class: "play-row" }, voiceBtn, playBtn));
+  const covered = !!(run.clip_sound && spoken && s.kind === "shot" && !shot.talk && s.clip && s.audio && !s.own_voice);
+  const redoClipBtn = () => h("button", { class: "btn small", type: "button", disabled: busy,
+    title: "Make this shot's clip again from the same picture. Its line is then read from the new clip.",
+    onclick: () => runStep(run, "video", [s.n]) }, "Redo clip");
+  const againBtn = (label, cls = "btn small") => h("button", { class: cls, type: "button", disabled: busy,
+    title: "Listen to the clip again and take the line from it if it is there. No new clip is made.",
+    onclick: () => runStep(run, "voice", [s.n]) }, label);
   const info = h("div", { class: "shot-info" },
     spoken ? [h("div", { class: "speaker" }, shot.speaker), h("div", { class: "line" }, shot.vo_line)]
       : s.kind === "texts" ? [h("div", { class: "speaker" }, `texts from ${(shot.texts || {}).from || "?"}`), h("div", { class: "line" }, ((shot.texts || {}).messages || []).join(" / "))]
@@ -1565,7 +1577,19 @@ function shotCard(run, s, busy) {
       ? h("div", { class: "line-note" }, s.image ? "On the phone in the hero's hand, as in the video." : "In the video this sits on a phone in the hero's hand. The hand is drawn with the images.")
       : s.kind === "texts"
       ? h("div", { class: "line-note" }, "The messages arrive one at a time, each with a soft pop. Edit them under Script and editing; it costs nothing.")
-      : null);
+      : null,
+    // The clip said the line, but tripped over it (clip_sound.stumble): show what it said.
+    spoken && s.stumble ? h("div", { class: "line-note trip" },
+      h("div", {}, `Not a clean take. The clip says “${s.stumble.said}”`),
+      h("div", { class: "trip-btns" }, redoClipBtn())) : null,
+    // Clip sound is on, but this line is the added voice laid over the clip: the clip said
+    // something else (or nothing), so the lips and the voice do not go together.
+    covered ? (typeof s.clip_said === "string"
+      ? h("div", { class: "line-note trip" },
+          h("div", {}, s.clip_said ? `The clip says “${s.clip_said}” instead, so the added voice is laid over it.`
+            : "Nobody speaks in the clip, so the added voice is laid over it."),
+          h("div", { class: "trip-btns" }, againBtn("Check again"), redoClipBtn()))
+      : h("div", { class: "line-note" }, "Added voice, not the clip’s own. ", againBtn("Check the clip again", "link-btn"))) : null);
   const actions = h("div", { class: "shot-actions" },
     h("button", { disabled: busy || !drawable, title: shot.talk ? "New keyframe and talking clip" : shot.animate ? "New keyframe and clip" : "New keyframe", onclick: () => reroll(run, s) }, "Reroll"),
     h("button", { disabled: busy || !drawable, title: "Redo the keyframe only", onclick: () => runStep(run, "images", [s.n]) }, "Image"),
@@ -2126,8 +2150,16 @@ function scriptPanel(run, busy) {
   }
   if (S.afterSave && S.afterSave.run === run.run_id && S.afterSave.voice.length) {
     const ns = S.afterSave.voice;
+    // With clip sound the line is said inside the clip, so a new line needs a new clip (its
+    // words are then read from it); a shot with no clip still gets its voice redone.
+    const inClip = run.clip_sound ? ns.filter((n) => run.shots.some((x) => x.n === n && x.clip)) : [];
+    const rest = ns.filter((n) => !inClip.includes(n));
     panel.append(h("div", { class: "notice" }, `Saved. Lines changed on ${ns.length === 1 ? "shot" : "shots"} ${ns.join(", ")}. `,
-      h("button", { class: "btn small", disabled: busy, onclick: () => { S.afterSave.voice = []; runStep(run, "voice", ns); } }, "Redo voice for them")));
+      inClip.length ? `${inClip.length === 1 ? "Its clip says" : "Their clips say"} the old line, so ${inClip.length === 1 ? "it needs" : "they need"} a new clip. ` : null,
+      inClip.length ? h("button", { class: "btn small", disabled: busy,
+        onclick: () => { S.afterSave.voice = rest; runStep(run, "video", inClip); } }, inClip.length === 1 ? "Redo its clip" : "Redo their clips") : null,
+      rest.length ? h("button", { class: "btn small", disabled: busy, onclick: () => { S.afterSave.voice = inClip; runStep(run, "voice", rest); } },
+        inClip.length ? `Redo voice for ${rest.join(", ")}` : "Redo voice for them") : null));
   }
   if (S.afterSave && S.afterSave.run === run.run_id && (S.afterSave.images || []).length) {
     const ns = S.afterSave.images;

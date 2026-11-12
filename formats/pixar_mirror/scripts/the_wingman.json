@@ -116,7 +116,7 @@
       ],
       "image_prompt": "close two shot, a dim bedroom at night lit only by the cold blue glow of a monitor, {iro}, popping up over the edge of the desk with both flippers on the wood and one eye squinted, beak open mid-word, its orange core lighting the desk; {marcus}, in an old grey tee, jerking back in his chair with his eyebrows shot up and his mouth hanging open. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Iro pops up over the desk edge and its beak moves as it says the line flat and dry; Marcus jolts back in his chair, then slowly starts to grin. Quick push-in on the two of them.",
-      "vo_line": "About time.",
+      "vo_line": "About time. Let's lock in.",
       "speaker": "iro",
       "same_scene": true
     },

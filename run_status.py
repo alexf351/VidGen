@@ -233,19 +233,25 @@ def detail(run_dir: Path, config: dict | None) -> dict:
         n = s["n"]
         timing = None
         own_voice = False                     # the line is the clip's own (clip_sound.py)
+        stumble = None                        # ... but the clip did not say it cleanly
+        clip_said = None                      # the clip said something else, so a voice was added
         tp = timing_path(run_dir, n)
         if tp.is_file():
             try:
                 data = read_json(tp)
                 timing = data.get("words")
                 own_voice = data.get("source") == "clip"
+                if own_voice and isinstance(data.get("stumble"), str) and data["stumble"]:
+                    stumble = {"why": data["stumble"], "said": str(data.get("said") or "")}
+                if not own_voice and isinstance(data.get("clip_said"), str):
+                    clip_said = data["clip_said"]
             except (OSError, ValueError, AttributeError):
                 timing = None
         kind = ("card" if s.get("card") else "app_screen" if s.get("app_screen") else "texts" if s.get("texts")
                 else "montage" if s.get("montage") else "flash" if s.get("flash")
                 else "letter" if s.get("letter") else "shot")
         preview = app_preview(run_dir, n, s) if kind in ("app_screen", "texts") else None
-        shots.append({"n": n, "kind": kind, "shot": s, "own_voice": own_voice,
+        shots.append({"n": n, "kind": kind, "shot": s, "own_voice": own_voice, "stumble": stumble, "clip_said": clip_said,
                       "image": file_url(preview) if preview else file_url(shot_path(run_dir, n)),
                       "clip": file_url(video_path(run_dir, n)),
                       "audio": file_url(audio_path(run_dir, n)),

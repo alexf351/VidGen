@@ -56,7 +56,7 @@ def _motion(config: dict, shot: dict, descriptions: dict[str, str] | None, sound
         cast = config.get("locked_characters")
         shot = {**shot, "motion_prompt": clip_sound.unname(shot["motion_prompt"], shot, cast)}
         who = clip_sound.speaker_tag(shot, cast)
-        return f"{clip_prompt(shot, descriptions, who)} {clip_sound.sound_note(shot, cast)} {ONE_TAKE}"
+        return f"{clip_prompt(shot, descriptions, who, once=True)} {clip_sound.sound_note(shot, cast)} {ONE_TAKE}"
     return f"{clip_prompt(shot, descriptions)} {ONE_TAKE}"
 
 
@@ -109,10 +109,14 @@ def generate_talk_clip(run_dir: Path, config: dict, shot: dict) -> Path:
     return dest
 
 
-def clip_prompt(shot: dict, descriptions: dict[str, str] | None = None, who: str = "") -> str:
+def clip_prompt(shot: dict, descriptions: dict[str, str] | None = None, who: str = "", once: bool = False) -> str:
     """The motion prompt sent to the video model. When someone in the shot speaks a line, the
     prompt also says so, so their mouth moves while the line is heard (the voice itself is
-    added at assembly; this is not exact lip-sync)."""
+    added at assembly; this is not exact lip-sync).
+
+    `once`: the clip is made with its own sound, so the line is heard exactly as the model says
+    it. "Talking throughout" a five second clip with a two word line made it say the line
+    twice ("Never. Never again."), so here the line is said one time and then nobody talks."""
     prompt = shot["motion_prompt"].strip()
     line = " ".join(str(shot.get("vo_line") or "").split())
     speaker = shot.get("speaker") or ""
@@ -135,6 +139,9 @@ def clip_prompt(shot: dict, descriptions: dict[str, str] | None = None, who: str
             words[0] = "The"
         who = " ".join(words) or "The speaker"
     quoted = line.replace('"', "'")
+    if once:
+        return (f'{prompt} {who} says this one time, on camera, mouth moving clearly with every word: '
+                f'"{quoted}" Then they stay quiet with their mouth closed. No subtitles or text on screen.')
     return (f'{prompt} {who} is talking throughout, mouth moving clearly with every word, saying: '
             f'"{quoted}" No subtitles or text on screen.')
 

@@ -903,8 +903,8 @@ What each step then does:
 
 | step     | with clip sound                                                                    |
 |----------|------------------------------------------------------------------------------------|
-| video    | every clip is requested with sound. The prompt says who speaks, the line, and how the voice sounds (the character's `voice_style` in `format.yaml`, so it stays alike from shot to shot), and asks for the sound of the scene with no music. Nobody is named in it: characters are called by their look ("the man with slick blond hair"), because a model that makes sound says a name it reads |
-| voice    | for a spoken shot, the words in its clip are found with ElevenLabs Speech to Text (one short call per shot). If they are the line, that stretch of the clip becomes the shot's voice file and the captions follow those words. A stray word before or after the line ("Marcus? I could do it with AI.") is cut off and named in the log; a word in the middle of the line cannot be cut and counts against the match. If the clip says something else, or nothing, the line is spoken by the ElevenLabs voice as before, and the log says so. Redoing the video of chosen shots, or rerolling one, reads their lines again by itself |
+| video    | every clip is requested with sound. The prompt says who speaks, that the line is said one time and then nobody talks (asked to keep "talking throughout" a clip longer than its line, the model says the line twice), and how the voice sounds (the character's `voice_style` in `format.yaml`, so it stays alike from shot to shot), and asks for the sound of the scene with no music. Nobody is named in it: characters are called by their look ("the man with slick blond hair"), because a model that makes sound says a name it reads |
+| voice    | for a spoken shot, the words in its clip are found with ElevenLabs Speech to Text (one short call per shot). If they are the line, that stretch of the clip becomes the shot's voice file and the captions follow those words. A stray word before or after the line ("Marcus? I could do it with AI.") is cut off and named in the log; a word in the middle of the line cannot be cut and counts against the match. The words are compared by ear, not by spelling: "Sophia" is "Sofia", "wing man" is "wingman". If the clip says something else, or nothing, the line is spoken by the ElevenLabs voice as before, and the log says so. Redoing the video of chosen shots, or rerolling one, reads their lines again by itself |
 | assemble | a shot that speaks from its clip shows the same stretch of the clip, so sound and picture stay together. A shot where nobody speaks plays its clip's own sound under the cut |
 
 Things to know:
@@ -913,6 +913,16 @@ Things to know:
   used only for lines a clip got wrong, lines over an app screen, and narration.
 - The run page shows how many spoken shots use their clip's own voice. **Reroll** on one that
   does not gives the clip another try (a reroll then also reads the line again).
+- A clip that says the line but trips over it is still used, and its card says so with what
+  the clip said: a word in the middle that is not in the line ("Go tell Tyler, go Tyler, I think
+  he's hot"), or part of the line twice ("Never. Never again."). **Redo clip** on the card makes
+  the clip again from the same picture and reads the line from the new one. The Sound panel
+  lists every such shot with one button for all of them.
+- A card also says when its line is the added voice laid over a clip that said something else
+  (the lips will not match), and shows what the clip said. **Check again** listens to the same
+  clip once more, at no cost for a new clip; **Redo clip** makes a new one.
+- Changing a line under Script and editing: the clip still says the old one, so the editor
+  offers **Redo its clip** rather than redoing the voice.
 - Clips made before the switch stay silent. After switching a finished video over, redo its
   clips, then the voices, then assemble; the Sound panel offers the buttons.
 - A line has to fit in the clip: a long line in a 4 second clip is rushed or cut off, and then

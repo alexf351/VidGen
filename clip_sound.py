@@ -106,8 +106,9 @@ def set_for_run(run_dir: Path, value: bool | None) -> bool | None:
 # ------------------------------------------------------- what the model is told ----
 
 SILENT_NOTE = "Nobody speaks. Only the natural sound of the scene, no music."
-SPOKEN_NOTE = ("The words in quotes are the only words spoken, said once, in clear English. No name, no greeting "
-               "and no other word before or after them. The natural sound of the scene under it, no music.")
+SPOKEN_NOTE = ("The words in quotes are the only words spoken, said once from start to finish, in clear English, "
+               "with no word said twice and no second try at the line. No name, no greeting and no other word "
+               "before or after them. The natural sound of the scene under it, no music.")
 
 
 def _tag(character: dict, alone: bool) -> str:
@@ -199,6 +200,60 @@ def line_words(line: str) -> list[str]:
     return [w for w in str(line or "").split() if _norm(w)]
 
 
+def _sound(word: str) -> str:
+    """A rough idea of how a word sounds, so two spellings of one name meet: "Sophia" and
+    "Sofia", "Jon" and "John", "Tylor" and "Tyler"."""
+    w = word.replace("'", "")
+    for a, b in (("ph", "f"), ("ck", "k"), ("gh", ""), ("wh", "w"), ("c", "k"), ("z", "s"), ("y", "i")):
+        w = w.replace(a, b)
+    w = re.sub(r"(?<=.)h", "", w)                                  # a silent h: john, sarah
+    w = re.sub(r"(.)\1+", r"\1", w)                                # doubled letters
+    return w[:1] + re.sub(r"[aeiou]+", "a", w[1:])                 # which vowel it was matters least
+
+
+def _alike(a: str, b: str) -> bool:
+    """Is `b` (heard) the word `a` (in the line), spelled another way or caught a little off?"""
+    if a == b:
+        return True
+    if min(len(a), len(b)) < 3 or max(len(a), len(b)) < 4:
+        return False                                              # short words must match as written
+    if _sound(a) == _sound(b):
+        return True
+    return min(len(a), len(b)) >= 4 and difflib.SequenceMatcher(None, a, b).ratio() >= 0.8
+
+
+def _pair(line: str, heard: list[dict]) -> tuple[list[str], list[str], list[dict]]:
+    """(the line's words, the heard words, the heard words with their times), ready to compare.
+
+    The words in a clip are found by ear, so they come back in the listener's spelling, not the
+    script's. Two things are put right before comparing:
+
+      a heard word that is not in the line but sounds like one of its words becomes that word
+          "Sophia? Why?" for "Sofia? Why?" used to count as half the line missing
+      two heard words that together are one of the line's words become one
+          "Best wing man ever" for "Best wingman ever!"
+    """
+    want = [_norm(w) for w in line_words(line)]
+    known = set(want)
+    words: list[dict] = []
+    got: list[str] = []
+    j = 0
+    while j < len(heard):
+        g = _norm(heard[j]["word"])
+        if g not in known and j + 1 < len(heard):
+            both = g + _norm(heard[j + 1]["word"])
+            whole = both if both in known else next((w for w in want if len(w) >= 6 and _alike(w, both)), None)
+            if whole and not any(_alike(w, g) for w in want):
+                words.append({"word": f'{heard[j]["word"]} {heard[j + 1]["word"]}', "start": heard[j]["start"], "end": heard[j + 1]["end"]})
+                got.append(whole)
+                j += 2
+                continue
+        words.append(heard[j])
+        got.append(g if g in known else next((w for w in want if _alike(w, g)), g))
+        j += 1
+    return want, got, words
+
+
 def transcribe(clip: Path, config: dict, label: str) -> list[dict]:
     """The words spoken in a clip: [{"word", "start", "end"}] in seconds from the clip's start.
     One ElevenLabs Speech to Text call (billed by the length of the audio: a few seconds)."""
@@ -241,8 +296,7 @@ def match(line: str, heard: list[dict]) -> float:
     A word said before the line starts or after it ends ("Marcus? I could do it with AI.") costs
     little: the stretch that is kept begins on the line's first word and ends on its last, so
     it is cut away. A word said in the middle of the line cannot be cut and costs a whole word."""
-    want = [_norm(w) for w in line_words(line)]
-    got = [_norm(w["word"]) for w in heard]
+    want, got, _ = _pair(line, heard)
     if not want or not got:
         return 0.0
     blocks = [b for b in difflib.SequenceMatcher(None, want, got, autojunk=False).get_matching_blocks() if b.size]
@@ -262,7 +316,7 @@ def align(line: str, heard: list[dict]) -> list[dict]:
     want = line_words(line)
     if not want or not heard:
         return []
-    a, b = [_norm(w) for w in want], [_norm(w["word"]) for w in heard]
+    a, b, heard = _pair(line, heard)
     out: list[dict | None] = [None] * len(want)
     for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
         if tag == "equal":
@@ -306,6 +360,33 @@ def strays(words: list[dict], heard: list[dict]) -> tuple[str, str]:
     before = " ".join(w["word"] for w in heard if w["end"] <= first + 0.001)
     after = " ".join(w["word"] for w in heard if w["start"] >= last - 0.001)
     return before, after
+
+
+def stumble(line: str, heard: list[dict]) -> str:
+    """What is wrong with how the clip says the line, in a few words, or "" when it says it
+    cleanly. Two things count, both the model tripping over the line:
+
+      a word said in the middle of it that is not in it   "Go tell Tyler, go Tyler, I think he's hot"
+      one of its own words said again before or after it  "Never. Never again."
+
+    A stray word that is not from the line ("Marcus? I could do it with AI.") is not a stumble:
+    it is cut away cleanly. The first kind stays in the shot's sound; the second is cut out, but
+    the mouth often does not move on the take that is left. Either way the clip is worth making
+    again, and the shot says so."""
+    want, got, _ = _pair(line, heard)
+    if not want or not got:
+        return ""
+    blocks = [b for b in difflib.SequenceMatcher(None, want, got, autojunk=False).get_matching_blocks() if b.size]
+    if not blocks:
+        return ""
+    first, last = blocks[0].b, blocks[-1].b + blocks[-1].size
+    kept = {j for b in blocks for j in range(b.b, b.b + b.size)}
+    if any(j not in kept for j in range(first, last)):
+        return "extra words in the middle of the line"
+    again = [j for j in list(range(first)) + list(range(last, len(got))) if got[j] in want]
+    if again:
+        return "part of the line twice"
+    return ""
 
 
 def cut_voice(clip: Path, start: float, length: float, dest: Path, label: str) -> None:
