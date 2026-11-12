@@ -26,11 +26,12 @@ def edit_rules(rules: dict) -> dict:
     words a script has, and how many silent shots may follow each other, are targets for
     whoever WRITES it; once it is your script you may add a scene or a line past them. What
     makes the format what it is (its one time card, its progress shots, its montage, the lines
-    that come back) still holds."""
+    that come back) still holds. The closing call-to-action shot is yours to keep or remove."""
     out = dict(rules)
     out["story_shots"] = [1, max(int(rules["story_shots"][1]), EDIT_MAX_SHOTS)]
     out["vo_words"] = [0, max(int(rules["vo_words"][1]), EDIT_MAX_WORDS)]
     out["silent_run_max"] = 0
+    out["closing_free"] = True                 # the closing call-to-action shot may be taken off, or kept
     return out
 
 

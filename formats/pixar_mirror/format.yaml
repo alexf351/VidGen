@@ -30,10 +30,13 @@ beats:
   - three progress shots (rank + number)
   - time card
   - the same scene, roles reversed
-  - flex montage
-  - CTA
+  - flex montage (the last shot is the end)
 
 rules:
+  # The story ends on the montage's last shot. The ads this copies have no "search the app"
+  # card at the end: the app is shown in the story, and that is the advertising. Set this to
+  # true (or delete the line) to end on a closing shot captioned with cta_caption again.
+  closing_shot: false
   story_shots: [20, 28]          # shots, not counting the montage
   vo_words: [45, 90]             # total spoken words across all shots
   silent_run_max: 2

@@ -71,6 +71,9 @@ def _rules(raw, where: str) -> dict:
         "vo_words": _pair(raw.get("vo_words"), f"{where}: rules.vo_words"),
         "caption_max_words": int(raw.get("caption_max_words", 2)),
         "cta_caption": str(raw.get("cta_caption") or "").strip(),
+        # Does the story end on a call-to-action shot carrying cta_caption (true, the default),
+        # or on its last story shot, the montage's smirk, with no ad at the end (false)?
+        "closing_shot": raw.get("closing_shot", True) is not False,
         "narrator": bool(raw.get("narrator", False)),
         # With a narrator: at least this many lines must still be spoken by characters.
         "dialogue_lines_min": max(0, int(raw.get("dialogue_lines_min") or 0)),

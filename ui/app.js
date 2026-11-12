@@ -1239,7 +1239,8 @@ function renderCreate(formatName) {
       L.vo_words ? [h("dt", {}, "Spoken words"), h("dd", {}, `${L.vo_words[0]}-${L.vo_words[1]}${L.narrator ? ", narrated" : ", dialogue only"}`)] : null,
       h("dt", {}, "Clips"), h("dd", {}, L.animate_all ? `${L.flashes ? "every shot but the flashes" : "every shot"} is a clip × ${f.clip_seconds || 4}s` : `up to ${L.max_animated_shots ?? "?"} × ${f.clip_seconds || 4}s`),
       f.locked_cast.length ? [h("dt", {}, "Cast"), h("dd", {}, f.locked_cast.join(", "))] : null,
-      L.cta_caption ? [h("dt", {}, "Ends on"), h("dd", {}, L.cta_caption)] : null),
+      L.cta_caption ? [h("dt", {}, "Ends on"), h("dd", {}, L.cta_caption)]
+        : L.closing_shot === false ? [h("dt", {}, "Ends on"), h("dd", {}, "its last story shot, with no call to action")] : null),
     f.beats.length ? h("ol", { class: "beat-list" }, f.beats.map((b) => h("li", {}, b))) : null,
     (f.references || []).length ? h("div", { class: "refs" },
       h("div", { class: "refs-title" }, "Modelled on"),

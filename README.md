@@ -728,7 +728,8 @@ Rules enforced by the prompt and checked by the validator (the numbers and wordi
 - 1 to 3 time-jump card shots (optional `"card": "6 MONTHS LATER"` field) at the natural jumps
   in time; a card shot has no characters, no `vo_line`, `animate: false`, and is never the
   first or last shot. Shots without a `card` field work exactly as before
-- the last shot's caption is exactly `SEARCH IRO AI`
+- the last shot's caption is exactly `SEARCH IRO AI` (not in a format with `closing_shot: false`,
+  which ends on its last story shot)
 - the style line opens every `image_prompt` (prepended if the model forgets)
 - no more than `max_animated_shots` shots are `animate: true`, reserved for shots where motion is the beat;
   with `animate_all` on (the default for this format) every drawn shot is `animate: true` instead
@@ -1054,7 +1055,14 @@ their story twice (about 45-55 seconds, 45-90 spoken words):
 5. one time card
 6. the same place and people again, with at least two lines repeated word for word and now
    meaning the opposite; he is polite, brief and leaves
-7. the flex montage, then the `SEARCH IRO AI` shot
+7. the flex montage, whose last shot (a smirk at the camera) is the end
+
+It has no closing call-to-action shot: the ads it copies end on the story, because the app was
+shown in it. That is `closing_shot: false` under `rules` in its `format.yaml`; set it to `true`
+(or delete the line) and scripts again end on a shot captioned `SEARCH IRO AI`, as every other
+format's do. A video made before this change still has its closing shot: remove it under
+Script and editing (the bin on its row) and assemble again. In any format, a script you edit
+by hand may drop the closing shot when a montage comes before it.
 
 Pick it like any format: `python main.py new "..." --format pixar_mirror`, or its card in the
 UI. A premise only needs the small scene: who brushes him off, where, and over what.

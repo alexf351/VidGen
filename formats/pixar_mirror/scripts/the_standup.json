@@ -276,15 +276,6 @@
       "image_prompt": "extreme close shot, a neon-lit street at night, {marcus}, in a fitted black blazer over a black tee, looking straight into the lens over the top of his sunglasses, one eyebrow raised, a slow lopsided smirk. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus lowers his sunglasses with one finger and the smirk spreads across his face. Fast punch-in on his eyes.",
       "montage": true
-    },
-    {
-      "characters": [
-        "marcus",
-        "iro"
-      ],
-      "image_prompt": "medium close shot, a rooftop terrace over a glittering city at dusk, {marcus}, in a fitted black blazer over a black tee, holding a phone up beside his face with its BACK toward the camera, the glow from it lighting his cheek, grinning wide with his eyebrows up, leaning toward the lens; {iro}, perched on his shoulder pointing a flipper at the phone, beak open in a grin. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Marcus lifts the phone higher with its back to us and taps the back of it twice with a finger, grinning; Iro points at it and bounces. Slow push-in.",
-      "caption": "SEARCH IRO AI"
     }
   ]
 }

@@ -340,6 +340,10 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
     SHOT_MIN, SHOT_MAX = rules["story_shots"]
     VO_WORDS_MIN, VO_WORDS_MAX = rules["vo_words"]
     CTA_CAPTION = rules["cta_caption"]
+    # A closing call-to-action shot: the format asks for one (closing_shot), or leaves the story
+    # to end on its last shot. A script edited by hand may have one or not (shot_order.edit_rules).
+    CLOSING = rules.get("closing_shot", True) is not False
+    CLOSING_FREE = not CLOSING or bool(rules.get("closing_free"))
     CAPTION_MAX_WORDS = rules["caption_max_words"]
     montage_rule, card_rule = rules["montage"], rules["cards"]
     APP_SCREENS_MAX, app_hint = rules["app_screens"]["max"], rules["app_screens"]["hint"]
@@ -848,16 +852,19 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
     elif not montage_idx:
         MONTAGE_MIN, MONTAGE_MAX = montage_rule["count"]
         errors.append(f"add the {montage_rule['name']}: {MONTAGE_MIN}-{MONTAGE_MAX} shots with \"montage\": true "
-                      f"right before the final CTA shot")
+                      + ("right before the final CTA shot" if CLOSING else "as the last shots of the video"))
     else:
         MONTAGE_MIN, MONTAGE_MAX = montage_rule["count"]
         if not (MONTAGE_MIN <= len(montage_idx) <= MONTAGE_MAX):
             errors.append(f"the {montage_rule['name'].lower()} needs {MONTAGE_MIN}-{MONTAGE_MAX} shots, "
                           f"got {len(montage_idx)}")
         contiguous = montage_idx == list(range(montage_idx[0], montage_idx[-1] + 1))
-        if not contiguous or montage_idx[-1] != len(shots) - 2:
-            errors.append(f"the montage shots must be consecutive and come right before the final CTA "
-                          f"shot; they are at shots {[i + 1 for i in montage_idx]} of {len(shots)}")
+        ends = {len(shots) - 2} | ({len(shots) - 1} if CLOSING_FREE else set())     # then the CTA shot, or nothing
+        if not contiguous or montage_idx[-1] not in ends:
+            where = ("come right before the final CTA shot" if not CLOSING_FREE
+                     else "be the last shots of the video (one closing shot may follow them)")
+            errors.append(f"the montage shots must be consecutive and {where}; they are at shots "
+                          f"{[i + 1 for i in montage_idx]} of {len(shots)}")
     if flash_rule:
         lo, hi = flash_rule["count"]
         if not (lo <= len(flash_idx) <= hi):
@@ -885,7 +892,11 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 errors.append(f"add an app_screen shot showing {path!r}: it was picked for this video")
             elif shown.count(path) > 1:
                 errors.append(f"show the app screen {path!r} in one shot only, got {shown.count(path)}")
-    if normalized_shots and CTA_CAPTION:
+    # The closing shot's caption. A format that ends on its story asks for none. In a script
+    # edited by hand the closing shot may be taken off (the montage is then the end); while it
+    # is there it keeps its caption.
+    dropped = bool(CLOSING_FREE and montage_rule and montage_idx and montage_idx[-1] == len(shots) - 1)
+    if normalized_shots and CTA_CAPTION and CLOSING and not dropped:
         last = normalized_shots[-1]
         if last.get("caption") != CTA_CAPTION:
             errors.append(f"last shot caption must be {CTA_CAPTION!r}, got {last.get('caption')!r}")

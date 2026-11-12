@@ -46,8 +46,8 @@ SHOT FIELDS
   or "" when vo_line is "". Never "narrator". The speaker is in the shot: their id is
   in "characters", and the image_prompt shows them mid-sentence, mouth open, talking
   AT someone.
-- "caption" is "" on every shot except the last, whose caption is exactly
-  "{{CTA_CAPTION}}".
+- "caption" is "" on every shot. The video ends on the last montage shot, with no closing
+  call-to-action shot.
 - "animate" is true for AT MOST {{MAX_ANIMATED}} shots. Reserve it for shots where motion
   IS the beat: a car pulling away, someone walking out, a crowd, a thrown phone, a door
   slamming. Dialogue close-ups and establishing shots stay false.

@@ -119,10 +119,9 @@ shots come on top. Number every shot "n" from 1 upward with no gaps.
      to the person who lost him.
      One silent shot in this scene may carry a "label", a stage direction of at most
      {{LABEL_MAX_WORDS}} words that makes the joke land ("DROPS THEM ON PURPOSE").
-  7. FLEX MONTAGE ({{MONTAGE_MIN}}-{{MONTAGE_MAX}} shots). See FLEX MONTAGE below.
-  8. CTA (the final shot). The hero holds up the phone with its BACK toward the camera,
-     the screen glow on his face, grinning, Iro on his shoulder. Caption exactly
-     "{{CTA_CAPTION}}". Silent, or one line of at most four words.
+  7. FLEX MONTAGE ({{MONTAGE_MIN}}-{{MONTAGE_MAX}} shots). See FLEX MONTAGE below. Its last
+     shot is the last shot of the video. There is no call to action, no "search the app"
+     card and no caption at the end: the app was shown in beat 3, and that is the ad.
 
 The app is never explained and nobody says what it does. The viewer sees him open it,
 sees the rank and the number climb, and sees what he became.
@@ -195,7 +194,7 @@ DIALOGUE
 {{SHOT_RULES}}
 
 FLEX MONTAGE
-- Right after the second scene and right before the final CTA shot, add
+- Right after the second scene, as the last shots of the video, add
   {{MONTAGE_MIN}}-{{MONTAGE_MAX}} consecutive montage shots of the hero's new life, each one a
   single striking image, under a second on screen: leaning on a car at sunset, friends
   cheering him at a party, a rooftop over the city at night, laughing with sofia, a
