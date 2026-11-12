@@ -133,6 +133,11 @@ class RerollRequest(BaseModel):
     provider: ProviderChoice = None
 
 
+class RerollMany(BaseModel):
+    shots: list[int] = Field(min_length=1, max_length=200)
+    provider: ProviderChoice = None
+
+
 class CoverRequest(BaseModel):
     run_id: str
     shot: int = Field(ge=1)
@@ -627,6 +632,24 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         params = {"shot": body.shot, "provider": providers}
         return submit_run_job("reroll", run_dir, params,
                               lambda cfg: commands.reroll(run_id, body.shot, cfg), providers)
+
+    @app.post("/api/runs/{run_id}/reroll-many", status_code=202)
+    def reroll_many(run_id: str, body: RerollMany) -> dict:
+        """Reroll several shots as one job: their pictures, then their clips (and lines)."""
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "reroll")
+        script = run_status.load_script(run_dir)
+        if script is None:
+            raise HTTPException(409, "this run has no script.json yet; run the script step first")
+        have = {s.get("n") for s in script["shots"] if isinstance(s, dict)}
+        shots = sorted(set(body.shots))
+        missing = [n for n in shots if n not in have]
+        if missing:
+            raise HTTPException(404, f"shot {missing[0]} is not in script.json")
+        providers = _providers(body.provider)
+        params = {"shots": shots, "provider": providers}
+        return submit_run_job("reroll", run_dir, params,
+                              lambda cfg: commands.reroll_many(run_id, shots, cfg), providers)
 
     @app.post("/api/runs/{run_id}/recast", status_code=202)
     def recast(run_id: str) -> dict:

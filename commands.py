@@ -246,6 +246,20 @@ def delete_run(run_dir: Path, free_leftovers: bool = False) -> None:
     shutil.rmtree(parked, ignore_errors=True)       # anything that will not go now goes at the next start
 
 
+def reroll_many(run_id: str, shots: list[int], config: dict) -> None:
+    """Reroll several shots in one go: new pictures for all of them (drawn side by side), then
+    new clips, then (with clip sound) their lines read again from the new clips."""
+    run_dir = run_dir_for(run_id)
+    _image_pipeline_only(run_dir, "reroll")
+    only = ",".join(str(n) for n in sorted(set(shots)))
+    print(f"\n=== reroll shots {only} ({run_dir.name}) ===")
+    import clip_sound
+    revoice = clip_sound.on(config, run_dir) and bool(_spoken_among(run_dir, only))
+    progress.start(["images", "video"] + (["voice"] if revoice else []))
+    run_step("images", run_dir, config, only=only)
+    step(run_id, "video", config, only=only)          # with clip sound this reads the lines again too
+
+
 def move_shot(run_id: str, shot_number: int, to: int, config: dict) -> dict:
     """Move a shot to another place in the run, with its picture, clip and voice (shot_order.py)."""
     run_dir = run_dir_for(run_id)

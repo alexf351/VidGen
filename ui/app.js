@@ -357,6 +357,23 @@ async function reroll(run, shot) {
     { shot: shot.n, provider: providerBody() }), `reroll shot ${shot.n}`);
 }
 
+// Reroll every selected shot as one job: new pictures (drawn side by side), then new clips.
+async function rerollMany(run, shots) {
+  const picked = run.shots.filter((s) => shots.includes(s.n) && drawsImage(s));
+  if (!picked.length) { toast("None of the selected shots has a picture to redo.", "bad"); return; }
+  const ns = picked.map((s) => s.n);
+  const img = estimateStep(run, "images", ns), vid = estimateStep(run, "video", ns);
+  const rows = [...((img && img.rows) || []), ...((vid && vid.rows) || []).filter(([k]) => k !== "no clips to make")];
+  const total = ((img && img.total) || 0) + ((vid && vid.total) || 0);
+  const ok = await confirmDialog({ title: `Reroll ${ns.length === 1 ? "shot" : `${ns.length} shots`} ${ns.join(", ")}?`, ok: "Reroll", rows, total,
+    text: `A new picture for each, then a new clip where the shot moves${run.clip_sound ? ", and its line read again from the new clip" : ""}. They are made together, not one after another.` });
+  if (!ok) return;
+  releaseMedia();
+  S.selected.clear();
+  await submit(api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/reroll-many`,
+    { shots: ns, provider: providerBody() }), `reroll shots ${ns.join(", ")}`);
+}
+
 async function recast(run) {
   const ok = await confirmDialog({ title: "Recast this run?", ok: "Recast",
     text: "Copies the format's current locked-character descriptions into script.json and deletes their stale reference sheets. No API calls; the log lists the shots to regenerate." });
@@ -1413,6 +1430,8 @@ function selectionBar(run, busy) {
     h("span", { style: "flex:1" }),
     sel.length ? [
       h("span", { class: "count" }, `${sel.length} selected`),
+      h("button", { class: "btn small primary", disabled: busy, title: "New pictures, then new clips, for every selected shot in one go",
+        onclick: () => rerollMany(run, sel) }, "Reroll"),
       ["images", "video", "voice"].map((step) => h("button", { class: "btn small", disabled: busy,
         onclick: () => runStep(run, step, sel) }, `Redo ${step}`)),
       h("button", { class: "btn small ghost", onclick: () => { S.selected.clear(); renderMain(); } }, "Clear"),
@@ -2493,7 +2512,7 @@ function openDrawer(open) {
 
 function jobLabel(j) {
   const what = j.action === "step" ? `step ${j.params.step}${j.params.only ? ` (${j.params.only})` : ""}`
-    : j.action === "reroll" ? `reroll shot ${j.params.shot}`
+    : j.action === "reroll" ? (j.params.shots ? `reroll shots ${j.params.shots.join(", ")}` : `reroll shot ${j.params.shot}`)
     : j.action === "new" ? (j.params.dry_run ? (j.params.engine === "claude_code" ? "new (story only)" : "new (dry run)") : "new video")
     : j.action === "draw_character" ? `draw ${j.params.character}` : j.action;
   return what;

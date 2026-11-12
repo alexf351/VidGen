@@ -454,7 +454,9 @@ The editor (`ui/`: `index.html`, `app.css`, `app.js`; plain HTML/CSS/JS, no buil
     hover; the play button plays the clip once with its sound as the video will have it; the
     speaker button plays the line alone; Reroll / Image / Voice; the star to use it as the
     format's cover).
-    Select several shots to redo images, video or voice for just those.
+    Select several shots and **Reroll** gives all of them a new picture and a new clip in
+    one job (made side by side, not one after another), or redo just their images, video or
+    voice.
   - **Script and editing**: every shot as a row with its picture, speaker, caption and line
     (the two arrows under a row's picture move the shot one place earlier or later; its
     picture, clip and voice move with it and nothing is generated; the bin beside them removes
@@ -504,6 +506,7 @@ that was running or queued when the server stopped is marked failed on the next 
 | `GET /api/runs/{run_id}` | the script, per-shot image / clip / audio URLs and word timings, step status, cost rows |
 | `POST /api/runs/{run_id}/step` `{step, only, provider}` | reruns one step (`only`: shot numbers, for images / video / voice) |
 | `POST /api/runs/{run_id}/reroll` `{shot, provider}` | new image + clip for one shot |
+| `POST /api/runs/{run_id}/reroll-many` `{shots, provider}` | the same for several shots as one job: their pictures, then their clips (and, with clip sound, their lines) |
 | `POST /api/runs/{run_id}/recast` | recast |
 | `DELETE /api/runs/{run_id}` | deletes the video's folder (409 while a job is working on it, or while one of its files is open in another program: nothing is half deleted) |
 | `POST /api/runs/{run_id}/shots` `{after, shot}` | adds a shot after shot `after` (0 = first); `shot` is the form's answers, `{kind: scene / texts / card, ...}`. 422 with the reason when an answer is missing or the format's rules refuse it |
