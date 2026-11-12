@@ -25,10 +25,11 @@ def app_preview(run_dir: Path, n: int, shot: dict) -> Path | None:
         if shot.get("texts"):
             import phone_texts
             src = run_dir / "app" / f"texts_{n:02d}.png"
-            key = repr(shot["texts"])
+            shape = phone_hand.screen_shape(hand, 540, 960) if hand.is_file() else None
+            key = f"v2 {shape} {shot['texts']!r}"          # drawn again when the words or the phone change
             note = src.with_suffix(".txt")
             if not src.is_file() or not note.is_file() or note.read_text(encoding="utf-8") != key:
-                phone_texts.render(shot["texts"], src)
+                phone_texts.render(shot["texts"], src, shape=shape)
                 note.write_text(key, encoding="utf-8")
             if not hand.is_file():
                 return src                 # no hand yet: the screen on its own

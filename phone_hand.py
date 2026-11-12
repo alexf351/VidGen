@@ -109,6 +109,30 @@ def usable(path: Path) -> bool:
         return False
 
 
+def _framed(template: Path, w: int, h: int):
+    """The hand picture filling a w x h frame, as it is seen in the video."""
+    from PIL import Image
+    hand = Image.open(template).convert("RGB")
+    scale = max(w / hand.width, h / hand.height)
+    hand = hand.resize((math.ceil(hand.width * scale), math.ceil(hand.height * scale)), Image.Resampling.LANCZOS)
+    left, top = (hand.width - w) // 2, (hand.height - h) // 2
+    return hand.crop((left, top, left + w, top + h))
+
+
+def screen_shape(template: Path, w: int, h: int) -> tuple[int, int] | None:
+    """(width, height) of the phone's screen in the hand picture at w x h, or None when it has
+    no clean one. A screen drawn for the phone (phone_texts.py) is made in this shape, so none
+    of it is cropped away: a drawn phone is rarely as tall as a real screenshot."""
+    try:
+        found = find_screen(_framed(template, w, h))
+    except (OSError, ValueError):
+        return None
+    if found is None:
+        return None
+    box = found[0]
+    return box[2] - box[0], box[3] - box[1]
+
+
 def compose(template: Path, screenshot: Path, out: Path, w: int, h: int) -> Path | None:
     """The screenshot on the phone in the hand picture, at w x h. None when the hand picture
     has no clean green screen (the caller then uses the plain phone frame)."""
@@ -117,11 +141,7 @@ def compose(template: Path, screenshot: Path, out: Path, w: int, h: int) -> Path
     except ImportError:
         raise StepError("app_screen shots need Pillow: pip install -r requirements.txt") from None
     lanczos = Image.Resampling.LANCZOS
-    hand = Image.open(template).convert("RGB")
-    scale = max(w / hand.width, h / hand.height)
-    hand = hand.resize((math.ceil(hand.width * scale), math.ceil(hand.height * scale)), lanczos)
-    left, top = (hand.width - w) // 2, (hand.height - h) // 2
-    hand = hand.crop((left, top, left + w, top + h))
+    hand = _framed(template, w, h)
     found = find_screen(hand)
     if found is None:
         return None

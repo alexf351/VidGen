@@ -949,6 +949,9 @@ ME", then "best wingman ever"). A `texts` shot does that:
 { "texts": { "from": "Jess", "messages": ["OMG TYLER JUST KISSED ME <3", "best wingman ever"] } }
 ```
 
+- The screen is drawn in the shape of the phone it goes on (read from the hand picture), with
+  a full top bar: the time, the dark pill, signal, wifi and battery. A drawn phone is usually
+  shorter than a real screenshot, and a screen taller than the phone lost its top and bottom.
 - `phone_texts.py` draws the chat screen itself (bundled Inter font), so every letter is right;
   the image model is never asked to write text. The assemble step puts it on the phone exactly
   as it does a real app screenshot: in the hero's hand when the format has `app_screen_hand`,

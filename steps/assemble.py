@@ -447,8 +447,10 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
         hand = phone_hand.run_path(run_dir)
         bg_png = None
         stages = []
+        # Drawn in the shape of the phone it goes on, so the top bar and the bottom are not cropped.
+        shape = phone_hand.screen_shape(hand, w, h) if hand.is_file() else None
         for k in range(1, len(texts["messages"]) + 1):
-            screen = phone_texts.render(texts, build / f"texts_{n:02d}_{k}_screen.png", shown=k)
+            screen = phone_texts.render(texts, build / f"texts_{n:02d}_{k}_screen.png", shown=k, shape=shape)
             mock = phone_hand.compose(hand, screen, build / f"texts_{n:02d}_{k}.png", w, h) if hand.is_file() else None
             if mock is None:
                 if bg_png is None and background:

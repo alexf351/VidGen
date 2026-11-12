@@ -118,34 +118,62 @@ def _heart(draw, x: float, y: float, size: float) -> None:
     draw.polygon([(x + size * 0.03, y + size * 0.44), (x + size * 0.97, y + size * 0.44), (x + size * 0.5, y + size * 0.95)], fill=red)
 
 
-def render(texts: dict, out: Path, shown: int | None = None) -> Path:
+def size_for(shape: tuple[int, int] | None) -> tuple[int, int]:
+    """The size to draw the screen at for a phone whose screen is `shape` (width, height) in
+    the picture: as wide as a phone screenshot, as tall as that phone is. A drawn phone is
+    often shorter than a real one, and a screen taller than the phone loses its top and its
+    bottom (the time and the battery, half cut off)."""
+    if not shape or shape[0] <= 0 or shape[1] <= 0:
+        return SIZE
+    return SIZE[0], max(1700, min(2800, int(round(SIZE[0] * shape[1] / shape[0]))))
+
+
+def _status_bar(d, S, w: int, ink) -> None:
+    """The top of the phone: the time, the dark pill in the middle, then signal, wifi and
+    battery. Everything sits well inside the screen's round corners."""
+    mid = 98                                                 # the row's centre line
+    d.text((S(196), S(mid)), "11:47", font=_font(FONT_BOLD, S(50)), fill=ink, anchor="mm")
+    d.rounded_rectangle((S(w // 2 - 178), S(mid - 54), S(w // 2 + 178), S(mid + 54)), radius=S(54), fill=(0, 0, 0))
+    # signal: four bars, each taller than the last
+    x = w - 314
+    for i, bar in enumerate((14, 21, 28, 36)):
+        d.rounded_rectangle((S(x + i * 15), S(mid + 18 - bar), S(x + i * 15 + 10), S(mid + 18)), radius=S(3), fill=ink)
+    # wifi: three arcs over a dot
+    cx, cy = w - 216, mid + 17
+    for r in (40, 27):
+        d.arc((S(cx - r), S(cy - r), S(cx + r), S(cy + r)), 225, 315, fill=ink, width=S(8))
+    d.pieslice((S(cx - 15), S(cy - 15), S(cx + 15), S(cy + 15)), 225, 315, fill=ink)
+    # battery: an outline, its charge, the nub
+    left = w - 172
+    d.rounded_rectangle((S(left), S(mid - 19), S(left + 76), S(mid + 19)), radius=S(11), outline=ink, width=S(4))
+    d.rounded_rectangle((S(left + 8), S(mid - 11), S(left + 58), S(mid + 11)), radius=S(5), fill=ink)
+    d.rounded_rectangle((S(left + 80), S(mid - 8), S(left + 86), S(mid + 8)), radius=S(3), fill=ink)
+
+
+def render(texts: dict, out: Path, shown: int | None = None, shape: tuple[int, int] | None = None) -> Path:
     """The chat screen with the first `shown` messages (all of them by default), as a picture
-    in the shape of a phone screenshot."""
+    in the shape of a phone screenshot, or of the phone it goes on (`shape`, see size_for)."""
     try:
         from PIL import Image, ImageDraw
     except ImportError:
         raise StepError("texts shots need Pillow: pip install -r requirements.txt") from None
-    w, h = SIZE
+    w, h = size_for(shape)
     k = 2                                                    # drawn at twice the size, then scaled down: smooth edges
     img = Image.new("RGB", (w * k, h * k), (255, 255, 255))
     d = ImageDraw.Draw(img)
     S = lambda v: int(v * k)                                 # noqa: E731
     ink, grey, blue, bubble = (17, 17, 17), (142, 142, 147), (0, 122, 255), (233, 233, 235)
 
-    # the top of the phone: the time, the battery
-    d.text((S(96), S(64)), "11:47", font=_font(FONT_BOLD, S(50)), fill=ink)
-    d.rounded_rectangle((S(w - 190), S(74), S(w - 104), S(116)), radius=S(13), outline=ink, width=S(4))
-    d.rounded_rectangle((S(w - 182), S(82), S(w - 136), S(108)), radius=S(7), fill=ink)
-    d.rounded_rectangle((S(w - 100), S(87), S(w - 93), S(103)), radius=S(3), fill=ink)
+    _status_bar(d, S, w, ink)
     # who it is from: a back arrow, a round picture with their initial, the name
-    d.line([(S(98), S(232)), (S(70), S(262)), (S(98), S(292))], fill=blue, width=S(9), joint="curve")
-    cx, cy, r = w // 2, 250, 66
+    d.line([(S(98), S(262)), (S(70), S(292)), (S(98), S(322))], fill=blue, width=S(9), joint="curve")
+    cx, cy, r = w // 2, 280, 66
     d.ellipse((S(cx - r), S(cy - r), S(cx + r), S(cy + r)), fill=(160, 164, 176))
     initial = texts["from"][:1].upper()
     f_init = _font(FONT_BOLD, S(64))
     d.text((S(cx), S(cy)), initial, font=f_init, fill=(255, 255, 255), anchor="mm")
     d.text((S(cx), S(cy + r + 44)), texts["from"], font=_font(FONT, S(38)), fill=ink, anchor="mm")
-    d.line([(0, S(420)), (S(w), S(420))], fill=(226, 226, 230), width=S(2))
+    d.line([(0, S(450)), (S(w), S(450))], fill=(226, 226, 230), width=S(2))
     # the box to write in, and the bar at the bottom
     d.rounded_rectangle((S(150), S(h - 300), S(w - 60), S(h - 196)), radius=S(52), outline=(200, 200, 205), width=S(3))
     d.text((S(196), S(h - 248)), "Message", font=_font(FONT, S(44)), fill=grey, anchor="lm")
