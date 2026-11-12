@@ -55,6 +55,8 @@ sfx:
   source: auto                  # auto = ElevenLabs Sound Effects when its key is set (five short
                                 # sounds, made once and reused), else built in | elevenlabs | builtin
   volume: 1.0                   # all effects together; 0.5 = half as loud
+  cuts: true                    # a soft swish on every cut, not only on scene changes; false = cuts
+                                # inside a scene stay clean
 
 script:
   model: "claude-sonnet-5-5"

@@ -95,6 +95,107 @@ def list_voices(refresh: bool = False) -> list[dict]:
     return voices
 
 
+# ---------------------------------------------- the ElevenLabs voice library ----
+# The voices above are the ones already in the account. ElevenLabs also has a public library of
+# thousands more, shared by their makers. Searching it is a free call; adding a voice puts it in
+# the account (one of the plan's voice slots, no charge) so it can speak like any other.
+
+LIBRARY_GENDERS = ("male", "female", "neutral")
+LIBRARY_AGES = ("young", "middle_aged", "old")
+LIBRARY_PAGE = 24
+OWNER_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,128}$")
+
+
+def _key() -> str:
+    key = os.environ.get("ELEVENLABS_API_KEY")
+    if not key:
+        raise StepError("ELEVENLABS_API_KEY is not set, so the ElevenLabs voice library cannot be reached")
+    return key
+
+
+def _clean_shared(v: dict) -> dict | None:
+    if (not isinstance(v, dict) or not VOICE_ID_RE.match(str(v.get("voice_id") or ""))
+            or not OWNER_ID_RE.match(str(v.get("public_owner_id") or ""))):
+        return None
+    return {"voice_id": v["voice_id"], "public_owner_id": v["public_owner_id"],
+            "name": str(v.get("name") or "Voice")[:80],
+            "gender": _norm(v.get("gender")), "age": _norm(v.get("age")),
+            "accent": str(v.get("accent") or ""), "style": str(v.get("descriptive") or ""),
+            "use_case": str(v.get("use_case") or "").replace("_", " "),
+            "description": " ".join(str(v.get("description") or "").split())[:240],
+            "preview_url": str(v.get("preview_url") or ""),
+            "in_account": bool(v.get("is_added_by_user")),
+            "free_plan": bool(v.get("free_users_allowed")),
+            "used": int(v.get("usage_character_count_1y") or 0)}
+
+
+def search_library(gender: str = "", age: str = "", search: str = "", page: int = 0) -> dict:
+    """English voices from the ElevenLabs public library, the most used first.
+    {"voices": [...], "has_more": bool}. A free call; nothing is added to the account."""
+    params: dict = {"page_size": LIBRARY_PAGE, "page": max(0, int(page or 0)), "language": "en",
+                    "sort": "usage_character_count_1y"}
+    if _norm(gender) in LIBRARY_GENDERS:
+        params["gender"] = _norm(gender)
+    if _norm(age) in LIBRARY_AGES:
+        params["age"] = _norm(age)
+    words = " ".join(str(search or "").split())[:80]
+    if words:
+        params["search"] = words
+    try:
+        r = requests.get(f"{API_BASE}/v1/shared-voices", headers={"xi-api-key": _key()}, params=params, timeout=30)
+    except requests.RequestException as e:
+        raise StepError(f"could not reach the ElevenLabs voice library: {e}") from e
+    if r.status_code != 200:
+        raise StepError(f"ElevenLabs returned HTTP {r.status_code} for the voice library: {r.text[:200]}")
+    try:
+        data = r.json()
+        raw = data.get("voices") or []
+    except (ValueError, AttributeError):
+        raise StepError("ElevenLabs returned an unreadable voice library page") from None
+    return {"voices": [c for c in (_clean_shared(v) for v in raw) if c], "has_more": bool(data.get("has_more"))}
+
+
+def add_from_library(public_owner_id: str, voice_id: str, name: str) -> dict:
+    """Put a library voice in the ElevenLabs account, so it can be used here. Returns
+    {"voice_id", "name"}; the id may differ from the library's. Forgets the cached voice list."""
+    if not OWNER_ID_RE.match(str(public_owner_id or "")) or not VOICE_ID_RE.match(str(voice_id or "")):
+        raise StepError("that is not a voice from the ElevenLabs library")
+    label = " ".join(str(name or "").split())[:60] or "Voice"
+    try:
+        r = requests.post(f"{API_BASE}/v1/voices/add/{public_owner_id}/{voice_id}",
+                          headers={"xi-api-key": _key()}, json={"new_name": label}, timeout=30)
+    except requests.RequestException as e:
+        raise StepError(f"could not reach ElevenLabs to add the voice: {e}") from e
+    if r.status_code != 200:
+        try:
+            detail = r.json().get("detail")
+        except (ValueError, AttributeError):
+            detail = None
+        status = str((detail or {}).get("status") or "") if isinstance(detail, dict) else ""
+        said = str((detail or {}).get("message") or "") if isinstance(detail, dict) else str(detail or r.text)[:200]
+        if "limit" in status or "limit" in said.lower():
+            raise StepError(f"your ElevenLabs plan has no free voice slot for it ({said or status}). Remove a voice "
+                            f"you do not use at elevenlabs.io (Voices, My Voices), then add this one again.")
+        raise StepError(f"ElevenLabs would not add {label} (HTTP {r.status_code}): {said or status or 'no reason given'}")
+    try:
+        new_id = str(r.json().get("voice_id") or "")
+    except (ValueError, AttributeError):
+        new_id = ""
+    if not VOICE_ID_RE.match(new_id):
+        raise StepError("ElevenLabs added the voice but did not say which id it has now; press Refresh in Voices")
+    forget_voices()
+    return {"voice_id": new_id, "name": label}
+
+
+def forget_voices() -> None:
+    """Drop the cached voice list, so the next look asks ElevenLabs again."""
+    _memory.update(at=0.0, voices=None)
+    try:
+        CACHE_FILE.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 # ----------------------------------------------------------- who is speaking ----
 
 _FEMALE = r"\b(woman|women|girl|female|lady|mother|mom|grandmother|grandma|wife|daughter|sister|aunt|queen|actress|she|her)\b"

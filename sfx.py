@@ -49,7 +49,8 @@ SOUNDS: dict[str, dict] = {
                          "page flick, thin and bright, no bass, no rumble, clean and dry, no music",
                "shape": {"highpass": 650, "pitch": 1.15}},
     "swish":  {"level": 0.36, "at": "center", "seconds": 0.5,
-               "prompt": "One very short light swish, a quick fast air movement, clean and dry, no music"},
+               "prompt": "One very short light swish, a quick fast air movement, clean and dry, no music",
+               "shape": {"highpass": 500, "pitch": 1.1}},
     "impact": {"level": 0.50, "at": "start", "seconds": 1.5,
                "prompt": "A single deep cinematic boom impact, one low hit with a short tail, no music"},
     "pop":    {"level": 0.30, "at": "start", "seconds": 0.5,
@@ -61,6 +62,8 @@ NAMES = tuple(SOUNDS)
 SHOT_VALUES = NAMES + ("none",)   # what a shot's "sfx" key may say
 MAX_SHOT_SFX = 5                  # at most this many shots carry their own "sfx"
 MIN_GAP = 0.9                     # two scene whooshes are never closer than this (seconds)
+CUT_GAP = 0.45                    # nor two swishes on ordinary cuts closer than this
+CUT_GAIN = 0.6                    # a swish on an ordinary cut plays this much quieter than on a montage cut
 BUILTIN_VERSION = 2               # bump when the synthesized sounds change
 STAT_TICK_AT = 0.55               # how far into a progress shot its number ticks up (0-1)
 
@@ -68,7 +71,7 @@ STAT_TICK_AT = 0.55               # how far into a progress shot its number tick
 # ------------------------------------------------------------------ settings ----
 
 def settings(config: dict) -> dict:
-    """The checked sfx settings: {"enabled", "source", "volume"}."""
+    """The checked sfx settings: {"enabled", "source", "volume", "cuts"}."""
     raw = config.get("sfx")
     if isinstance(raw, bool):
         raw = {"enabled": raw}
@@ -76,9 +79,12 @@ def settings(config: dict) -> dict:
         raw = {}
     if not isinstance(raw, dict):
         raise StepError("config: sfx must be true, false, or a block with enabled / source / volume")
-    unknown = sorted(set(raw) - {"enabled", "source", "volume"})
+    unknown = sorted(set(raw) - {"enabled", "source", "volume", "cuts"})
     if unknown:
-        raise StepError(f"config: sfx has unknown keys {unknown}; use enabled, source, volume")
+        raise StepError(f"config: sfx has unknown keys {unknown}; use enabled, source, volume, cuts")
+    every_cut = raw.get("cuts", True)
+    if not isinstance(every_cut, bool):
+        raise StepError("config: sfx.cuts must be true or false")
     enabled = raw.get("enabled", False)
     if not isinstance(enabled, bool):
         raise StepError("config: sfx.enabled must be true or false")
@@ -91,7 +97,7 @@ def settings(config: dict) -> dict:
         raise StepError("config: sfx.volume must be a number (1.0 = normal, 0 = silent)") from None
     if not 0 <= volume <= 3:
         raise StepError("config: sfx.volume must be between 0 and 3")
-    return {"enabled": enabled, "source": source, "volume": volume}
+    return {"enabled": enabled, "source": source, "volume": volume, "cuts": every_cut}
 
 
 def enabled(config: dict) -> bool:
@@ -108,15 +114,17 @@ def _kind(shot: dict) -> str:
     return "scene"
 
 
-def cues(plan: list[dict]) -> list[dict]:
+def cues(plan: list[dict], every_cut: bool = False) -> list[dict]:
     """What plays when: [{"t": seconds on the timeline of the cut the sound belongs to,
     "sound": name, "shot": n, "why": text}], in time order.
 
     Automatic: an impact on a time card, a pop when the app screen comes up, a riser into the
     first montage shot with an impact on it and a swish on every montage cut after it, and a
-    whoosh on every change of scene (only when the script marks its scenes with "same_scene";
-    cuts inside a scene stay clean). A shot's own "sfx" replaces what it would get automatically:
-    a sound name plays that sound on the shot's first frame, "none" keeps the shot silent."""
+    whoosh on every change of scene (only when the script marks its scenes with "same_scene").
+    With `every_cut` (sfx.cuts, on by default) every other cut between two drawn shots gets a
+    soft swish too, the way the fast-cut story ads do; without it cuts inside a scene stay
+    clean. A shot's own "sfx" replaces what it would get automatically: a sound name plays that
+    sound on the shot's first frame, "none" keeps the shot silent."""
     shots = [it["shot"] for it in plan]
     scenes_marked = any(s.get("same_scene") is True for s in shots)
     out: list[dict] = []
@@ -126,8 +134,11 @@ def cues(plan: list[dict]) -> list[dict]:
         shot, t, kind = it["shot"], float(it["start"]), _kind(it["shot"])
         own = str(shot.get("sfx") or "").strip().lower()
 
-        def add(sound: str, why: str) -> None:
-            out.append({"t": round(t, 3), "sound": sound, "shot": it["n"], "why": why})
+        def add(sound: str, why: str, gain: float = 1.0) -> None:
+            cue = {"t": round(t, 3), "sound": sound, "shot": it["n"], "why": why}
+            if gain != 1.0:
+                cue["gain"] = gain
+            out.append(cue)
 
         if own == "none":
             pass
@@ -152,6 +163,11 @@ def cues(plan: list[dict]) -> list[dict]:
         elif kind == "scene" and i > 0 and scenes_marked and shot.get("same_scene") is not True:
             if t - last_whoosh >= MIN_GAP and prev_kind != "flash":
                 add("whoosh", "new scene")
+                last_whoosh = t
+        elif kind == "scene" and i > 0 and every_cut and prev_kind in ("scene", "app_screen"):
+            # A cut inside a scene (or back from the phone): a quick, quiet swish.
+            if t - last_whoosh >= CUT_GAP:
+                add("swish", "cut", CUT_GAIN)
                 last_whoosh = t
         if prev_kind == "flash" and kind != "flash" and own != "none":
             # The run of flashes builds to the shot it lands on.
@@ -438,8 +454,8 @@ def placed(cue_list: list[dict], lib: dict[str, dict], total: float) -> list[dic
         start = max(0.0, start)
         if start >= total or skip >= info["seconds"]:
             continue
-        out.append({**c, "start": round(start, 3), "skip": round(skip, 3), "level": spec["level"],
-                    "path": info["path"]})
+        out.append({**c, "start": round(start, 3), "skip": round(skip, 3),
+                    "level": round(spec["level"] * float(c.get("gain", 1.0)), 4), "path": info["path"]})
     return out
 
 
@@ -450,7 +466,7 @@ def render_track(build: Path, plan: list[dict], total: float, config: dict) -> P
     cfg = settings(config)
     if not cfg["enabled"] or cfg["volume"] <= 0:
         return None
-    cue_list = cues(plan)
+    cue_list = cues(plan, every_cut=cfg["cuts"])
     if not cue_list:
         print("  sound effects: nothing in this cut calls for one")
         return None

@@ -1470,23 +1470,141 @@ function sideColumn(run, busy) {
   return col;
 }
 
+// ------------------------------------------------------------ voice finder
+// Search the public ElevenLabs voice library, hear a voice, and give it to a speaker. Adding a
+// voice puts it in the ElevenLabs account (a voice slot on the plan; it costs nothing by itself).
+const VF_AGES = [["", "Any age"], ["young", "Young"], ["middle_aged", "Middle aged"], ["old", "Older"]];
+const VF_GENDERS = [["", "Any"], ["male", "Male"], ["female", "Female"], ["neutral", "Neutral"]];
+function voiceFinder(run, startWith, onUse) {
+  const root = $("#modal-root");
+  const st = { speaker: "", gender: "", age: "", search: "", page: 0, list: [], more: false, loading: false, error: "", busy: "", given: {}, playing: null, audio: null, asked: 0 };
+  const forSpeaker = (who) => {
+    const v = run.voices.find((x) => x.speaker === who) || {};
+    st.speaker = who; st.gender = v.gender || ""; st.age = v.age || "";
+  };
+  forSpeaker(startWith || (run.voices[0] || {}).speaker || "");
+  const stop = () => { if (st.audio) { st.audio.pause(); st.audio = null; } st.playing = null; };
+  const close = () => { stop(); document.removeEventListener("keydown", key); root.replaceChildren(); };
+  const key = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", key);
+
+  const load = async (more) => {
+    const asked = ++st.asked;
+    st.loading = true; st.error = ""; if (!more) { st.page = 0; st.list = []; stop(); }
+    draw();
+    try {
+      const q = new URLSearchParams({ gender: st.gender, age: st.age, search: st.search, page: String(st.page) });
+      const r = await api("GET", `/api/voices/library?${q}`);
+      if (asked !== st.asked) return;                       // a newer search was started meanwhile
+      st.error = r.error || ""; st.more = !!r.has_more;
+      st.list = more ? st.list.concat(r.voices || []) : (r.voices || []);
+    } catch (e) { if (asked !== st.asked) return; st.error = e.message; }
+    st.loading = false; draw();
+  };
+  const play = (v) => {
+    const was = st.playing; stop();
+    if (was === v.voice_id) { draw(); return; }
+    if (!v.preview_url) { toast("This voice has no sample to play.", "bad"); return; }
+    const a = new Audio(v.preview_url); st.audio = a; st.playing = v.voice_id;
+    a.onended = () => { if (st.playing === v.voice_id) { st.playing = null; draw(); } };
+    a.play().catch(() => { st.playing = null; draw(); toast("Could not play the sample.", "bad"); });
+    draw();
+  };
+  const use = async (v) => {
+    if (st.busy) return;
+    st.busy = v.voice_id; draw();
+    try {
+      let id = v.voice_id, name = v.name;
+      const mine = (S.voices || []).some((x) => x.voice_id === v.voice_id);
+      if (!mine) {
+        const r = await api("POST", "/api/voices/library/add", { public_owner_id: v.public_owner_id, voice_id: v.voice_id, name: v.name });
+        id = r.voice_id; name = r.name || v.name;
+        if (r.voices && r.voices.length) S.voices = r.voices; else await loadVoices(true);
+      }
+      await onUse(st.speaker, id);
+      st.given[v.voice_id] = st.speaker; v.in_account = true;
+      toast(`${name} is now ${st.speaker}'s voice.`, "ok");
+    } catch (e) { toast(e.message, "bad"); }
+    st.busy = ""; draw();
+  };
+
+  // The dialog is built once; only the results are drawn again. (Rebuilding the whole dialog on
+  // every change replayed its fade-in, which made it blink, and dropped the cursor from the search box.)
+  const speakers = run.voices.map((v) => v.speaker);
+  const sel = (id, label, value, options, onchange) => {
+    const box = h("select", { id, onchange: (e) => onchange(e.target.value) }, options.map(([val, text]) => h("option", { value: val, selected: val === value }, text)));
+    return [h("label", { class: "vf-field", for: id }, h("span", {}, label), box), box];
+  };
+  const [genderField, genderSel] = sel("vf-gender", "Gender", st.gender, VF_GENDERS, (v) => { st.gender = v; load(false); });
+  const [ageField, ageSel] = sel("vf-age", "Age", st.age, VF_AGES, (v) => { st.age = v; load(false); });
+  const [forField] = sel("vf-for", "Voice for", st.speaker, speakers.map((x) => [x, x]),
+    (v) => { forSpeaker(v); genderSel.value = st.gender; ageSel.value = st.age; load(false); });
+  const searchBox = h("input", { id: "vf-search", type: "search", value: st.search, placeholder: "energetic, American, casual…", autocomplete: "off" });
+  const searchBtn = h("button", { type: "submit", class: "btn primary small" }, "Search");
+  const results = h("div", { class: "vf-results", "aria-live": "polite" });
+  root.replaceChildren(h("div", { class: "modal-back", onclick: (e) => e.target === e.currentTarget && close() },
+    h("div", { class: "modal wide", role: "dialog", "aria-modal": "true", "aria-label": "Find more voices" },
+      h("div", { class: "vf-head" }, h("h2", {}, "Find more voices"),
+        h("button", { type: "button", class: "icon-btn", "aria-label": "Close", onclick: close }, icon("x", 16))),
+      h("p", {}, "From the ElevenLabs voice library. Using one adds it to your ElevenLabs voices: it takes a voice slot on your plan and costs nothing by itself."),
+      h("form", { class: "vf-controls", onsubmit: (e) => { e.preventDefault(); st.search = searchBox.value.trim(); load(false); } },
+        forField, genderField, ageField,
+        h("label", { class: "vf-field grow", for: "vf-search" }, h("span", {}, "Words to look for"), searchBox),
+        searchBtn),
+      results)));
+
+  const draw = () => {
+    searchBtn.disabled = st.loading;
+    const rows = st.list.map((v) => {
+      const tags = [v.gender, (v.age || "").replace("_", " "), v.accent, v.style, v.use_case].filter(Boolean).join(" · ");
+      const given = st.given[v.voice_id];
+      return h("li", { class: `vf-row${given ? " given" : ""}` },
+        h("button", { type: "button", class: "vf-play", "aria-label": `${st.playing === v.voice_id ? "Stop" : "Hear"} ${v.name}`, onclick: () => play(v) },
+          st.playing === v.voice_id ? "■" : "▶"),
+        h("div", { class: "vf-what" },
+          h("div", { class: "vf-name" }, v.name, v.in_account && !given ? h("span", { class: "vf-mine" }, "in your voices") : null),
+          tags ? h("div", { class: "vf-tags" }, tags) : null,
+          v.description ? h("div", { class: "vf-desc" }, v.description) : null),
+        given ? h("span", { class: "vf-done" }, icon("check", 14), `${given}'s voice`)
+          : h("button", { type: "button", class: "btn small", disabled: !!st.busy || !st.speaker, onclick: () => use(v) },
+              st.busy === v.voice_id ? "Adding…" : `Use for ${st.speaker || "…"}`));
+    });
+    const list = results.querySelector(".vf-list");
+    const scroll = list ? list.scrollTop : 0;
+    results.replaceChildren(...[
+      st.error ? h("div", { class: "field-note warn vf-state", role: "alert" }, st.error)
+        : st.loading && !st.list.length ? h("div", { class: "vf-state" }, "Searching the ElevenLabs library…")
+        : !st.list.length ? h("div", { class: "vf-state" }, "No voices match. Try another word, or set age and gender to Any.")
+        : h("ul", { class: "vf-list" }, rows),
+      st.list.length && st.more && !st.error ? h("div", { class: "vf-more" },
+        h("button", { type: "button", class: "btn ghost small", disabled: st.loading, onclick: () => { st.page += 1; load(true); } }, st.loading ? "Loading…" : "Show more")) : null,
+    ].filter(Boolean));
+    const now = results.querySelector(".vf-list");
+    if (now) now.scrollTop = scroll;
+  };
+  searchBox.focus();
+  load(false);
+}
+
 // ------------------------------------------------------------ voices panel
 const VOICE_SOURCE = { auto: "cast for this video", manual: "your pick", config: "from your config", default: "default voice" };
 function voicesPanel(run, busy) {
   const box = h("section", { class: "voices-panel", "aria-label": "Voices" });
+  // Give a speaker a voice. Lines already spoken in the old voice are offered for a redo.
+  const give = async (speaker, voiceId) => {
+    const r = await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/voices`, { speaker, voice_id: voiceId || null });
+    run.voices = r.voices;
+    const mine = (run.voices.find((x) => x.speaker === speaker) || {}).shots || [];
+    const lines = run.shots.filter((s) => mine.includes(s.n) && s.audio).map((s) => s.n);
+    S.voiceRedo = lines.length ? { run: run.run_id, speaker, shots: lines } : null;
+    draw();
+  };
   const draw = () => {
     const rows = run.voices.map((v) => {
-      const spokenShots = run.shots.filter((s) => v.shots.includes(s.n));
       const play = h("button", { class: "icon-btn", type: "button", title: "Hear this voice", "aria-label": `Hear ${v.speaker}'s voice`,
         onclick: (e) => playPreview(v.voice_id, e.currentTarget) }, "▶");
       const pick = async (voiceId) => {
-        try {
-          const r = await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/voices`, { speaker: v.speaker, voice_id: voiceId || null });
-          run.voices = r.voices;
-          const lines = spokenShots.filter((s) => s.audio).map((s) => s.n);
-          S.voiceRedo = lines.length ? { run: run.run_id, speaker: v.speaker, shots: lines } : null;
-          draw();
-        } catch (e) { toast(e.message, "bad"); draw(); }
+        try { await give(v.speaker, voiceId); } catch (e) { toast(e.message, "bad"); draw(); }
       };
       return h("div", { class: "voice-row" },
         h("div", { class: "voice-who" }, h("b", {}, v.speaker),
@@ -1506,6 +1624,10 @@ function voicesPanel(run, busy) {
       h("div", { class: "voice-list" }, rows),
       redo ? h("div", { class: "notice" }, `${redo.speaker} already has ${plural(redo.shots.length, "spoken line")} in the old voice. `,
         h("button", { class: "btn small", disabled: busy, onclick: () => { const r = redo; S.voiceRedo = null; runStep(run, "voice", r.shots); } }, "Redo them")) : null,
+      S.voices && S.voices.length && run.voices.length ? h("button", { class: "btn small find-voices", type: "button",
+        onclick: () => voiceFinder(run, [...run.voices].filter((x) => x.speaker !== "narrator").sort((p, q) => q.shots.length - p.shots.length)
+          .concat(run.voices)[0].speaker, give) },
+        icon("search", 14), "Find more voices") : null,
       h("div", { class: "field-note" }, "People without a voice of their own get one from your ElevenLabs voices, matched by gender and age. Change any of them here before the voice step."),
     ].filter(Boolean));
   };

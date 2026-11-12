@@ -96,6 +96,12 @@ class VoiceChoice(BaseModel):
     voice_id: str | None = None       # None or "" goes back to the config / default voice
 
 
+class LibraryVoice(BaseModel):
+    public_owner_id: str
+    voice_id: str
+    name: str = ""
+
+
 class DescribeRequest(BaseModel):
     image: str | None = None          # data: URL, or
     character: str | None = None      # a library character's own picture
@@ -668,6 +674,29 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             return {"voices": voice_cast.list_voices(refresh=refresh), "error": None}
         except StepError as e:
             return {"voices": [], "error": str(e)}
+
+    @app.get("/api/voices/library")
+    def voice_library(gender: str = "", age: str = "", search: str = "", page: int = 0) -> dict:
+        """Search the public ElevenLabs voice library (a free call; nothing is added)."""
+        import voice_cast
+        try:
+            return {**voice_cast.search_library(gender, age, search, page), "error": None}
+        except StepError as e:
+            return {"voices": [], "has_more": False, "error": str(e)}
+
+    @app.post("/api/voices/library/add")
+    def voice_library_add(body: LibraryVoice) -> dict:
+        """Add a library voice to the ElevenLabs account (a voice slot on the plan, no charge)."""
+        import voice_cast
+        try:
+            added = voice_cast.add_from_library(body.public_owner_id, body.voice_id, body.name)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        try:
+            voices = voice_cast.list_voices(refresh=True)
+        except StepError:
+            voices = []
+        return {**added, "voices": voices}
 
     @app.put("/api/runs/{run_id}/captions")
     def set_run_captions(run_id: str, body: CaptionChoice) -> dict:

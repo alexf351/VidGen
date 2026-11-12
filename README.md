@@ -340,8 +340,13 @@ run page's **Voices** panel shows who got which voice before anything is spoken;
 play a preview, pick another voice for any speaker (the narrator too, for that one video) and
 redo the lines already spoken. The choices are saved in the run's `voices.json`.
 
-Reading the voice list is a free ElevenLabs call, cached for an hour. To get more variety, add
-voices you like to "My Voices" on elevenlabs.io and press Refresh. `voice_casting.exclude` in
+Reading the voice list is a free ElevenLabs call, cached for an hour. To get more variety, press
+**Find more voices** in the Voices panel: it searches the public ElevenLabs voice library
+(English voices, most used first) by gender, age and any words you type ("energetic",
+"American", "casual"), plays a sample of each, and **Use for marcus** adds the voice to your
+ElevenLabs voices and gives it to that speaker in one go. Adding a voice takes one of your
+plan's voice slots and costs nothing by itself; if the plan has no slot left, VidGen says so.
+You can also add voices on elevenlabs.io yourself and press Refresh. `voice_casting.exclude` in
 config lists voice ids never to cast; `voice_casting.enabled: false` turns it off (uncast
 speakers then use the default `voice_id`).
 
@@ -849,9 +854,13 @@ decides where from the cut itself:
 | an app screen                           | `pop`                                      |
 | the first montage shot                  | `riser` that ends on the cut, then `impact` |
 | every montage cut after it              | `swish` (a short whoosh)                   |
+| every other cut between two drawn shots | a quieter `swish` (`sfx.cuts`, on by default) |
 
-A change of scene is a drawn shot that does not carry `"same_scene": true`, so cuts inside a
-conversation stay clean; a script with no `same_scene` at all gets no scene whooshes. Two scene
+A change of scene is a drawn shot that does not carry `"same_scene": true`; a script with no
+`same_scene` at all gets no scene whooshes. Cuts inside a conversation get the quieter swish,
+the way fast-cut story ads do; `sfx: {cuts: false}` in `config.local.yaml` keeps them clean.
+The whoosh and the swish are kept light and high: whatever ElevenLabs returns for them is
+pitched up a little with its low end cut (your own files in `assets/sfx/` are never changed). Two scene
 whooshes are never closer than 0.9 s.
 
 A shot can also carry its own `"sfx"` in `script.json`: `whoosh`, `swish`, `impact`, `pop` or
