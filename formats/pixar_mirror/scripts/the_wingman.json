@@ -1,23 +1,23 @@
 {
   "title": "The wingman",
-  "premise": "Marcus thinks it is a date. Jess wants him as her wingman for the guy who owns a company. Six months later Marcus owns one, and on the same terrace he asks her to be his wingwoman.",
+  "premise": "At a house party Jess asks Marcus, who thought they came together, to be her wingman with Tyler. Six months later he walks into the same party running an AI company, and asks her to be his wingman with her friend.",
   "shots": [
     {
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, bright flat midday light, {jess}, in a yellow sundress with a thin white cardigan, gripping the grey hoodie sleeve of someone just off camera with one hand and pointing past the camera with the other, biting her lip, eyes wide and sparkling at whoever she is pointing at, mouth open mid-whisper. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess tugs the sleeve twice and points, her mouth moving as she whispers it fast and excited, bouncing on her toes. Quick push-in on her sparkling eyes.",
-      "vo_line": "Be my wingman? He's gorgeous.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a white ribbed tank top and light blue jeans, holding a red plastic cup, twisting round toward someone just off camera with a huge excited grin, eyes wide and sparkling, her free hand reaching out to grab their arm, mouth open mid-shout. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess spins round, grabs an arm just off camera and her mouth moves as she shouts it over the music, bouncing on her toes. Quick push-in on her grin.",
+      "vo_line": "Marcus! Be my wingman!",
       "speaker": "jess"
     },
     {
       "characters": [
         "marcus"
       ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, bright flat midday light, {marcus}, in a wrinkled grey hoodie over a white tee, holding a small bunch of yellow tulips up in front of his chest with both hands, his hopeful smile collapsing, eyebrows pinched up in the middle, eyes flicking from the flowers to someone off camera, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Marcus looks down at the tulips in his hands and back up, his mouth moving as he says it in a small confused voice, the smile sliding off his face. Slow push-in.",
-      "vo_line": "I thought this was a date.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a baggy grey hoodie, holding two full red plastic cups, one in each hand, eyebrows shot up, eyes wide and confused, mouth open mid-word. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus blinks, looks from one cup to the other and back up, his mouth moving as he says it, lost. Small push-in on his confused face.",
+      "vo_line": "Wait, what?",
       "speaker": "marcus",
       "same_scene": true
     },
@@ -25,27 +25,9 @@
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, bright flat midday light, {jess}, in a yellow sundress with a thin white cardigan, head thrown back laughing with one hand flat on her chest, eyes squeezed shut, then looking at someone off camera with a fond pitying smile, mouth open mid-word. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess bursts out laughing, then pats the air toward him and her mouth moves as she says it sweetly, like calming a puppy. Handheld shake as she laughs.",
-      "vo_line": "A date? You're like family.",
-      "speaker": "jess",
-      "same_scene": true
-    },
-    {
-      "characters": [
-        "tyler"
-      ],
-      "image_prompt": "medium close shot, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, bright flat midday light, {tyler}, in a navy blazer over a white open-collar shirt, alone at a small round table with an open laptop and an espresso, pushing his sunglasses up into his hair with one finger and laughing at his own screen, chin up, completely unaware of anyone watching. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Tyler pushes his sunglasses into his hair, sips his espresso and laughs at his laptop, the breeze moving his hair. Slow push-in.",
-      "same_scene": true
-    },
-    {
-      "characters": [
-        "jess"
-      ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, bright flat midday light, {jess}, in a yellow sundress with a thin white cardigan, fluffing her hair with both hands and checking herself in the dark screen of her phone, chin tilted, lips pressed together, eyes darting sideways past the camera, mouth open mid-question. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess fluffs her hair, turns her face left and right and her mouth moves as she asks it in a rush without looking at him. Small push-in.",
-      "vo_line": "He owns a company. How do I look?",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a white ribbed tank top and light blue jeans, holding a red plastic cup and pointing across the room past the camera with her whole arm, biting her lip, eyes locked on whoever she is pointing at, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess jabs her finger across the room twice and her mouth moves as she says it fast, eyes never leaving whoever she points at. Push-in on her face.",
+      "vo_line": "Go tell Tyler I think he's hot.",
       "speaker": "jess",
       "same_scene": true
     },
@@ -53,40 +35,60 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, bright flat midday light, {marcus}, in a wrinkled grey hoodie over a white tee, still holding the small bunch of yellow tulips against his chest, forcing a tight smile that does not reach his wet eyes, throat tight, mouth open on one word. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Marcus swallows, nods once and his mouth moves as he says the single word, the forced smile twitching. Slow push-in on his eyes.",
-      "vo_line": "Perfect.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a baggy grey hoodie, looking down at the two full red plastic cups in his hands, shoulders dropping, his hopeful smile gone, eyebrows pinched up in the middle, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus looks down at the two cups, lifts one a little and his mouth moves as he says it in a small voice. Slow push-in.",
+      "vo_line": "I thought we came together.",
       "speaker": "marcus",
       "same_scene": true
     },
     {
       "characters": [
-        "jess",
-        "marcus",
-        "tyler"
+        "jess"
       ],
-      "image_prompt": "wide shot across the terrace, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, bright flat midday light, {jess}, in a yellow sundress with a thin white cardigan, snatching a small bunch of yellow tulips out of Marcus's hands and already stepping away toward the next table with a huge smile; {marcus}, in a wrinkled grey hoodie over a white tee, standing with his empty hands still held out and his mouth open; {tyler}, in a navy blazer over a white open-collar shirt, at a small round table with an open laptop, looking up with a smug grin. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess snatches the tulips away from Marcus, skips over to Tyler at the next table and holds them out to him; Marcus stays where he is with his hands still out. The camera follows the tulips across the terrace.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a white ribbed tank top and light blue jeans, holding a red plastic cup, head tilted with a sweet pitying smile, her free hand patting the air toward someone off camera, mouth open mid-word. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess coos the first words with a sweet smile, then her face drops flat and she flicks her hand toward the room, her mouth moving the whole time. Push-in.",
+      "vo_line": "Aw, Marcus. That's cute. Just go.",
+      "speaker": "jess",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "tyler",
+        "marcus"
+      ],
+      "image_prompt": "medium two shot, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {tyler}, in a navy varsity jacket over a white tee, leaning back against a kitchen counter with a red plastic cup, looking down sideways at Marcus with a lazy smirk; {marcus}, in a baggy grey hoodie, standing beside him a head shorter and holding two red plastic cups, shoulders hunched, glancing up nervously, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus shuffles closer and his mouth moves as he mumbles it up at Tyler without meeting his eyes; Tyler looks down at him and the smirk grows. Slow push-in.",
+      "vo_line": "Hey. Jess thinks you're hot.",
+      "speaker": "marcus",
       "same_scene": true
     },
     {
       "characters": [
         "tyler"
       ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, bright flat midday light, {tyler}, in a navy blazer over a white open-collar shirt, seated at a small round table holding a small bunch of yellow tulips in one hand, looking past the camera at someone standing far off, one eyebrow cocked, a lazy smirk, mouth open mid-question. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Tyler sniffs the tulips, nods toward someone off camera and his mouth moves as he asks it with a smirk, then chuckles. Slow push-in on his smirk.",
-      "vo_line": "Does your friend need a job?",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {tyler}, in a navy varsity jacket over a white tee, leaning on a kitchen counter with a red plastic cup, chin up, a slow smug grin, eyes on someone across the room past the camera, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler looks across the room, tips his chin up and his mouth moves as he says it slowly, grinning. Slow push-in on his grin.",
+      "vo_line": "Tell her to come here.",
       "speaker": "tyler",
       "same_scene": true
     },
     {
       "characters": [
+        "jess",
+        "tyler"
+      ],
+      "image_prompt": "medium two shot, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a white ribbed tank top and light blue jeans, hugging Tyler around the waist with her cheek pressed to his chest, beaming past the camera with shining eyes, mouth open mid-shout; {tyler}, in a navy varsity jacket over a white tee, one arm around her shoulders, looking down at her with a smug grin. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess squeezes Tyler tighter and her mouth moves as she calls it across the room, beaming; Tyler pulls her in and smirks. Push-in on the two of them.",
+      "vo_line": "Best wingman ever!",
+      "speaker": "jess",
+      "same_scene": true
+    },
+    {
+      "characters": [
         "marcus"
       ],
-      "image_prompt": "medium shot, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, bright flat midday light, {marcus}, in a wrinkled grey hoodie over a white tee, sitting alone at a small round table with two untouched iced coffees in front of him, shoulders caved in, staring at the empty chair opposite with glassy eyes, mouth barely open. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Marcus pushes one of the two iced coffees toward the empty chair, then pulls it back, and his mouth moves as he mutters it to himself. Slow pull-back leaving him small on the busy terrace.",
-      "vo_line": "Like family. Great.",
-      "speaker": "marcus",
+      "image_prompt": "medium shot, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a baggy grey hoodie, standing alone in the middle of the party holding two full red plastic cups, staring across the room with wet eyes and a frozen half-smile while guests laugh behind him. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus watches across the room, the frozen half-smile slowly falling, then he looks down at the second cup. Slow pull-back leaving him alone in the crowd.",
       "same_scene": true
     },
     {
@@ -94,8 +96,8 @@
         "marcus"
       ],
       "image_prompt": "medium close shot, a dim bedroom at night lit only by the cold blue glow of a monitor, {marcus}, in an old grey tee, hunched at a cluttered desk and shoving a game controller and a pizza box off the desk with one forearm, jaw clenched, brows knotted, eyes hard and wet, mouth open mid-word. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Marcus sweeps the controller and the pizza box off the desk with his arm and they crash to the floor; his mouth moves as he says it through his teeth. Fast push-in on his clenched jaw.",
-      "vo_line": "I'll start my own.",
+      "motion_prompt": "Marcus sweeps the controller and the pizza box off the desk with his arm and they crash to the floor; his mouth moves as he spits the words. Fast push-in on his clenched jaw.",
+      "vo_line": "Never again.",
       "speaker": "marcus"
     },
     {
@@ -104,8 +106,8 @@
         "iro"
       ],
       "image_prompt": "close two shot, a dim bedroom at night lit only by the cold blue glow of a monitor, {iro}, popping up over the edge of the desk with both flippers on the wood and one eye squinted, beak open mid-word, its orange core lighting the desk; {marcus}, in an old grey tee, jerking back in his chair with his eyebrows shot up and his mouth hanging open. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Iro pops up over the desk edge and its beak moves as it asks it flat and dry; Marcus jolts back in his chair, then slowly starts to grin. Quick push-in on the two of them.",
-      "vo_line": "With what skills?",
+      "motion_prompt": "Iro pops up over the desk edge and its beak moves as it says the line flat and dry; Marcus jolts back in his chair, then slowly starts to grin. Quick push-in on the two of them.",
+      "vo_line": "About time.",
       "speaker": "iro",
       "same_scene": true
     },
@@ -157,51 +159,66 @@
     },
     {
       "characters": [
-        "jess"
-      ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, warm golden late-afternoon light, {jess}, in a yellow sundress with a thin white cardigan, half out of her chair with both hands flat on a small round table that has a little vase of yellow tulips on it, staring past the camera with her eyes huge and her eyebrows flown up, mouth open mid-gasp. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess shoots up out of her chair, her mouth moving as she gasps the question, eyes running up and down whoever just walked in. Fast push-in on her wide eyes.",
-      "vo_line": "Marcus? You own a company now?",
-      "speaker": "jess"
-    },
-    {
-      "characters": [
         "marcus"
       ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, warm golden late-afternoon light, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, standing relaxed with one hand in his pocket and a slim laptop under his arm, a small warm smile, eyebrows lifted, shoulders loose, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Marcus shrugs one shoulder and his mouth moves as he says it lightly, like it is no big deal. Slow push-in on his calm smile.",
-      "vo_line": "Yeah. AI for small businesses.",
-      "speaker": "marcus",
-      "same_scene": true
-    },
-    {
-      "characters": [
-        "tyler"
-      ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, warm golden late-afternoon light, {tyler}, in a navy blazer over a white open-collar shirt, leaning far forward over a small round table and holding a business card out past the camera with both hands, an eager toothy smile, eyebrows pinched up in the middle, sweat on his temple, mouth open mid-question. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Tyler thrusts the business card forward and his mouth moves as he asks it too quickly, nodding along with his own question. Push-in on his nervous smile.",
-      "vo_line": "Are you hiring?",
-      "speaker": "tyler",
-      "same_scene": true
+      "image_prompt": "wide shot, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, walking in through the crowd toward the camera with his hands loose and his head up, a calm easy smile, guests turning their heads to look at him as he passes. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus walks through the party toward the camera and nods at a guest who waves, heads turning as he passes. The camera pulls back ahead of him."
     },
     {
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, warm golden late-afternoon light, {jess}, in a yellow sundress with a thin white cardigan, fluffing her hair with both hands and leaning in toward someone off camera with her chin on her knuckles, lashes lowered, a slow flirty smile, mouth open mid-question. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess fluffs her hair, leans in on her knuckles and her mouth moves as she asks it softly, tilting her head. Small push-in.",
-      "vo_line": "Coffee? Just the two of us?",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, holding a red plastic cup, leaning forward and squinting past the camera in disbelief, eyebrows up, a stunned smile starting, mouth open mid-question. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess squints, leans in and her mouth moves as she asks it, the stunned smile spreading. Fast push-in on her wide eyes.",
+      "vo_line": "Marcus? Is that you?",
       "speaker": "jess",
       "same_scene": true
     },
     {
       "characters": [
-        "marcus",
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, holding a red plastic cup, eyes wide and admiring, a breathless smile, her free hand flat on her chest, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess looks him up and down, presses a hand to her chest and her mouth moves as she says it, breathless. Small push-in.",
+      "vo_line": "I heard about your AI company.",
+      "speaker": "jess",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "jess"
+      ],
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, holding a red plastic cup, twirling a strand of her hair around one finger, head tilted, lashes lowered, a slow flirty smile, mouth open mid-question. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess twirls her hair, sways a little and her mouth moves as she asks it softly, tilting her head. Small push-in.",
+      "vo_line": "So... are you seeing anyone?",
+      "speaker": "jess",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, glancing sideways past the camera at something across the room, a small smile growing, eyebrows lifting, mouth open on one word. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus's eyes slide away across the room and his mouth moves as he says the one word slowly, the smile growing. Slow push-in.",
+      "vo_line": "Actually...",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
         "sofia"
       ],
-      "image_prompt": "medium close shot, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, warm golden late-afternoon light, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, in the foreground leaning down toward someone off camera with one hand cupped beside his mouth like sharing a secret and his other thumb jerked back over his shoulder, a boyish excited grin, mouth open mid-whisper; {sofia}, in a fitted black dress with sheer black sleeves and a black corset belt, a few tables behind him and clearly visible over his shoulder, sitting alone with a book and an iced coffee, looking down at the page with a small smile, unaware of him. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Marcus jerks his thumb back at the woman reading behind him and his mouth moves as he whispers it fast, grinning; behind him Sofia turns a page without looking up. Quick push-in keeping both in frame.",
-      "vo_line": "Be my wingwoman? She's gorgeous.",
+      "image_prompt": "medium close shot, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {sofia}, in a fitted black dress with sheer black sleeves and a black corset belt, leaning on a kitchen counter with a red plastic cup, laughing with her head tipped back, unaware of anyone watching. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Sofia laughs at something, tucks her hair behind her ear and takes a sip from her cup. Slow push-in.",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, nodding toward someone across the room, eyes bright, a boyish grin, mouth open mid-question. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus nods across the room and his mouth moves as he asks it lightly, grinning. Small push-in.",
+      "vo_line": "Who's your friend?",
       "speaker": "marcus",
       "same_scene": true
     },
@@ -209,9 +226,9 @@
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, warm golden late-afternoon light, {jess}, in a yellow sundress with a thin white cardigan, her flirty smile collapsing, eyebrows pinched up in the middle, one hand frozen in her hair, eyes wet, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess's hand drops out of her hair and her mouth moves as she says it in a small confused voice, the smile sliding off her face. Slow push-in.",
-      "vo_line": "I thought this was a date.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, holding a red plastic cup, her flirty smile slipping, eyebrows pinched, glancing over her shoulder and back, mouth open mid-question. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess glances over her shoulder, then back, and her mouth moves as she asks it, the smile slipping. Push-in.",
+      "vo_line": "Sofia? Why?",
       "speaker": "jess",
       "same_scene": true
     },
@@ -219,9 +236,19 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, warm golden late-afternoon light, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, laughing warmly with his head tipped to one side while he tugs one lapel of his blazer straight, eyes kind, eyebrows lifting into a question, looking at someone off camera with a fond smile, mouth open mid-word. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Marcus laughs kindly, his mouth moving as he says it warmly, then he straightens both lapels and lifts his chin for the question, eyebrows up. Small push-in.",
-      "vo_line": "You're like family. How do I look?",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, leaning in a little with a warm easy grin and one eyebrow raised, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus leans in and his mouth moves as he says it warmly, one eyebrow up. Small push-in on his grin.",
+      "vo_line": "Be my wingman.",
+      "speaker": "marcus",
+      "same_scene": true
+    },
+    {
+      "characters": [
+        "marcus"
+      ],
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, looking past the camera across the room with a soft smile, chin lifted, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus looks across the room and his mouth moves as he says it softly, almost to himself, smiling. Slow push-in.",
+      "vo_line": "Tell her I think she's cute.",
       "speaker": "marcus",
       "same_scene": true
     },
@@ -229,38 +256,9 @@
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, warm golden late-afternoon light, {jess}, in a yellow sundress with a thin white cardigan, forcing a tight smile that does not reach her wet eyes, chin trembling, both hands clasped in front of her chest, mouth open on one word. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess swallows, nods once and her mouth moves as she says the single word, the forced smile twitching. Slow push-in on her eyes.",
-      "vo_line": "Perfect.",
-      "speaker": "jess",
-      "same_scene": true
-    },
-    {
-      "characters": [
-        "jess",
-        "marcus"
-      ],
-      "image_prompt": "medium two shot, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, warm golden late-afternoon light, {jess}, in a yellow sundress with a thin white cardigan, pulling a small bunch of yellow tulips out of the little vase on her table and pressing them into Marcus's hands with a brave wobbly smile; {marcus}, in a fitted black blazer over a black tee with a slim silver watch, taking the tulips with both hands, eyebrows up, touched and smiling. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess pulls the tulips out of the vase, shakes the water off and presses them into the hands of Marcus, then gives him a small push on the shoulder. The camera follows the tulips from the vase to his hands.",
-      "label": "GIVES HIM THE FLOWERS",
-      "same_scene": true
-    },
-    {
-      "characters": [
-        "marcus",
-        "sofia"
-      ],
-      "image_prompt": "wide shot across the terrace, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, warm golden late-afternoon light, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, holding out a small bunch of yellow tulips with an easy smile; {sofia}, in a fitted black dress with sheer black sleeves and a black corset belt, rising from a small round table with a book in one hand and taking the tulips with the other, a slow delighted smile, eyes on him. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Sofia takes the tulips, smells them and hooks her arm through the arm of Marcus, and the two of them walk off between the tables laughing. The camera stays where it is.",
-      "same_scene": true
-    },
-    {
-      "characters": [
-        "jess"
-      ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, warm golden late-afternoon light, {jess}, in a yellow sundress with a thin white cardigan, alone at a small round table with an empty little vase on it, chin in her hand, watching someone walk away past the camera with a sad dreamy half-smile, eyes shining, mouth open mid-sigh. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess rests her chin in her hand, watches them go and her mouth moves as she sighs it to nobody. Slow pull-back leaving her alone at the table.",
-      "vo_line": "He's gorgeous.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, jaw dropped, eyes huge, eyebrows flown up, the red plastic cup frozen halfway to her mouth, mouth open mid-word. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess's jaw drops, the cup stops halfway to her mouth and her mouth moves as she gasps it. Fast push-in on her stunned face.",
+      "vo_line": "Wait, what?",
       "speaker": "jess",
       "same_scene": true
     },
@@ -319,7 +317,7 @@
         "marcus",
         "iro"
       ],
-      "image_prompt": "medium close shot, a sunny cafe terrace with a striped awning at golden hour, {marcus}, in a fitted black blazer over a black tee, holding a phone up beside his face with its BACK toward the camera, the glow from it lighting his cheek, grinning wide with his eyebrows up, leaning toward the lens; {iro}, perched on his shoulder pointing a flipper at the phone, beak open in a grin. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "medium close shot, a rooftop terrace over a glittering city at dusk, {marcus}, in a fitted black blazer over a black tee, holding a phone up beside his face with its BACK toward the camera, the glow from it lighting his cheek, grinning wide with his eyebrows up, leaning toward the lens; {iro}, perched on his shoulder pointing a flipper at the phone, beak open in a grin. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus lifts the phone higher with its back to us and taps the back of it twice with a finger, grinning; Iro points at it and bounces. Slow push-in.",
       "caption": "SEARCH IRO AI"
     }

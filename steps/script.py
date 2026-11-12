@@ -313,7 +313,10 @@ def same_line_key(line) -> str:
 def line_keys(line) -> set[str]:
     """The line, and each sentence of it, as same_line_key keys. A line that comes back inside a
     longer one ("Already?! Two sugars, right?" after "Two sugars, right?") still comes back."""
-    keys = {same_line_key(line)} | {same_line_key(part) for part in re.split(r"(?<=[.!?])\s+", str(line or ""))}
+    parts = {same_line_key(part) for part in re.split(r"(?<=[.!?])\s+", str(line or ""))}
+    # A sentence of one word is not a line coming back: "Marcus!" would make every later
+    # "Marcus?" a callback. The whole line counts whatever its length ("Perfect.").
+    keys = {same_line_key(line)} | {k for k in parts if len(k.split()) >= 2}
     return keys - {""}
 
 
@@ -790,7 +793,8 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
     if mirror:
         cards_at = [k for k, s in enumerate(normalized_shots) if s.get("card")]
         if cards_at:
-            before = {same_line_key(s.get("vo_line")) for s in normalized_shots[:cards_at[-1]]} - {""}
+            # either side may carry the line inside a longer one: "Marcus! Be my wingman!", then "Be my wingman."
+            before = set().union(*[line_keys(s.get("vo_line")) for s in normalized_shots[:cards_at[-1]]])
             after = set().union(*[line_keys(s.get("vo_line")) for s in normalized_shots[cards_at[-1] + 1:]])
             echoed = after & before
             if len(echoed) < mirror:
