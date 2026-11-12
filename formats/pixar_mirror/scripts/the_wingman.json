@@ -196,10 +196,11 @@
     },
     {
       "characters": [
-        "marcus"
+        "marcus",
+        "sofia"
       ],
-      "image_prompt": "close shot, chest up, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, warm golden late-afternoon light, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, leaning down toward someone off camera with one hand cupped beside his mouth like sharing a secret, his eyes fixed on something past the camera, a boyish excited grin, mouth open mid-whisper. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Marcus leans in, nods toward someone across the terrace and his mouth moves as he whispers it fast and excited, grinning. Quick push-in on his grin.",
+      "image_prompt": "medium close shot, a sunny cafe terrace with small round tables, a striped awning and potted olive trees, warm golden late-afternoon light, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, in the foreground leaning down toward someone off camera with one hand cupped beside his mouth like sharing a secret and his other thumb jerked back over his shoulder, a boyish excited grin, mouth open mid-whisper; {sofia}, in a fitted black dress with sheer black sleeves and a black corset belt, a few tables behind him and clearly visible over his shoulder, sitting alone with a book and an iced coffee, looking down at the page with a small smile, unaware of him. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus jerks his thumb back at the woman reading behind him and his mouth moves as he whispers it fast, grinning; behind him Sofia turns a page without looking up. Quick push-in keeping both in frame.",
       "vo_line": "Be my wingwoman? She's gorgeous.",
       "speaker": "marcus",
       "same_scene": true
