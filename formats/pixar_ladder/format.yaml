@@ -33,10 +33,13 @@ beats:
   - the climb
   - the big one
   - the first people, stunned
-  - flex montage
-  - CTA
+  - flex montage (the last shot is the end)
 
 rules:
+  # The story ends on the montage's last shot, with no "search the app" shot after it: the app
+  # is shown in the story. Set to true (or delete the line) for a closing shot captioned with
+  # cta_caption again.
+  closing_shot: false
   story_shots: [22, 32]
   vo_words: [45, 90]
   silent_run_max: 5              # the work is shown without words
@@ -51,6 +54,12 @@ rules:
     hint: "exactly one, between the doubt and the work"
   labels: true
   label_max_words: 4
+
+# Captions: two or three words at a time, a little larger, as in Pixar Mirror. A video can
+# choose its own words at a time and size in its Captions panel.
+captions:
+  max_words: 3
+  size: 92
 
 timing:
   min_shot_seconds: 1.5          # the work shots need a moment to change on screen

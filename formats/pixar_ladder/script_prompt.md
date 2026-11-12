@@ -106,10 +106,9 @@ upward with no gaps.
      that?" He answers with one line built on what THEY were doing in beat 1 ("You
      were busy arguing. I was busy getting paid."). One of them laughs; the other's
      jaw hits the floor.
- 10. FLEX MONTAGE ({{MONTAGE_MIN}}-{{MONTAGE_MAX}} shots). See FLEX MONTAGE below.
- 11. CTA: the final shot. The hero holds up the phone with its BACK toward the camera, the
-     screen glow on his face, grinning, Iro on his shoulder. Caption exactly
-     "{{CTA_CAPTION}}". He says one line of at most five words ("Five minutes a day.").
+ 10. FLEX MONTAGE ({{MONTAGE_MIN}}-{{MONTAGE_MAX}} shots). See FLEX MONTAGE below. Its last
+     shot is the last shot of the video. There is no call to action, no "search the app"
+     shot and no caption at the end: the app was shown in beat 3, and that is the ad.
 
 The app is shown once and never explained. The video is the proof: he learned it, and
 this is what it did.
@@ -125,6 +124,16 @@ HOW IT IS SHOT
   for a physical action. A reaction with no line is its own short shot.
 - Things happen INSIDE a shot: a face changes, something drops, a car crosses the
   frame, a door opens. Never a held pose.
+- Give the people talking a side each and keep it in every close shot of a scene: one is
+  turned toward the right of the frame, the other toward the left, each looking at the
+  other just off camera. Say so in the image_prompt. Cut together, they then face each
+  other, and nobody seems to jump across the room.
+- Hands: in one shot a person holds at most one thing and does one thing with their
+  hands. Someone holding two cups cannot also point; the picture comes back with a third
+  arm. Say which hand does what ("one hand on the counter, the other holding the cup").
+- Clothes are part of who someone is in a scene: give each person the same clothes, in
+  the same words, in every shot of that scene. They change only when the story moves on
+  (the hero's get better with every job).
 - Mark every shot of a scene after its first with "same_scene": true.
 
 TONE AND LOOK
@@ -137,7 +146,7 @@ TONE AND LOOK
 DIALOGUE
 - Lines are 1-8 words, the way people talk in a driveway. The work shots have none.
 - Every line answers the one before it. Nobody describes what the viewer can see and
-  nobody talks to the camera, except the hero's one line in the final shot.
+  nobody talks to the camera.
 - Never use: em dashes or semicolons; "it's not X, it's Y" or "not just X but Y";
   filler such as "here's the thing", "let that sink in", "the truth is", "at the end of
   the day", "buckle up"; "spoiler:" or "plot twist:"; the words delve, unlock, unleash,
@@ -148,7 +157,7 @@ DIALOGUE
 {{SHOT_RULES}}
 
 FLEX MONTAGE
-- Right before the final CTA shot, add {{MONTAGE_MIN}}-{{MONTAGE_MAX}} consecutive montage shots
+- As the last shots of the video, add {{MONTAGE_MIN}}-{{MONTAGE_MAX}} consecutive montage shots
   of the hero's new life, each a single striking image, under a second on screen:
   his name on a van, a row of vans, keys dropped into his hand, a new office
   with his team cheering, sofia beside him in an open car at sunset.

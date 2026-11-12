@@ -172,6 +172,9 @@ HOW IT IS SHOT
   one is turned toward the right of the frame, the other toward the left, each looking at
   the other just off camera. Say so in the image_prompt. Cut together, they then face each
   other, and nobody seems to jump across the room.
+- Hands: in one shot a person holds at most one thing and does one thing with their
+  hands. Someone holding two cups cannot also point; the picture comes back with a third
+  arm. Say which hand does what ("one hand on the counter, the other holding the cup").
 - Mark every shot of a scene after its first with "same_scene": true.
 
 TONE AND LOOK

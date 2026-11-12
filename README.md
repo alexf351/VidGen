@@ -1124,6 +1124,13 @@ template; pick whichever fits the premise.
 | `pixar_ladder` | 45-50 s | 45-90 | the app with `LEARNED IT ON IRO`, before the work |
 | `pixar_steps` | 90-110 s | 160-250 | one of the spoken steps, said over the app |
 
+`pixar_mirror` and `pixar_ladder` end on the last shot of their montage, with no `SEARCH IRO AI`
+shot (`closing_shot: false`), and show captions two or three words at a time at size 92. Their
+script prompts also give the people talking a fixed side of the frame, keep each person's
+clothes the same through a scene, and allow one thing per hand in a shot (a picture asked for
+two cups and a pointing finger comes back with three arms). `pixar_revenge` and `pixar_steps`
+are still as they were: a closing shot, and one word at a time.
+
 The videos each one is modelled on (also listed in each `format.yaml` under `references` and
 shown in the UI under Format details):
 
