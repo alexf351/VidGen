@@ -43,6 +43,15 @@
     },
     {
       "characters": [
+        "tyler",
+        "jess"
+      ],
+      "image_prompt": "medium two shot, a small corner cafe with empty chairs, bare grey walls and a crooked hand-painted sign of smeared shapes over the counter, flat grey daylight through dusty windows, {tyler}, in a stained brown apron over a rumpled blue shirt, head thrown back in a loud laugh with one hand flat on the counter; {jess}, in a stained brown apron over a striped top, covering her mouth with one hand as she snorts with laughter, eyes creased shut. Both are turned toward the left of the frame, laughing at someone just off camera. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler and Jess glance at each other, then Tyler throws his head back laughing and slaps the counter while Jess snorts into her hand. Small handheld shake.",
+      "same_scene": true
+    },
+    {
+      "characters": [
         "marcus"
       ],
       "image_prompt": "close shot, chest up, a small corner cafe with empty chairs, bare grey walls and a crooked hand-painted sign of smeared shapes over the counter, flat grey daylight through dusty windows, {marcus}, in a worn olive hoodie with frayed cuffs, a battered backpack on one shoulder, flipping the cracked laptop open on a cafe table with both hands, eyes narrowed and bright, a small confident grin, mouth open mid-word. He is turned toward the right of the frame, looking at someone just off camera. Vertical composition, no text anywhere in the image.",
