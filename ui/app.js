@@ -65,6 +65,9 @@ const ICONS = {
   text: ["M4 6h16", "M4 12h16", "M4 18h10"],
   phone: ["M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z", "M11 18h2"],
   play: ["M7 4v16l13-8z"],
+  moon: ["M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"],
+  sun: ["M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z", "M12 1v2", "M12 21v2", "M4.2 4.2l1.4 1.4", "M18.4 18.4l1.4 1.4", "M1 12h2", "M21 12h2", "M4.2 19.8l1.4-1.4", "M18.4 5.6l1.4-1.4"],
+  trash: ["M3 6h18", "M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2", "M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6", "M10 11v6", "M14 11v6"],
 };
 function icon(name, size = 16) {
   const NS = "http://www.w3.org/2000/svg";
@@ -125,13 +128,15 @@ function bust(url, runId) {
 }
 
 // ---------------------------------------------------------------- modal
-function confirmDialog({ title, text, rows = [], note, ok = "Run", total }) {
+function confirmDialog({ title, text, rows = [], note, ok = "Run", total, danger = false }) {
   return new Promise((resolve) => {
     const root = $("#modal-root");
     const close = (v) => { root.replaceChildren(); document.removeEventListener("keydown", key); resolve(v); };
-    const key = (e) => { if (e.key === "Escape") close(false); if (e.key === "Enter") close(true); };
+    // Enter confirms, except for something that cannot be undone: there the button has to be pressed.
+    const key = (e) => { if (e.key === "Escape") close(false); if (e.key === "Enter" && !danger) close(true); };
     document.addEventListener("keydown", key);
-    const okBtn = h("button", { class: "btn primary", onclick: () => close(true) }, ok);
+    const okBtn = h("button", { class: `btn ${danger ? "danger" : "primary"}`, onclick: () => close(true) }, ok);
+    const cancelBtn = h("button", { class: "btn ghost", onclick: () => close(false) }, "Cancel");
     root.replaceChildren(h("div", { class: "modal-back", onclick: (e) => e.target === e.currentTarget && close(false) },
       h("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-label": title },
         h("h2", {}, title),
@@ -141,8 +146,8 @@ function confirmDialog({ title, text, rows = [], note, ok = "Run", total }) {
           total !== undefined && h("div", { class: "total" }, h("span", {}, "Estimated"), h("span", {}, usd(total)))) : null,
         note && h("div", { class: "note" }, note),
         h("div", { class: "actions" },
-          h("button", { class: "btn ghost", onclick: () => close(false) }, "Cancel"), okBtn))));
-    okBtn.focus();
+          cancelBtn, okBtn))));
+    (danger ? cancelBtn : okBtn).focus();
   });
 }
 
@@ -900,12 +905,16 @@ function renderSidebar() {
   if (!S.runs.length) { nav.replaceChildren(h("div", { class: "empty-side" }, "No runs yet. Make your first video.")); return; }
   nav.replaceChildren(...S.runs.map((r) => {
     const st = runState(r);
-    return h("a", { class: `run-item${r.run_id === S.runId ? " active" : ""}`, href: `#/run/${encodeURIComponent(r.run_id)}`,
-      title: `${r.premise}\n${STATE_LABEL[st]}` },
-      h("div", { class: "premise" }, h("span", { class: `dot ${st}`, "aria-label": STATE_LABEL[st] }), h("span", {}, r.premise || r.run_id)),
-      h("div", { class: "meta" }, h("span", {}, formatName(r.format)), r.engine === "claude_code" ? h("span", { class: "eng" }, "Claude Code") : null,
-        h("span", {}, "·"), h("span", {}, st === "done" ? when(r.created_at) : STATE_LABEL[st])),
-      progressSlot(r.run_id, "mini"));
+    const working = st === "running" || st === "queued";
+    return h("div", { class: "run-row" },
+      h("a", { class: `run-item${r.run_id === S.runId ? " active" : ""}`, href: `#/run/${encodeURIComponent(r.run_id)}`,
+        title: `${r.premise}\n${STATE_LABEL[st]}` },
+        h("div", { class: "premise" }, h("span", { class: `dot ${st}`, "aria-label": STATE_LABEL[st] }), h("span", {}, r.premise || r.run_id)),
+        h("div", { class: "meta" }, h("span", {}, formatName(r.format)), r.engine === "claude_code" ? h("span", { class: "eng" }, "Claude Code") : null,
+          h("span", {}, "·"), h("span", {}, st === "done" ? when(r.created_at) : STATE_LABEL[st])),
+        progressSlot(r.run_id, "mini")),
+      h("button", { class: "icon-btn run-del", disabled: working, "aria-label": `Delete the video: ${(r.premise || r.run_id).slice(0, 60)}`,
+        title: working ? "A job is working on this video" : "Delete this video", onclick: () => deleteRun(r) }, icon("trash", 15)));
   }));
 }
 
@@ -1355,7 +1364,9 @@ function renderRun() {
     h("div", { class: "steps" }, stepBtns,
       h("span", { style: "flex:1" }),
       h("button", { class: "btn small ghost", disabled: busy || !run.script, onclick: () => recast(run),
-        title: "Apply the format's locked character descriptions to this run" }, "Recast")),
+        title: "Apply the format's locked character descriptions to this run" }, "Recast"),
+      h("button", { class: "btn small ghost danger-text", disabled: busy, onclick: () => deleteRun(run),
+        title: busy ? "Wait for the running job to finish" : "Delete this video and everything made for it" }, icon("trash", 14), "Delete")),
     run.script ? h("div", { class: "tabs", role: "tablist", "aria-label": "What to look at" },
       tabBtn("shots", "Shots", h("span", { class: "tab-count" }, String(run.shots.length))),
       tabBtn("script", "Script and editing", unsaved ? h("span", { class: "tab-dot", title: "Unsaved changes" }) : null)) : null);
@@ -1713,6 +1724,30 @@ function releaseMedia() {
   });
 }
 
+// Delete a video: its pictures, clips, voices and the finished cut. Asked first; cannot be undone.
+async function deleteRun(run) {
+  const name = (run.premise || run.run_id).trim();
+  const ok = await confirmDialog({ title: "Delete this video?", ok: "Delete video", danger: true,
+    text: `\u201c${name.length > 140 ? name.slice(0, 140) + "\u2026" : name}\u201d`,
+    note: "Its script, pictures, clips, voices and the finished video are removed from this computer. This cannot be undone. Download the finished video first if you want to keep it." });
+  if (!ok) return;
+  // Windows will not delete a file that is still open in a player on this page.
+  releaseMedia();
+  document.querySelectorAll("video, audio").forEach((m) => { try { m.pause(); m.removeAttribute("src"); m.querySelectorAll("source").forEach((x) => x.remove()); m.load(); } catch { /* gone */ } });
+  try {
+    await api("DELETE", `/api/runs/${encodeURIComponent(run.run_id)}`);
+  } catch (e) {
+    toast(e.message, "bad");
+    if (S.runId === run.run_id) renderMain();       // put the players back
+    return;
+  }
+  toast("Video deleted", "ok");
+  delete S.runTab[run.run_id];
+  const here = S.runId === run.run_id;
+  if (here) { S.run = null; S.runId = null; location.hash = "#/new"; }
+  await refreshRuns();
+}
+
 async function moveShot(run, n, to) {
   releaseMedia();
   await new Promise((r) => setTimeout(r, 250));
@@ -1725,6 +1760,112 @@ async function moveShot(run, n, to) {
   await loadRun(run.run_id, { keepDraft: false });
   const row = document.getElementById(`srow-${to}`);
   if (row) { row.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); row.classList.add("just-moved"); }
+}
+
+// Take a shot out of the script, with its picture, clip and voice. Asked first.
+async function removeShot(run, s) {
+  const what = s.card ? `the time card \u201c${s.card}\u201d` : s.texts ? `the text messages from ${s.texts.from}` : s.app_screen ? "the app screen"
+    : (s.vo_line || "").trim() ? `\u201c${s.vo_line.trim()}\u201d` : "a silent shot";
+  const ok = await confirmDialog({ title: `Remove shot ${s.n}?`, ok: "Remove shot", danger: true, text: `Shot ${s.n}: ${what}`,
+    note: "Its picture, clip and voice are deleted and the shots after it move up one. This cannot be undone. Assemble again afterwards to get the video without it." });
+  if (!ok) return;
+  releaseMedia();
+  await new Promise((r) => setTimeout(r, 250));
+  try {
+    await api("DELETE", `/api/runs/${encodeURIComponent(run.run_id)}/shots/${s.n}`);
+  } catch (e) { toast(e.message, "bad"); return; }
+  toast(`Shot ${s.n} removed`, "ok");
+  S.stamps[run.run_id] = Date.now();
+  S.selected.clear(); S.afterSave = null; S.saveErrors = null; S.moved = null; S.added = null;
+  await loadRun(run.run_id, { keepDraft: false });
+}
+
+// "Add a shot": a few plain questions; the server writes the shot from the answers (shot_new.py).
+function addShotDialog(run, after) {
+  const root = $("#modal-root");
+  const shots = run.script.shots;
+  const cast = run.script.characters.map((c) => c.id);
+  const fmt = S.formats.find((f) => f.name === run.format) || {};
+  const before = shots.slice(0, after).reverse().find((x) => (x.image_prompt || "").trim() || x.card || x.montage);
+  const canContinue = !!(before && (before.image_prompt || "").trim() && !before.montage);
+  const st = { kind: "scene", characters: canContinue ? before.characters.filter((c) => cast.includes(c)).slice(0, 2) : [], framing: "",
+    sees: "", moves: "", line: "", speaker: "", same_place: canContinue, from: "", messages: ["", ""], text: "" };
+  const close = () => { root.replaceChildren(); document.removeEventListener("keydown", key); };
+  const key = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", key);
+  const err = h("div", { class: "notice bad hidden", role: "alert" });
+  const body = h("div", { class: "form-body" });
+  const okBtn = h("button", { class: "btn primary", type: "button" }, "Add shot");
+  const field = (label, control, note) => h("label", { class: "field" }, h("span", {}, label), control, note ? h("span", { class: "field-note dim" }, note) : null);
+  const draw = () => {
+    const kinds = [["scene", "A scene shot", "a picture that moves"], ["texts", "Text messages", "on the phone"]];
+    if (fmt.limits && fmt.limits.cards) kinds.push(["card", "Time card", "\u201c6 MONTHS LATER\u201d"]);
+    const kindRow = h("div", { class: "chips", role: "radiogroup", "aria-label": "What kind of shot" }, kinds.map(([v, text, sub]) =>
+      h("button", { type: "button", class: `chip${st.kind === v ? " on" : ""}`, role: "radio", "aria-checked": String(st.kind === v),
+        onclick: () => { st.kind = v; draw(); } }, text, h("span", { class: "chip-sub" }, sub))));
+    const parts = [kindRow];
+    if (st.kind === "scene") {
+      const who = h("div", { class: "chips", role: "group", "aria-label": "Who is in the shot" }, cast.map((id) =>
+        h("button", { type: "button", class: `chip${st.characters.includes(id) ? " on" : ""}`, "aria-pressed": String(st.characters.includes(id)),
+          onclick: () => { st.characters = st.characters.includes(id) ? st.characters.filter((c) => c !== id) : [...st.characters, id]; draw(); } }, id)));
+      const speakers = st.characters.length ? st.characters : cast;
+      if (st.speaker && !speakers.includes(st.speaker)) st.speaker = "";
+      parts.push(
+        h("div", { class: "field" }, h("span", {}, "Who is in it"), who),
+        field("What we see", h("textarea", { rows: "3", maxlength: 600, placeholder: "Marcus sets the two cups down on a table and walks out with his hood up", oninput: (e) => { st.sees = e.target.value; } }, st.sees),
+          "The picture: who is where, doing what, with what look on their face. Use their names."),
+        field("How it moves", h("textarea", { rows: "2", maxlength: 600, placeholder: "He puts the cups down, pulls his hood up and pushes through the crowd. The camera follows him.", oninput: (e) => { st.moves = e.target.value; } }, st.moves),
+          "Optional. What happens during the clip, then one camera move."),
+        h("div", { class: "form-pair" },
+          field("Line said", h("input", { type: "text", maxlength: 120, placeholder: "leave empty for a silent shot", value: st.line, oninput: (e) => { st.line = e.target.value; } })),
+          field("Said by", h("select", { onchange: (e) => { st.speaker = e.target.value; } },
+            h("option", { value: "", selected: !st.speaker }, "nobody"), speakers.map((id) => h("option", { value: id, selected: st.speaker === id }, id))))),
+        h("div", { class: "form-pair" },
+          field("Framing", h("select", { onchange: (e) => { st.framing = e.target.value; } },
+            [["", "Choose for me"], ["close", "Close, chest up"], ["medium", "Medium"], ["wide", "Wide"]].map(([v, t]) => h("option", { value: v, selected: st.framing === v }, t)))),
+          canContinue ? h("label", { class: "check form-check" },
+            h("input", { type: "checkbox", checked: st.same_place, onchange: (e) => { st.same_place = e.target.checked; } }),
+            h("span", {}, `Same place and clothes as shot ${before.n}`)) : h("span", {})));
+    } else if (st.kind === "texts") {
+      parts.push(
+        field("From", h("input", { type: "text", maxlength: 18, placeholder: "Jess", value: st.from, oninput: (e) => { st.from = e.target.value; } })),
+        h("div", { class: "field" }, h("span", {}, "Messages"),
+          st.messages.map((m, k) => h("input", { type: "text", maxlength: 60, placeholder: k ? "a second message (optional)" : "OMG TYLER JUST KISSED ME <3", value: m, "aria-label": `Message ${k + 1}`,
+            oninput: (e) => { st.messages[k] = e.target.value; } })),
+          h("span", { class: "field-note dim" }, "They arrive one at a time on the phone. Type <3 for a heart. This shot costs nothing.")));
+    } else {
+      parts.push(field("Card text", h("input", { type: "text", maxlength: 40, placeholder: "3 WEEKS LATER", value: st.text, oninput: (e) => { st.text = e.target.value; } }),
+        "White words on black for a moment: a jump in time."));
+    }
+    body.replaceChildren(...parts);
+  };
+  okBtn.onclick = async () => {
+    const shot = st.kind === "scene" ? { kind: "scene", characters: st.characters, sees: st.sees, moves: st.moves, line: st.line, speaker: st.line.trim() ? st.speaker : "", framing: st.framing || null, same_place: st.same_place }
+      : st.kind === "texts" ? { kind: "texts", from: st.from, messages: st.messages.map((m) => m.trim()).filter(Boolean) }
+      : { kind: "card", text: st.text };
+    okBtn.disabled = true; err.classList.add("hidden");
+    releaseMedia();
+    try {
+      const r = await api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/shots`, { after, shot });
+      close();
+      S.stamps[run.run_id] = Date.now();
+      S.selected.clear(); S.afterSave = null; S.saveErrors = null; S.moved = null;
+      S.added = { run: run.run_id, n: r.added, drawn: st.kind === "scene" };
+      await loadRun(run.run_id, { keepDraft: false });
+      const row = document.getElementById(`srow-${r.added}`);
+      if (row) { row.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); row.classList.add("just-moved"); }
+    } catch (e) {
+      err.textContent = e.message; err.classList.remove("hidden"); okBtn.disabled = false;
+    }
+  };
+  draw();
+  root.replaceChildren(h("div", { class: "modal-back", onclick: (e) => e.target === e.currentTarget && close() },
+    h("div", { class: "modal wide", role: "dialog", "aria-modal": "true", "aria-label": "Add a shot" },
+      h("h2", {}, after ? `Add a shot after shot ${after}` : "Add a shot at the start"),
+      h("p", {}, "Answer in plain words. VidGen writes the shot from this; you can still edit every detail of it afterwards."),
+      body, err,
+      h("div", { class: "actions" }, h("button", { class: "btn ghost", type: "button", onclick: close }, "Cancel"), okBtn))));
+  const first = body.querySelector("textarea, input[type=text]"); if (first) first.focus();
 }
 
 function draftChanged() {
@@ -1800,6 +1941,12 @@ function scriptPanel(run, busy) {
     box.addEventListener("toggle", () => { if (box.open) S.lookOpen.add(s.n); else S.lookOpen.delete(s.n); });
     return box;
   };
+  // Shots can be added and removed in the image pipeline's scripts (not a song or a letter, whose lines hang together).
+  const canEditShots = run.engine !== "claude_code" && !run.song;
+  const addHere = (after) => !canEditShots ? null : h("button", { type: "button", class: "add-between", disabled: busy || changed.size > 0,
+    title: busy ? "Wait for the running job to finish" : changed.size ? "Save or discard your changes first" : "",
+    "aria-label": after ? `Add a shot after shot ${after}` : "Add a shot at the start", onclick: () => addShotDialog(run, after) },
+    h("span", { class: "add-between-pill" }, icon("plus", 13), "Add a shot here"));
   const rows = S.draft.shots.map((s, i) => {
     const row = h("div", { class: `srow${changed.has(s.n) ? " dirty" : ""}`, id: `srow-${s.n}` });
     const fields = h("div", { class: "fields" });
@@ -1869,10 +2016,13 @@ function scriptPanel(run, busy) {
       h("button", { type: "button", class: "icon-btn", disabled: busy || changed.size > 0 || s.n === 1, "aria-label": `Move shot ${s.n} earlier`,
         title: why || (s.n === 1 ? "Already first" : "Move earlier"), onclick: () => moveShot(run, s.n, s.n - 1) }, icon("chevron-up", 15)),
       h("button", { type: "button", class: "icon-btn", disabled: busy || changed.size > 0 || s.n === last, "aria-label": `Move shot ${s.n} later`,
-        title: why || (s.n === last ? "Already last" : "Move later"), onclick: () => moveShot(run, s.n, s.n + 1) }, icon("chevron-down", 15)));
+        title: why || (s.n === last ? "Already last" : "Move later"), onclick: () => moveShot(run, s.n, s.n + 1) }, icon("chevron-down", 15)),
+      canEditShots ? h("button", { type: "button", class: "icon-btn srow-remove", disabled: busy || changed.size > 0, "aria-label": `Remove shot ${s.n}`,
+        title: why || "Remove this shot", onclick: () => removeShot(run, s) }, icon("trash", 14)) : null);
     row.append(h("div", { class: "srow-side" }, h("span", { class: "num" }, `#${s.n}`), pic, mover), fields);
-    return row;
-  });
+    return [row, addHere(s.n)];
+  }).flat();
+  rows.unshift(addHere(0));
   const saveBtn = h("button", { class: "btn primary small", disabled: busy || !changed.size, onclick: () => saveScript(run) }, "Save script");
   const discard = h("button", { class: "btn ghost small", disabled: !changed.size,
     onclick: () => { S.draft = structuredClone(run.script); S.saveErrors = null; renderMain(); } }, "Discard");
@@ -1881,6 +2031,13 @@ function scriptPanel(run, busy) {
   const panel = h("section", { "aria-label": "Script" },
     h("div", { class: "panel-title" }, h("span", {}, "Script"), topSave),
     h("p", { class: "script-help" }, `Change any line, speaker or caption, then save. After saving, VidGen offers to redo just the parts that changed. To change what a shot shows or how it moves, open \u201c${run.sfx ? "Picture, motion and sound" : "Picture and motion"}\u201d under it.`));
+  if (S.added && S.added.run === run.run_id) {
+    const sel = () => { S.selected = new Set([S.added.n]); S.added = null; S.runTab[run.run_id] = "shots"; renderMain(); };
+    panel.append(h("div", { class: "notice info" }, `Shot ${S.added.n} was added. `,
+      S.added.drawn ? "It has no picture yet: " : "It needs nothing generated. Assemble again to see it in the video. ",
+      S.added.drawn ? h("button", { class: "btn small", disabled: busy, onclick: () => { const n = S.added.n; S.added = null; runStep(run, "images", [n]); } }, "Make its picture") : null,
+      S.added.drawn ? h("button", { class: "btn small ghost", onclick: sel }, "Show it in Shots") : null));
+  }
   if (S.moved && S.moved.run === run.run_id) {
     const made = run.steps.assemble && run.steps.assemble.status === "done";
     panel.append(h("div", { class: "notice" }, `Shot ${S.moved.from} is now shot ${S.moved.to}. Its picture, clip and voice moved with it; nothing was generated. `,
@@ -2429,7 +2586,28 @@ window.addEventListener("hashchange", () => {
 });
 
 // ------------------------------------------------------------------ boot
+// Light or dark. The choice is kept in this browser; index.html applies it before the page paints.
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const dark = theme === "dark";
+  const btn = $("#theme-btn");
+  if (!btn) return;
+  btn.setAttribute("aria-pressed", String(dark));
+  btn.title = dark ? "Switch to the light look" : "Switch to the dark look";
+  $("#theme-ic").replaceChildren(icon(dark ? "sun" : "moon", 16));
+  $("#theme-label").textContent = dark ? "Light mode" : "Dark mode";
+}
+function initTheme() {
+  applyTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+  $("#theme-btn").onclick = () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    try { localStorage.setItem("vidgen-theme", next); } catch { /* private window: the choice lasts until the page closes */ }
+    applyTheme(next);
+  };
+}
+
 (async function boot() {
+  initTheme();
   $("#runs-select").addEventListener("change", (e) => {
     location.hash = e.target.value ? `#/run/${encodeURIComponent(e.target.value)}` : "#/new";
   });

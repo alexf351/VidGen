@@ -17,9 +17,27 @@ from common import StepError, available_app_screens, read_json, write_json
 NUMBERED = re.compile(r"^(\d+)(\..+)$")
 
 
+EDIT_MAX_SHOTS = 60          # story shots a hand-edited script may grow to
+EDIT_MAX_WORDS = 400         # and spoken words
+
+
+def edit_rules(rules: dict) -> dict:
+    """The format's rules as they bind a script someone is editing by hand. How many shots and
+    words a script has, and how many silent shots may follow each other, are targets for
+    whoever WRITES it; once it is your script you may add a scene or a line past them. What
+    makes the format what it is (its one time card, its progress shots, its montage, the lines
+    that come back) still holds."""
+    out = dict(rules)
+    out["story_shots"] = [1, max(int(rules["story_shots"][1]), EDIT_MAX_SHOTS)]
+    out["vo_words"] = [0, max(int(rules["vo_words"][1]), EDIT_MAX_WORDS)]
+    out["silent_run_max"] = 0
+    return out
+
+
 def validate_for_run(run_dir: Path, config: dict, script: dict) -> dict:
-    """The format's check, with the cast descriptions this run was written with (a run keeps
-    its own; Recast is how it takes a format's new description). Raises ValueError."""
+    """The format's check for a script that is being edited (edit_rules), with the cast
+    descriptions this run was written with (a run keeps its own; Recast is how it takes a
+    format's new description). Raises ValueError."""
     import steps.script as S
     try:
         current = read_json(run_dir / "script.json")
@@ -30,7 +48,7 @@ def validate_for_run(run_dir: Path, config: dict, script: dict) -> dict:
     locked = [{**c, "description": mine.get(c["id"], c["description"])} for c in config.get("locked_characters", [])]
     return S.validate_and_normalize(
         script, config["style"], int(config["max_animated_shots"]), locked,
-        available_app_screens(config), config["format"]["rules"], animate_all=bool(config.get("animate_all")))
+        available_app_screens(config), edit_rules(config["format"]["rules"]), animate_all=bool(config.get("animate_all")))
 
 
 def _folders(run_dir: Path) -> list[Path]:
@@ -94,6 +112,12 @@ def repair(run_dir: Path) -> int:
         if not folder.is_dir():
             continue
         for f in sorted(folder.iterdir()):
+            if f.is_file() and f.name.startswith(".removed-"):
+                try:
+                    f.unlink()                 # a removed shot's file that could not be deleted then
+                except OSError:
+                    pass
+                continue
             if not f.is_file() or not f.name.startswith(".moving-"):
                 continue
             home = f.with_name(f.name[len(".moving-"):])
@@ -158,20 +182,32 @@ def move(run_dir: Path, config: dict, n: int, to: int, free_leftovers: bool = Fa
                         f"{config['format'].get('title') or config['format']['name']} rules ({why})") from None
 
     new_of = {old: new for new, old in enumerate(order, start=1) if old != new}
-    plan: list[tuple[Path, Path, Path]] = []                 # (file now, parked name, final name)
+    files = _apply(run_dir, clean, new_of, set(), free_leftovers, f"shot {n} was not moved")
+    return {"moved": n, "to": to, "files": files, "script": clean}
+
+
+def _apply(run_dir: Path, clean: dict, new_of: dict[int, int], drop: set[int], free_leftovers: bool, failed: str) -> int:
+    """Renumber a run's files and write its script, whole or not at all. `new_of` maps a shot's
+    old number to its new one; the files of the shots in `drop` are deleted. `failed` opens the
+    error message ("shot 3 was not moved"). Returns how many files were renamed or deleted."""
+    path = run_dir / "script.json"
+    plan: list[tuple[Path, Path, Path | None]] = []          # (file now, parked name, final name or None = delete)
     for folder in _folders(run_dir):
         if not folder.is_dir():
             continue
         for f in sorted(folder.iterdir()):
             m = NUMBERED.match(f.name)
-            if not f.is_file() or not m or int(m.group(1)) not in new_of:
+            if not f.is_file() or not m:
                 continue
-            new = new_of[int(m.group(1))]
-            plan.append((f, f.with_name(f".moving-{f.name}"), f.with_name(f"{new}{m.group(2)}")))
-    repair(run_dir)                                          # a move that was cut short earlier
+            old = int(m.group(1))
+            if old in drop:
+                plan.append((f, f.with_name(f".removed-{f.name}"), None))
+            elif old in new_of:
+                plan.append((f, f.with_name(f".moving-{f.name}"), f.with_name(f"{new_of[old]}{m.group(2)}")))
+    repair(run_dir)                                          # a change that was cut short earlier
     # Two passes, so 1 -> 2 and 2 -> 1 never land on each other. If any file cannot be renamed
     # (Windows refuses while a clip is still open in the browser or another program), every
-    # rename already made is undone: a move happens whole or not at all.
+    # rename already made is undone: a change happens whole or not at all.
     done: list[tuple[Path, Path]] = []
 
     def undo() -> None:
@@ -187,8 +223,9 @@ def move(run_dir: Path, config: dict, n: int, to: int, free_leftovers: bool = Fa
             _rename(src, parked)
             done.append((src, parked))
         for _, parked, dest in plan:
-            _rename(parked, dest)
-            done.append((parked, dest))
+            if dest is not None:
+                _rename(parked, dest)
+                done.append((parked, dest))
         write_json(path, clean)
 
     try:
@@ -208,13 +245,80 @@ def move(run_dir: Path, config: dict, n: int, to: int, free_leftovers: bool = Fa
                 freed = False
                 who = _why_locked(stuck, False)[0]
         if not freed:
-            raise StepError(f"shot {n} was not moved: {stuck.name or 'one of its files'} is held open by {who}. "
+            raise StepError(f"{failed}: {stuck.name or 'one of its files'} is held open by {who}. "
                             f"Nothing was changed. Close that program (Task Manager, End task) or reload "
                             f"this page, then try again.") from None
-    # In-hand previews are named by shot number; they are remade on the next look.
+    for _, parked, dest in plan:
+        if dest is None:
+            try:
+                parked.unlink()
+            except OSError:
+                pass                                         # repair() deletes it on the next look
+    # In-hand previews and drawn chat screens are named by shot number; they are remade on the next look.
     app = run_dir / "app"
     if app.is_dir():
         for f in app.iterdir():
-            if f.is_file() and re.match(r"^preview_\d+_.*\.jpg$", f.name):
+            if f.is_file() and re.match(r"^(preview_\d+_.*\.jpg|texts_\d+\.(png|txt))$", f.name):
                 f.unlink()
-    return {"moved": n, "to": to, "files": len(plan), "script": clean}
+    return len(plan)
+
+
+def _problems(e: ValueError) -> str:
+    return "; ".join(line[2:] if line.startswith("- ") else line for line in str(e).splitlines() if line.strip())
+
+
+def _load(run_dir: Path) -> tuple[dict, list[dict]]:
+    path = run_dir / "script.json"
+    if not path.is_file():
+        raise StepError("this run has no script yet")
+    script = read_json(path)
+    return script, script.get("shots") or []
+
+
+def insert(run_dir: Path, config: dict, after: int, shot: dict, free_leftovers: bool = False) -> dict:
+    """Add `shot` after shot `after` (0 = before the first). Every later shot moves down one and
+    keeps its picture, clip and voice. Returns {"added": its number, "files", "script"}."""
+    script, shots = _load(run_dir)
+    count = len(shots)
+    if not isinstance(after, int) or isinstance(after, bool) or not 0 <= after <= count:
+        raise StepError(f"the place must be a number from 0 to {count}")
+    added = copy.deepcopy(script)
+    new = copy.deepcopy(shot)
+    following = shots[after] if after < count else None
+    if (str(new.get("image_prompt") or "").strip() and isinstance(following, dict)
+            and following.get("same_scene") is True and after > 0):
+        new["same_scene"] = True            # inside a scene: the shots after it must still continue that scene
+    added["shots"] = [copy.deepcopy(x) for x in shots[:after]] + [new] + [copy.deepcopy(x) for x in shots[after:]]
+    for i, s in enumerate(added["shots"], start=1):
+        s["n"] = i
+    try:
+        clean = validate_for_run(run_dir, config, added)
+    except ValueError as e:
+        raise StepError(f"the shot was not added: the script would no longer pass the "
+                        f"{config['format'].get('title') or config['format']['name']} rules ({_problems(e)})") from None
+    new_of = {old: old + 1 for old in range(after + 1, count + 1)}
+    files = _apply(run_dir, clean, new_of, set(), free_leftovers, "the shot was not added")
+    return {"added": after + 1, "files": files, "script": clean}
+
+
+def remove(run_dir: Path, config: dict, n: int, free_leftovers: bool = False) -> dict:
+    """Take shot `n` out, with its picture, clip and voice. The shots after it move up one.
+    Returns {"removed": n, "files", "script"}."""
+    script, shots = _load(run_dir)
+    count = len(shots)
+    if not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= count:
+        raise StepError(f"shot must be a number from 1 to {count}")
+    order = [k for k in range(1, count + 1) if k != n]
+    cut = copy.deepcopy(script)
+    cut["shots"] = [copy.deepcopy(shots[old - 1]) for old in order]
+    for i, s in enumerate(cut["shots"], start=1):
+        s["n"] = i
+    _keep_scenes(shots, order, cut["shots"])
+    try:
+        clean = validate_for_run(run_dir, config, cut)
+    except ValueError as e:
+        raise StepError(f"shot {n} was not removed: without it the script would no longer pass the "
+                        f"{config['format'].get('title') or config['format']['name']} rules ({_problems(e)})") from None
+    new_of = {old: old - 1 for old in range(n + 1, count + 1)}
+    files = _apply(run_dir, clean, new_of, {n}, free_leftovers, f"shot {n} was not removed")
+    return {"removed": n, "files": files, "script": clean}

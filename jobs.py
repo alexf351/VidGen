@@ -314,6 +314,17 @@ class JobRunner:
                     return j
         return None
 
+    def forget_run(self, run_id: str) -> int:
+        """Drop the finished jobs of a run that was deleted, so the job list does not point at
+        a video that is gone. Returns how many were dropped."""
+        with self._lock:
+            gone = [k for k, j in self.jobs.items() if j.run_id == run_id and j.status not in ("queued", "running")]
+            for k in gone:
+                del self.jobs[k]
+        if gone:
+            self.save()
+        return len(gone)
+
     def latest_for_run(self, run_id: str) -> Job | None:
         with self._lock:
             mine = [j for j in self.jobs.values() if j.run_id == run_id]

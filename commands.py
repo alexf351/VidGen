@@ -198,6 +198,54 @@ def reroll(run_id: str, shot_number: int, config: dict) -> None:
         step_module("voice").run(run_dir, config, only=str(shot_number))
 
 
+DELETING = ".deleting-"        # a run folder on its way out; hidden from the list of videos
+
+
+def sweep_deleted(root: Path) -> int:
+    """Finish deletions that could not be finished at the time (a file was still open)."""
+    import shutil
+    gone = 0
+    if root.is_dir():
+        for d in root.iterdir():
+            if d.is_dir() and d.name.startswith(DELETING):
+                shutil.rmtree(d, ignore_errors=True)
+                gone += not d.exists()
+    return gone
+
+
+def delete_run(run_dir: Path, free_leftovers: bool = False) -> None:
+    """Delete a video: its whole folder, with the pictures, clips, voices and the finished cut.
+
+    The folder is first renamed out of the list in one step. On Windows that fails while any
+    file in it is open, so nothing is ever half deleted: either the video is gone from the
+    list, or it is untouched and the error says what still has it open. `free_leftovers`: no
+    job is working on this run, so an ffmpeg of VidGen's own that holds a file may be ended."""
+    import shutil
+    import shot_order
+    run_dir = Path(run_dir)
+    parked = run_dir.with_name(f"{DELETING}{run_dir.name}")
+    if parked.exists():
+        shutil.rmtree(parked, ignore_errors=True)
+    for attempt in (1, 2):
+        try:
+            shot_order._rename(run_dir, parked, tries=5)
+            break
+        except PermissionError:
+            who, freed = "another program", False
+            for f in sorted(p for p in run_dir.rglob("*") if p.is_file()):
+                import winlock
+                if winlock.holders(f):
+                    who, freed = shot_order._why_locked(f, free_leftovers)
+                    break
+            if freed and attempt == 1:
+                continue
+            raise StepError(f"this video was not deleted: one of its files is held open by {who}. Close the "
+                            f"video or clip that is playing and delete it again.") from None
+        except OSError as e:
+            raise StepError(f"this video was not deleted: {e}") from None
+    shutil.rmtree(parked, ignore_errors=True)       # anything that will not go now goes at the next start
+
+
 def move_shot(run_id: str, shot_number: int, to: int, config: dict) -> dict:
     """Move a shot to another place in the run, with its picture, clip and voice (shot_order.py)."""
     run_dir = run_dir_for(run_id)

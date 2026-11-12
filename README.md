@@ -420,6 +420,10 @@ python main.py ui                 # http://127.0.0.1:8765/, opens your browser
 python main.py ui --port 9000 --no-browser
 ```
 
+The interface is light by default; "Dark mode" at the foot of the sidebar switches it, and the
+choice is remembered in that browser. Its typeface (Inter) ships with VidGen, so it looks the
+same on every computer.
+
 A FastAPI server on **127.0.0.1 only** (it holds your API keys; nothing else on the network
 can reach it). It calls the same functions as the CLI (`commands.py`), so runs made in the UI
 and in the terminal are the same runs in the same output folder. Interactive API docs are at
@@ -451,11 +455,25 @@ The editor (`ui/`: `index.html`, `app.css`, `app.js`; plain HTML/CSS/JS, no buil
     Select several shots to redo images, video or voice for just those.
   - **Script and editing**: every shot as a row with its picture, speaker, caption and line
     (the two arrows under a row's picture move the shot one place earlier or later; its
-    picture, clip and voice move with it and nothing is generated)
+    picture, clip and voice move with it and nothing is generated; the bin beside them removes
+    the shot, with its picture, clip and voice, after asking)
     (an app screen row has a Change screen button).
+    Between any two rows, **Add a shot here** opens a short form: a scene shot (who is in it,
+    what we see, how it moves, an optional line and who says it), text messages on the phone,
+    or a time card. VidGen writes the shot from the answers (`shot_new.py`): the cast's
+    descriptions word for word, the place carried over from the shot before when it continues
+    that scene, and nobody called by name in the picture prompt. The later shots keep their
+    pictures, clips and voices under their new numbers. The new shot has no picture yet;
+    "Make its picture" draws just that one.
+    A script you edit may go past the format's shot and word counts, which are targets for
+    whoever writes it. What makes the format (its time card, its progress shots, its montage,
+    the lines that come back) still has to hold, and the error says which.
     "Picture, motion and sound" under a row opens the rest (scene description, motion, sound
     effect, progress number, time-card text). Save with the button or Ctrl+S (Cmd+S on a Mac);
     it validates and offers to redo only what changed. A dot on the tab means unsaved edits.
+  **Delete** in the header (and the bin beside each video in the sidebar) removes a video and
+  everything made for it, after asking. It cannot be undone, and it is refused while a job is
+  working on that video.
   The right column holds the final video with Download, the caption style, the voices and the
   cost so far. A run made with the Claude Code engine has the same header and steps (Story,
   Scenes, Voice, Render), its stills, and the story editor in the right column.
@@ -485,6 +503,9 @@ that was running or queued when the server stopped is marked failed on the next 
 | `POST /api/runs/{run_id}/step` `{step, only, provider}` | reruns one step (`only`: shot numbers, for images / video / voice) |
 | `POST /api/runs/{run_id}/reroll` `{shot, provider}` | new image + clip for one shot |
 | `POST /api/runs/{run_id}/recast` | recast |
+| `DELETE /api/runs/{run_id}` | deletes the video's folder (409 while a job is working on it, or while one of its files is open in another program: nothing is half deleted) |
+| `POST /api/runs/{run_id}/shots` `{after, shot}` | adds a shot after shot `after` (0 = first); `shot` is the form's answers, `{kind: scene / texts / card, ...}`. 422 with the reason when an answer is missing or the format's rules refuse it |
+| `DELETE /api/runs/{run_id}/shots/{n}` | removes shot `n` with its files; the later shots move up |
 | `PUT /api/runs/{run_id}/script` | saves an edited script.json after validating it with the run's format (422 with the errors otherwise; 409 while a job is working on that run) |
 | `GET /api/jobs`, `GET /api/jobs/{id}?since=N` | job status and log (from line N) |
 | `GET /api/jobs/{id}/stream` | Server-Sent Events: `log` events (one per line, `id` = line number, resumable with `Last-Event-ID`) and `status` events; ends when the job does |

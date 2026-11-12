@@ -112,6 +112,11 @@ class DescribeRequest(BaseModel):
     character: str | None = None      # a library character's own picture
 
 
+class NewShot(BaseModel):
+    after: int                        # the shot it comes after; 0 = before the first
+    shot: dict                        # the form's answers (shot_new.py)
+
+
 class MoveShot(BaseModel):
     shot: int
     to: int
@@ -169,6 +174,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
     @asynccontextmanager
     async def lifespan(_app):
         runner.start()
+        commands.sweep_deleted(runs_dir())
         try:
             yield
         finally:
@@ -573,6 +579,21 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         out["active_job"] = job_out(runner.active_for_run(run_id)) if runner.active_for_run(run_id) else None
         return out
 
+    @app.delete("/api/runs/{run_id}")
+    def delete_run(run_id: str) -> dict:
+        """Delete a video and everything made for it. Not while a job is working on it."""
+        run_dir = run_dir_of(run_id)
+        active = runner.active_for_run(run_id)
+        if active:
+            raise HTTPException(409, f"this video has a job {active.status} ({active.action}); wait for it to "
+                                     f"finish, then delete it")
+        try:
+            commands.delete_run(run_dir, free_leftovers=True)
+        except StepError as e:
+            raise HTTPException(409, str(e)) from e
+        runner.forget_run(run_id)
+        return {"deleted": run_id}
+
     @app.post("/api/runs/{run_id}/step", status_code=202)
     def rerun_step(run_id: str, body: StepRequest) -> dict:
         run_dir = run_dir_of(run_id)
@@ -632,6 +653,42 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         except StepError as e:
             raise HTTPException(422, str(e)) from e
         return {"moved": out["moved"], "to": out["to"], "files": out["files"]}
+
+    def idle_or_409(run_id: str) -> None:
+        active = runner.active_for_run(run_id)
+        if active:
+            raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
+                                     f"wait for it to finish")
+
+    @app.post("/api/runs/{run_id}/shots")
+    def add_shot(run_id: str, body: NewShot) -> dict:
+        """Add a shot after shot `after` (0 = first). The shots after it keep their pictures,
+        clips and voices. Nothing is generated; the new shot's picture is made by the images step."""
+        import shot_new
+        import shot_order
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "adding a shot")
+        idle_or_409(run_id)
+        cfg = config_for_run(run_dir)
+        try:
+            shot = shot_new.build(cfg, run_status.load_script(run_dir) or {}, body.after, body.shot)
+            out = shot_order.insert(run_dir, cfg, body.after, shot, free_leftovers=True)
+        except StepError as e:
+            raise HTTPException(422, str(e)) from e
+        return {"added": out["added"], "files": out["files"]}
+
+    @app.delete("/api/runs/{run_id}/shots/{n}")
+    def remove_shot(run_id: str, n: int) -> dict:
+        """Take a shot out, with its picture, clip and voice. The shots after it move up."""
+        import shot_order
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "removing a shot")
+        idle_or_409(run_id)
+        try:
+            out = shot_order.remove(run_dir, config_for_run(run_dir), n, free_leftovers=True)
+        except StepError as e:
+            raise HTTPException(422, str(e)) from e
+        return {"removed": out["removed"], "files": out["files"]}
 
     def image_pipeline_only(run_dir: Path, what: str) -> None:
         if run_engine(run_dir) == "claude_code":
@@ -934,6 +991,15 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                 or target.suffix.lower() not in SERVED_SUFFIXES or not target.is_file()):
             raise HTTPException(404, "not found")
         return FileResponse(target)
+
+    @app.get("/ui-font/{name}")
+    def ui_font(name: str):
+        """The interface's own typeface (Inter, bundled under the OFL), so it looks the same on
+        every computer. Only these two files."""
+        if name not in ("Inter-Regular.otf", "Inter-SemiBold.otf"):
+            raise HTTPException(404, "not found")
+        return FileResponse(ROOT / "assets" / "fonts" / name, media_type="font/otf",
+                            headers={"Cache-Control": "public, max-age=604800"})
 
     if UI_DIR.is_dir():
         app.mount("/", FreshStaticFiles(directory=UI_DIR, html=True), name="ui")
