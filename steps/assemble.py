@@ -915,77 +915,69 @@ def own_sound_shots(run_dir: Path, plan: list[dict], config: dict) -> list[dict]
 
 def mix_sound(build: Path, plan: list[dict], total: float, config: dict,
               sfx_track: Path | None = None) -> Path:
-    """build/mix.wav: every voice line at its shot's start, the music bed or the song, and the
-    sound effects, exactly as long as the cut. Sound only: no picture is read here."""
+    """build/mix.wav: every voice line at its shot's start, the music bed or the song, the clips'
+    own sound and the sound effects, exactly as long as the cut. Sound only: no picture is read.
+
+    Each sound is first turned into a plain wav by its own small ffmpeg command, then they are
+    added up in Python (audio_mix.py). It used to be one ffmpeg command with an input per sound,
+    which some Windows ffmpeg builds stop in the middle of and never finish."""
+    import audio_mix
+    import progress
     asm = config["assemble"]
     out = build / "mix.wav"
-    args: list[str] = []
+    work = build / "mix"
+    work.mkdir(exist_ok=True)
+    items: list[dict] = []
     vo_items = [it for it in plan if it["vo"] is not None]
-    for it in vo_items:
-        args += ["-i", str(it["vo"])]
+    own_items = own_sound_shots(build.parent, plan, config)
     song = song_file(build.parent) if any(it.get("sung") for it in plan) else None
     music = "" if song else (config.get("music_path") or "")
     music_file = (ROOT / music) if music else None
     if music_file and not music_file.exists():
         print(f"  music: {music} not found, skipping the music bed")
         music_file = None
-    if music_file:
-        args += ["-stream_loop", "-1", "-i", str(music_file)]
-    if song:
-        args += ["-i", str(song)]
-    if sfx_track:
-        args += ["-i", str(sfx_track)]
-    first_own = len(vo_items) + (1 if (music_file or song) else 0) + (1 if sfx_track else 0)
-    own_items = own_sound_shots(build.parent, plan, config)
-    for it in own_items:
-        args += ["-t", f"{it['duration']:.3f}", "-i", str(video_path(build.parent, it["n"]))]
+    steps = len(vo_items) + len(own_items) + (1 if (music_file or song) else 0) + 1
+    done = [0]
 
-    # VO clips at their shot start times, optional music bed, padded to the cut length.
-    parts: list[str] = []
-    labels: list[str] = []
-    for i, it in enumerate(vo_items):
-        ms = int(round(it["start"] * 1000))
-        parts.append(f"[{i}:a]aresample=44100,adelay={ms}:all=1[vo{i}]")
-        labels.append(f"[vo{i}]")
+    def tick() -> None:
+        done[0] += 1
+        progress.note(f"sound mix {min(99, int(done[0] / steps * 100))}%")
+
+    # Voice lines at their shot start times.
+    for it in vo_items:
+        wav = audio_mix.decode(it["vo"], work / f"vo_{it['n']:02d}.wav", f"shot {it['n']}: its voice")
+        items.append({"path": wav, "start": it["start"]})
+        tick()
     if own_items:
         # Clip sound: a shot where nobody speaks plays its clip's own sound (a door, footsteps),
         # faded at both ends so the cut does not click.
         import clip_sound
         level = clip_sound.settings(config)["level"]
-        for k, it in enumerate(own_items):
+        for it in own_items:
             d = float(it["duration"])
-            ms = int(round(it["start"] * 1000))
-            parts.append(f"[{first_own + k}:a]aresample=44100,atrim=0:{d:.3f},afade=t=in:d=0.04,"
-                         f"afade=t=out:st={max(0.0, d - 0.08):.3f}:d=0.08,volume={level:.3f},adelay={ms}:all=1[own{k}]")
-            labels.append(f"[own{k}]")
+            wav = audio_mix.decode(video_path(build.parent, it["n"]), work / f"own_{it['n']:02d}.wav",
+                                   f"shot {it['n']}: its clip's own sound", seconds=d,
+                                   filters=f"afade=t=in:d=0.04,afade=t=out:st={max(0.0, d - 0.08):.3f}:d=0.08,"
+                                           f"volume={level:.3f}")
+            items.append({"path": wav, "start": it["start"]})
+            tick()
         print(f"  clip sound: {len(own_items)} shot(s) where nobody speaks play their clip's own sound")
     if music_file:
-        mi = len(vo_items)
-        parts.append(f"[{mi}:a]aresample=44100,volume={float(asm['music_volume']):.3f},"
-                     f"atrim=0:{total:.3f}[mu]")
-        labels.append("[mu]")
+        wav = audio_mix.decode(music_file, work / "music.wav", "music bed", seconds=total, loop=True,
+                               filters=f"volume={float(asm['music_volume']):.3f}")
+        items.append({"path": wav, "start": 0.0})
+        tick()
     if song:
-        si = len(vo_items)
         fade = min(1.2, total / 4)
-        parts.append(f"[{si}:a]aresample=44100,atrim=0:{total:.3f},"
-                     f"afade=t=out:st={max(0.0, total - fade):.3f}:d={fade:.3f}[song]")
-        labels.append("[song]")
+        wav = audio_mix.decode(song, work / "song.wav", "song", seconds=total,
+                               filters=f"afade=t=out:st={max(0.0, total - fade):.3f}:d={fade:.3f}")
+        items.append({"path": wav, "start": 0.0})
+        tick()
     if sfx_track:
         # Already at its own level and as long as the cut (sfx.py); it goes in as it is.
-        xi = len(vo_items) + (1 if (music_file or song) else 0)
-        parts.append(f"[{xi}:a]aresample=44100[sfx]")
-        labels.append("[sfx]")
-    if labels:
-        if len(labels) == 1:
-            parts.append(f"{labels[0]}apad,atrim=0:{total:.3f}[a]")
-        else:
-            parts.append(f"{''.join(labels)}amix=inputs={len(labels)}:normalize=0:dropout_transition=0,"
-                         f"apad,atrim=0:{total:.3f}[a]")
-    else:
-        parts.append(f"anullsrc=r=44100:cl=stereo,atrim=0:{total:.3f}[a]")
-    run_ffmpeg([*args, "-filter_complex", ";".join(parts), "-map", "[a]", "-t", f"{total:.3f}",
-                "-ar", "44100", "-ac", "2", "-c:a", "pcm_s16le", out.name], "sound mix", cwd=build,
-               on_progress=_encode_watch("sound mix", total, quiet=True))
+        items.append({"path": sfx_track, "start": 0.0})
+    audio_mix.mix(items, total, out)
+    progress.note("sound mix 100%")
     return out
 
 

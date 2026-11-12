@@ -814,6 +814,14 @@ existing clips are skipped unless named with `--only`.
 `steps/assemble.py` drives ffmpeg through subprocess and prints a clear error if ffmpeg or
 ffprobe is missing.
 
+The sound is mixed in Python, not by ffmpeg. `audio_mix.py` has ffmpeg turn each sound into a
+plain wav on its own (one file in, one file out), then puts the voice lines, the clips' own
+sound, the effects and the music at their places and adds them up. One ffmpeg command with an
+input per sound (forty or more in a fast cut) is the obvious way, and some Windows ffmpeg
+builds stop in the middle of it and never finish; the same command takes under a second
+elsewhere. Any ffmpeg command that has no progress to watch is also stopped, and named, if it
+has not finished in ten minutes, so the final cut can no longer sit at 99%.
+
 ### Caption styles
 
 A format sets its own captions. A caption style swaps the look (font, colours, outline, shadow)

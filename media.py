@@ -81,6 +81,7 @@ atexit.register(stop_all)
 
 # A long encode that reports no new frame for this long is taken to be stuck, and stopped.
 STALL_SECONDS = 240
+QUICK_SECONDS = 600            # the longest a command with no progress to watch may take
 
 
 def ffmpeg_version() -> str:
@@ -105,7 +106,15 @@ def run_ffmpeg(args: list[str], label: str, cwd: Path | None = None, on_progress
         proc = subprocess.Popen([*base, *args], cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
         with _alive(proc):
-            _, err = proc.communicate()
+            try:
+                _, err = proc.communicate(timeout=QUICK_SECONDS)
+            except subprocess.TimeoutExpired:
+                # A command with no progress to watch must still never sit there for ever.
+                proc.kill()
+                _, err = proc.communicate()
+                tail = " | ".join((err or "").strip().splitlines()[-3:])
+                raise StepError(f"{label}: ffmpeg did not finish in {QUICK_SECONDS // 60} minutes and was stopped. "
+                                f"This step normally takes seconds." + (f" ffmpeg said: {tail}" if tail else "")) from None
         if proc.returncode != 0:
             tail = "\n".join((err or "").strip().splitlines()[-12:])
             raise StepError(f"{label}: ffmpeg failed (exit {proc.returncode})\n{tail}")

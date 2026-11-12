@@ -466,7 +466,6 @@ def placed(cue_list: list[dict], lib: dict[str, dict], total: float) -> list[dic
 def render_track(build: Path, plan: list[dict], total: float, config: dict) -> Path | None:
     """build/sfx.wav: every effect at its place, silence between them, as long as the cut. None
     when sound effects are off or this cut has no place for one."""
-    from media import run_ffmpeg
     cfg = settings(config)
     if not cfg["enabled"] or cfg["volume"] <= 0:
         return None
@@ -478,21 +477,12 @@ def render_track(build: Path, plan: list[dict], total: float, config: dict) -> P
     items = placed(cue_list, lib, total)
     if not items:
         return None
-    args: list[str] = []
-    parts, labels = [], []
-    for i, it in enumerate(items):
-        args += ["-i", str(it["path"])]
-        trim = f"atrim=start={it['skip']:.3f},asetpts=PTS-STARTPTS," if it["skip"] else ""
-        parts.append(f"[{i}:a]{trim}volume={it['level'] * cfg['volume']:.3f},"
-                     f"adelay={int(round(it['start'] * 1000))}:all=1[s{i}]")
-        labels.append(f"[s{i}]")
-    mix = (f"{labels[0]}" if len(labels) == 1 else
-           f"{''.join(labels)}amix=inputs={len(labels)}:normalize=0:dropout_transition=0,")
-    tail = f"apad,atrim=0:{total:.3f}[a]"
-    parts.append(f"{mix}{tail}" if len(labels) > 1 else f"{labels[0]}{tail}")
+    # Each effect at its place, added up in Python (audio_mix.py): no ffmpeg command with an
+    # input per effect, which some Windows ffmpeg builds never finish.
+    import audio_mix
     out = build / "sfx.wav"
-    run_ffmpeg([*args, "-filter_complex", ";".join(parts), "-map", "[a]", "-ar", str(RATE), "-ac", "2",
-                "-c:a", "pcm_s16le", str(out)], "sound effects track")
+    audio_mix.mix([{"path": it["path"], "start": it["start"], "skip": it["skip"],
+                    "gain": it["level"] * cfg["volume"]} for it in items], total, out)
     counts: dict[str, int] = {}
     for it in items:
         counts[it["sound"]] = counts.get(it["sound"], 0) + 1
