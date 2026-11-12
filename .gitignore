@@ -16,3 +16,5 @@ library/
 cache/
 # your own app screenshots (added in the UI or dropped in by hand)
 assets/screens/mine/
+# your own music tracks (added in the UI or dropped in by hand)
+assets/music/

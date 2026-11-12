@@ -506,6 +506,12 @@ that was running or queued when the server stopped is marked failed on the next 
 | `GET /api/runs/{run_id}` | the script, per-shot image / clip / audio URLs and word timings, step status, cost rows |
 | `POST /api/runs/{run_id}/step` `{step, only, provider}` | reruns one step (`only`: shot numbers, for images / video / voice) |
 | `POST /api/runs/{run_id}/reroll` `{shot, provider}` | new image + clip for one shot |
+| `GET /api/music` | your tracks, the levels' ranges and the music new videos start with |
+| `POST /api/music` `{title, filename, file}` | add a track (`file` is a data: URL of a sound file, or of a video whose sound is used) |
+| `DELETE /api/music/{name}` | remove a track |
+| `PUT /api/music/default` `{music}` | the music and levels new videos start with (`null` = none) |
+| `PUT /api/runs/{run_id}/music` `{track, level, loud, voices, speed, start}` | this video's track and levels |
+| `POST /api/runs/{run_id}/remix` | mix the sound again on the picture the video already has (a job; no API calls) |
 | `PUT /api/runs/{run_id}/shots/{n}/clip-voice` `{on}` | mark (or unmark) a spoken shot as "its clip says the line": the voice step then takes the line from the clip whatever the word finder heard |
 | `POST /api/runs/{run_id}/reroll-many` `{shots, provider}` | the same for several shots as one job: their pictures, then their clips (and, with clip sound, their lines) |
 | `POST /api/runs/{run_id}/recast` | recast |
@@ -955,6 +961,39 @@ ME", then "best wingman ever"). A `texts` shot does that:
   plain text boxes: change them, save, assemble again.
 - Any format can use one in a ready-made script or by editing a script. The script prompts do
   not ask Claude for them yet.
+
+### Music and levels
+
+The **Music** panel on a video's page sets the track and how loud everything is:
+
+- **Add a track**: an mp3, wav, m4a, ogg or flac you have, up to 40 MB, or a video file
+  (mp4, mov, webm) whose sound is used. Tracks are kept in `assets/music/` on this computer
+  (not in git) and offered to every video. A file dropped into that folder by hand is listed
+  too. VidGen does not download music from anywhere.
+- **Music under the talking** and **Music in the montage**: two levels for the same track. The
+  music sits low while people talk, comes up over the half second before the first montage
+  shot, stays up to the end and fades out over the last 0.8 seconds. A script with no montage
+  plays it at the first level all the way.
+- **Voices and clip sound**: one level for every spoken line and for the clips' own sound.
+- **Speed**: Slowed plays the track slower and lower in pitch, the way a slowed version of a
+  song sounds. **Start the track at** skips its opening seconds.
+- **Mix the sound again** puts the new sound on the picture the video already has. Only the
+  sound is made, so it takes seconds and makes no API calls. It is offered once a video has
+  been assembled; if a shot's length has changed since (a new line, a new clip), the whole
+  video is assembled instead.
+- **Use this music and these levels for new videos** makes them the starting point of every
+  video made after that.
+
+A video keeps its choice in `run.json`:
+
+```json
+"music": { "track": "legacy_slowed.mp3", "level": 0.1, "loud": 0.6, "voices": 1.0, "speed": 0.85, "start": 0 }
+```
+
+A video with no `music` block uses `music_path` and `assemble.music_volume` from the config,
+at one level, as before. Music you add is yours to clear: a song you do not have the rights
+to can get a post muted or taken down, and an ad for a product needs a licence that covers
+commercial use.
 
 ### Sound effects
 

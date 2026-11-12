@@ -877,6 +877,131 @@ function captionsPanel(run, busy) {
   return box;
 }
 
+// ------------------------------------------------------------ music panel
+// This video's track and how loud everything is (music.py on the server). The music sits low
+// under the talking and comes up when the montage starts; "Mix the sound again" puts the new
+// sound on the picture the video already has, in seconds.
+function clock(seconds) {
+  const t = Math.max(0, Math.round(Number(seconds) || 0));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+}
+
+function musicPanel(run, busy) {
+  const box = h("section", { class: "captions-panel music-panel", "aria-label": "Music" });
+  const rid = encodeURIComponent(run.run_id);
+  const keys = ["track", "level", "loud", "voices", "speed", "start"];
+  const now = () => Object.fromEntries(keys.map((k) => [k, run.music[k]]));
+  const sameAs = (d) => !!d && keys.every((k) => d[k] === run.music[k]);
+  if (!S.musicLib) {
+    api("GET", "/api/music").then((r) => { S.musicLib = r; draw(); }).catch(() => { S.musicLib = { tracks: [], default: null, limits: {}, max_mb: 40 }; draw(); });
+  }
+  // One save at a time, the latest values last: a slider moved with the arrow keys reports
+  // every step, and saves racing each other could land out of order.
+  let sending = null, again = false;
+  const send = async () => {
+    if (sending) { again = true; return sending; }
+    sending = (async () => {
+      do {
+        again = false;
+        try {
+          const r = await api("PUT", `/api/runs/${rid}/music`, now());
+          if (!again) run.music = { ...r.music, loud_shot: run.music.loud_shot };
+          S.musicLib = { ...S.musicLib, tracks: r.tracks, default: r.default };
+          S.musicRedo = r.assembled ? run.run_id : null;
+        } catch (e) { toast(e.message, "bad"); again = false; }
+      } while (again);
+      sending = null;
+      draw();
+    })();
+    return sending;
+  };
+  const save = (change) => {
+    // A first track on a video that had no music of its own starts at the usual levels
+    // (quiet under the talking, up for the montage), not at the config's one level.
+    const fresh = !run.music.own && change.track ? Object.fromEntries(["level", "loud"].map((k) => [k, ((S.musicLib.limits || {})[k] || [run.music[k]])[0]])) : {};
+    run.music = { ...run.music, ...fresh, ...change };
+    return send();
+  };
+  const upload = async (file) => {
+    if (!file) return;
+    const max = (S.musicLib && S.musicLib.max_mb) || 40;
+    if (file.size > max * 1024 * 1024) { toast(`That file is larger than ${max} MB.`, "bad"); return; }
+    S.musicBusy = true; draw();
+    try {
+      const title = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+      const r = await api("POST", "/api/music", { title, filename: file.name, file: await readFile(file) });
+      S.musicLib = { ...S.musicLib, tracks: r.tracks, default: r.default };
+      S.musicBusy = false;
+      await save({ track: r.added.name });
+      toast(`Added \u201c${r.added.title}\u201d`, "ok");
+    } catch (e) { S.musicBusy = false; toast(e.message, "bad"); draw(); }
+  };
+  const slider = (key, label, note) => {
+    const [, low, high] = (S.musicLib.limits || {})[key] || [0, 0, 1];
+    const out = h("span", { class: "mix-val" }, `${Math.round(run.music[key] * 100)}%`);
+    const id = `mix-${key}`;
+    return h("div", { class: "mix-row" },
+      h("label", { for: id }, label), out,
+      h("input", { id, type: "range", min: String(low * 100), max: String(high * 100), step: "1", value: String(Math.round(run.music[key] * 100)), disabled: busy,
+        oninput: (e) => { out.textContent = `${e.target.value}%`; },
+        onchange: (e) => save({ [key]: Number(e.target.value) / 100 }) }),
+      note ? h("div", { class: "field-note" }, note) : null);
+  };
+  const draw = () => {
+    const lib = S.musicLib;
+    if (!lib) { box.replaceChildren(h("div", { class: "panel-title" }, "Music"), h("div", { class: "field-note" }, "Loading your tracks\u2026")); return; }
+    const m = run.music;
+    const picked = lib.tracks.find((t) => t.name === m.track);
+    const pick = h("input", { type: "file", accept: "audio/*,video/mp4,video/quicktime,video/webm,.mp3,.wav,.m4a,.aac,.ogg,.flac,.mp4,.mov", hidden: true,
+      onchange: (e) => upload(e.target.files[0]) });
+    const sel = h("select", { "aria-label": "Track", disabled: busy || S.musicBusy, onchange: (e) => save({ track: e.target.value }) },
+      h("option", { value: "", selected: !m.track }, m.playing && !m.own ? `The track set in the config (${m.title})` : "No music"),
+      lib.tracks.map((t) => h("option", { value: t.name, selected: t.name === m.track }, `${t.title}${t.seconds ? ` \u00b7 ${clock(t.seconds)}` : ""}`)));
+    const redo = S.musicRedo === run.run_id && run.final_video;
+    const isDefault = sameAs(lib.default);
+    const hasMusic = !!m.playing;
+    const focused = box.contains(document.activeElement) ? document.activeElement.id : "";
+    box.replaceChildren(...[
+      h("div", { class: "panel-title" }, "Music"),
+      h("div", { class: "music-pick" }, sel,
+        h("button", { class: "btn small", type: "button", disabled: busy || S.musicBusy, onclick: () => pick.click() }, S.musicBusy ? "Adding\u2026" : "Add a track"), pick),
+      !lib.tracks.length ? h("div", { class: "field-note" }, `Add an mp3, wav or m4a you have (or a video file, and its sound is used). Up to ${lib.max_mb} MB. It stays on this computer.`) : null,
+      picked ? h("audio", { class: "voice-player", controls: true, preload: "none", src: picked.url }) : null,
+      hasMusic ? slider("level", "Music under the talking") : null,
+      hasMusic ? slider("loud", "Music in the montage",
+        m.loud_shot ? `Comes up at shot ${m.loud_shot}, where the montage starts, and stays up to the end.` : "This script has no montage, so the music stays at the first level all the way.") : null,
+      slider("voices", "Voices and clip sound"),
+      hasMusic && m.own ? h("div", { class: "mix-row" }, h("label", {}, "Speed"),
+        chips([[1, "Normal"], [0.85, "Slowed"], [0.75, "Very slow"], [1.15, "Sped up"]], [1, 0.85, 0.75, 1.15].includes(m.speed) ? m.speed : null, (v) => save({ speed: v }), "Track speed"),
+        h("div", { class: "field-note" }, "Slowed plays the track slower and lower, like the slowed versions of a song.")) : null,
+      hasMusic && m.own ? h("div", { class: "mix-row start" }, h("label", { for: "mix-start" }, "Start the track at"),
+        h("input", { id: "mix-start", type: "number", min: "0", step: "1", value: String(m.start), disabled: busy, inputmode: "numeric",
+          onchange: (e) => save({ start: Math.max(0, Number(e.target.value) || 0) }) }), h("span", { class: "dim" }, "seconds in")) : null,
+      redo ? h("div", { class: "notice" }, "The finished video still has the old sound. ",
+        run.can_remix
+          ? h("button", { class: "btn small", disabled: busy, onclick: () => { S.musicRedo = null; releaseMedia(); submit(api("POST", `/api/runs/${rid}/remix`, {}), "sound mix"); } }, "Mix the sound again")
+          : h("button", { class: "btn small", disabled: busy, onclick: () => { S.musicRedo = null; runStep(run, "assemble"); } }, "Assemble again"),
+        h("div", { class: "field-note" }, run.can_remix ? "Only the sound is made again, on the same picture. It takes seconds and costs nothing." : "Assembling makes no API calls, so it costs nothing.")) : null,
+      !redo && run.final_video && run.can_remix ? h("div", { class: "field-note" }, "Change a level, then mix the sound again: the picture is kept, so it takes seconds.") : null,
+      m.own ? h("div", { class: "music-default" }, isDefault
+        ? ["New videos start with this music. ", h("button", { class: "link-btn", type: "button", onclick: async () => {
+            try { const r = await api("PUT", "/api/music/default", { music: null }); S.musicLib = { ...S.musicLib, default: r.default }; } catch (e) { toast(e.message, "bad"); } draw(); } }, "Stop")]
+        : h("button", { class: "link-btn", type: "button", onclick: async () => {
+            try { const r = await api("PUT", "/api/music/default", { music: now() }); S.musicLib = { ...S.musicLib, default: r.default }; toast("New videos will start with this music", "ok"); } catch (e) { toast(e.message, "bad"); } draw(); } },
+            "Use this music and these levels for new videos")) : null,
+      picked ? h("div", { class: "music-default" }, h("button", { class: "link-btn quiet", type: "button", disabled: busy, onclick: async () => {
+        const ok = await confirmDialog({ title: `Remove \u201c${picked.title}\u201d from your tracks?`, ok: "Remove", danger: true,
+          text: "The file is deleted from this computer's VidGen folder. Videos already made keep their sound." });
+        if (!ok) return;
+        try { const r = await api("DELETE", `/api/music/${encodeURIComponent(picked.name)}`); S.musicLib = { ...S.musicLib, tracks: r.tracks, default: r.default }; await save({ track: "" }); }
+        catch (e) { toast(e.message, "bad"); draw(); } } }, "Remove this track")) : null,
+    ].flat().filter(Boolean));
+    if (focused) { const el = box.querySelector(`#${focused}`); if (el) el.focus(); }
+  };
+  draw();
+  return box;
+}
+
 // ------------------------------------------------------------ sound panel
 // Clip sound for this video: the clips speak their own lines (clip_sound.py on the server).
 function soundPanel(run, busy) {
@@ -1636,6 +1761,7 @@ function sideColumn(run, busy) {
   }
   col.append(final);
   if (run.script) col.append(soundPanel(run, busy));
+  if (run.script && run.music) col.append(musicPanel(run, busy));
   if (run.script && captionStyles().length) col.append(captionsPanel(run, busy));
   if (run.voices && run.voices.length) col.append(voicesPanel(run, busy));
   if (run.song) {

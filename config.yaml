@@ -29,7 +29,8 @@ elevenlabs:
 ffmpeg_path: ""                 # empty = find ffmpeg on PATH; ffprobe comes from the same folder
 output_dir: "runs"              # where runs are written; relative to the repo or absolute
 
-# Background music mixed under the final cut. Empty = no music bed (add it on-platform).
+# Background music mixed under the final cut, for a video that has not chosen its own in the
+# Music panel (README: Music and levels). Empty = no music bed.
 music_path: ""
 
 # Short clip appended after the last shot. Empty = none.

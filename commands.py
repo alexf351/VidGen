@@ -90,6 +90,11 @@ def create_new_run(premise: str, config: dict, log=print, engine: str | None = N
     if script is not None:
         from common import write_json
         write_json(run_dir / "script.json", script)
+    if engine != "claude_code":
+        import music
+        start_with = music.default()                   # "use for new videos" in the Music panel
+        if start_with is not None:
+            music.set_for_run(run_dir, start_with)
     log(f"created run {run_dir.name} (format {config['format']['name']}"
         + (", Claude Code engine)" if engine == "claude_code" else ")"))
     log(f"  {run_dir}")
@@ -196,6 +201,17 @@ def reroll(run_id: str, shot_number: int, config: dict) -> None:
     if revoice:
         progress.step("voice")
         step_module("voice").run(run_dir, config, only=str(shot_number))
+
+
+def remix(run_id: str, config: dict) -> None:
+    """The sound of a finished video again, on the picture it already has: new music or new
+    levels without waiting for the whole assembly (steps/assemble.py, sound_only)."""
+    run_dir = run_dir_for(run_id)
+    _image_pipeline_only(run_dir, "the sound mix")
+    print(f"\n=== new sound mix ({run_dir.name}) ===")
+    progress.start(["assemble"])
+    progress.step("assemble")
+    step_module("assemble").run(run_dir, config, sound_only=True)
 
 
 DELETING = ".deleting-"        # a run folder on its way out; hidden from the list of videos

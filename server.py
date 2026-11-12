@@ -97,6 +97,25 @@ class VoiceChoice(BaseModel):
     voice_id: str | None = None       # None or "" goes back to the config / default voice
 
 
+class TrackIn(BaseModel):
+    title: str = ""
+    filename: str = ""                # only its ending is read (.mp3, .mp4 ...)
+    file: str                         # data: URL of the sound (or of a video whose sound is used)
+
+
+class MusicChoice(BaseModel):
+    track: str = ""                   # a track's file name; "" = no music
+    level: float = 0.10               # the music while people talk
+    loud: float = 0.60                # the music from the montage on
+    voices: float = 1.0               # the voices and the clips' own sound
+    speed: float = 1.0                # 0.85 = slowed
+    start: float = 0.0                # seconds into the track
+
+
+class MusicDefault(BaseModel):
+    music: MusicChoice | None = None  # None = new videos start without music again
+
+
 class ClipVoiceChoice(BaseModel):
     on: bool = True                   # True = this shot's clip says its line: use its voice
 
@@ -583,6 +602,14 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         out["cast"] = [{"id": c["id"], "name": c.get("name", c["id"]), "role": c.get("role", ""),
                         "replaced": c.get("replaced"), "image": char_url(c["id"])}
                        for c in (cfg or {}).get("locked_characters", []) if c.get("library")]
+        if out.get("engine") != "claude_code":
+            # The track and levels of this video, and the shot the music comes up on (music.py).
+            m = music_out(run_dir, cfg)
+            montage = next((s.get("n") for s in (out.get("script") or {}).get("shots", [])
+                            if isinstance(s, dict) and s.get("montage")), None)
+            out["music"] = {**m["music"], "loud_shot": montage}
+            # The sound can be mixed again on its own once a picture has been assembled.
+            out["can_remix"] = (run_dir / "build" / "main_video.mp4").is_file()
         job = runner.latest_for_run(run_id)
         out["job"] = job_out(job) if job else None
         out["active_job"] = job_out(runner.active_for_run(run_id)) if runner.active_for_run(run_id) else None
@@ -769,6 +796,86 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             return {"voices": voice_cast.list_voices(refresh=refresh), "error": None}
         except StepError as e:
             return {"voices": [], "error": str(e)}
+
+    def music_out(run_dir: Path | None = None, cfg: dict | None = None) -> dict:
+        import music
+        tracks = [{**t, "url": f"/music-file/{t['name']}?v={int(music.file_for(t['name']).stat().st_mtime)}"}
+                  for t in music.tracks()]
+        out = {"tracks": tracks, "default": music.default(), "limits": {k: list(v) for k, v in music.LEVELS.items()},
+               "max_mb": music.MAX_UPLOAD_BYTES // (1024 * 1024)}
+        if run_dir is not None:
+            now = music.for_run(run_dir, cfg or {})
+            out["music"] = {k: now[k] for k in ("track", "title", "level", "loud", "voices", "speed", "start", "own")}
+            out["music"]["playing"] = now["file"] is not None
+        return out
+
+    @app.get("/api/music")
+    def list_music() -> dict:
+        """Your tracks and the settings new videos start with."""
+        return music_out()
+
+    @app.post("/api/music", status_code=201)
+    def add_music(body: TrackIn) -> dict:
+        import music
+        try:
+            data = app_assets.decode_upload(body.file, "track", music.MAX_UPLOAD_BYTES)
+            track = music.add(body.title, body.filename, data)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        return {**music_out(), "added": track}
+
+    @app.delete("/api/music/{name}")
+    def delete_music(name: str) -> dict:
+        import music
+        try:
+            music.remove(name)
+        except StepError as e:
+            raise HTTPException(404, str(e)) from e
+        return {**music_out(), "deleted": name}
+
+    @app.put("/api/music/default")
+    def set_music_default(body: MusicDefault) -> dict:
+        """The music a new video starts with (None = none)."""
+        import music
+        try:
+            music.set_default(body.music.model_dump() if body.music else None)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        return music_out()
+
+    @app.get("/music-file/{name}")
+    def music_file(name: str):
+        import music
+        p = music.file_for(name)
+        if p is None:
+            raise HTTPException(404, "not found")
+        return FileResponse(p)
+
+    @app.put("/api/runs/{run_id}/music")
+    def set_run_music(run_id: str, body: MusicChoice) -> dict:
+        """This video's track and levels. The finished video keeps its old sound until it is
+        mixed again (POST .../remix: no API calls, so it costs nothing)."""
+        import music
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "music")
+        active = runner.active_for_run(run_id)
+        if active:
+            raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
+                                     f"wait for it to finish")
+        try:
+            music.set_for_run(run_dir, body.model_dump())
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        return {**music_out(run_dir, config_for_run(run_dir)), "assembled": (run_dir / "final.mp4").is_file()}
+
+    @app.post("/api/runs/{run_id}/remix", status_code=202)
+    def remix(run_id: str) -> dict:
+        """Mix the sound again on the picture the video already has (new music, new levels)."""
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "the sound mix")
+        if run_status.load_script(run_dir) is None:
+            raise HTTPException(409, "this run has no script.json yet; run the script step first")
+        return submit_run_job("assemble", run_dir, {"sound_only": True}, lambda cfg: commands.remix(run_id, cfg), None)
 
     @app.put("/api/runs/{run_id}/clip-sound")
     def set_run_clip_sound(run_id: str, body: ClipSoundChoice) -> dict:

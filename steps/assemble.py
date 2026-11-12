@@ -931,11 +931,11 @@ def mix_sound(build: Path, plan: list[dict], total: float, config: dict,
     vo_items = [it for it in plan if it["vo"] is not None]
     own_items = own_sound_shots(build.parent, plan, config)
     song = song_file(build.parent) if any(it.get("sung") for it in plan) else None
-    music = "" if song else (config.get("music_path") or "")
-    music_file = (ROOT / music) if music else None
-    if music_file and not music_file.exists():
-        print(f"  music: {music} not found, skipping the music bed")
-        music_file = None
+    import music as music_lib
+    # This video's track and levels (music.py); a sung video has its song instead of a track.
+    sound = music_lib.for_run(build.parent, config)
+    music_file = None if song else sound["file"]
+    voices = float(sound["voices"])                   # the voices and the clips' own sound
     steps = len(vo_items) + len(own_items) + (1 if (music_file or song) else 0) + 1
     done = [0]
 
@@ -946,7 +946,7 @@ def mix_sound(build: Path, plan: list[dict], total: float, config: dict,
     # Voice lines at their shot start times.
     for it in vo_items:
         wav = audio_mix.decode(it["vo"], work / f"vo_{it['n']:02d}.wav", f"shot {it['n']}: its voice")
-        items.append({"path": wav, "start": it["start"]})
+        items.append({"path": wav, "start": it["start"], "gain": voices})
         tick()
     if own_items:
         # Clip sound: a shot where nobody speaks plays its clip's own sound (a door, footsteps),
@@ -959,14 +959,22 @@ def mix_sound(build: Path, plan: list[dict], total: float, config: dict,
                                    f"shot {it['n']}: its clip's own sound", seconds=d,
                                    filters=f"afade=t=in:d=0.04,afade=t=out:st={max(0.0, d - 0.08):.3f}:d=0.08,"
                                            f"volume={level:.3f}")
-            items.append({"path": wav, "start": it["start"]})
+            items.append({"path": wav, "start": it["start"], "gain": voices})
             tick()
         print(f"  clip sound: {len(own_items)} shot(s) where nobody speaks play their clip's own sound")
     if music_file:
-        wav = audio_mix.decode(music_file, work / "music.wav", "music bed", seconds=total, loop=True,
-                               filters=f"volume={float(asm['music_volume']):.3f}")
+        # Quiet under the talking, up for the montage, out at the end (music.filters).
+        loud_at = music_lib.loud_from(plan)
+        wav = audio_mix.decode(music_file, work / "music.wav", "music", seconds=total, loop=True,
+                               filters=music_lib.filters(sound, total, loud_at))
         items.append({"path": wav, "start": 0.0})
+        up = (f", up to {sound['loud']:.0%} from {loud_at:.1f}s (the montage)"
+              if loud_at is not None and abs(sound["loud"] - sound["level"]) > 0.0005 else "")
+        slow = f", played at {sound['speed']:.0%} speed" if abs(sound["speed"] - 1) > 0.001 else ""
+        print(f"  music: {sound['title'] or music_file.name} at {sound['level']:.0%}{up}{slow}")
         tick()
+    if abs(voices - 1.0) > 0.001:
+        print(f"  voices and clip sound at {voices:.0%}")
     if song:
         fade = min(1.2, total / 4)
         wav = audio_mix.decode(song, work / "song.wav", "song", seconds=total,
@@ -1012,10 +1020,31 @@ def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total:
     out = build / "main.mp4"
     sound = mix_sound(build, plan, total, config, sfx_track)
     picture = burn_captions(build, cut, total, asm)
+    return join_main(build, picture, sound, total)
+
+
+def join_main(build: Path, picture: Path, sound: Path, total: float) -> Path:
+    """build/main.mp4: the finished picture and the finished sound in one file. The picture is
+    copied, not encoded again."""
+    out = build / "main.mp4"
     run_ffmpeg(["-i", picture.name, "-i", sound.name, "-map", "0:v", "-map", "1:a", "-c:v", "copy",
                 "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2", "-t", f"{total:.3f}",
                 "-movflags", "+faststart", out.name], "final mix (joining picture and sound)", cwd=build)
     return out
+
+
+def kept_picture(build: Path, total: float) -> Path | None:
+    """The picture of the last assembly (build/main_video.mp4), when it can carry a new sound
+    mix: it exists and is as long as the cut is now. None when the video has to be assembled
+    in full (never assembled, or a shot's length has changed since)."""
+    picture = build / "main_video.mp4"
+    if not picture.is_file():
+        return None
+    try:
+        length = probe_duration(picture)
+    except Exception:
+        return None
+    return picture if abs(length - total) <= 0.25 else None
 
 
 def append_outro(build: Path, main: Path, config: dict) -> Path:
@@ -1109,7 +1138,11 @@ def letter_pages(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> Non
         paragraphs.append(shot["letter"])
         it["letter_page"] = compose_letter(background, paragraphs, build / f"letter_{it['n']:02d}.png", asm)
 
-def run(run_dir: Path, config: dict) -> None:
+def run(run_dir: Path, config: dict, sound_only: bool = False) -> None:
+    """Put the video together. `sound_only`: keep the picture of the last assembly and make
+    only the sound again (new music, new levels): seconds instead of minutes. It is for a
+    change to the sound; a new picture, clip, caption or line needs the full step, and when
+    the cut's length has changed the full step runs by itself."""
     require_ffmpeg()
     script = read_script(run_dir)
     import caption_styles
@@ -1126,6 +1159,30 @@ def run(run_dir: Path, config: dict) -> None:
     print(f"[assemble] {len(plan)} shots, {total:.1f}s at {asm['width']}x{asm['height']} {asm['fps']}fps")
 
     import progress
+    picture = kept_picture(build, total) if sound_only else None
+    if sound_only and picture is None:
+        print("[assemble] the sound cannot be redone on its own: there is no finished picture of this length "
+              "(not assembled yet, or a shot's length changed). Assembling the whole video.")
+    if picture is not None:
+        print("[assemble] sound only: the picture is kept as it was last assembled")
+        progress.plan(2)
+        import sfx
+        sfx_track = None
+        if not is_song(config):
+            try:
+                sfx_track = sfx.render_track(build, plan, total, config)
+            except StepError as e:
+                print(f"  sound effects: left out of this cut ({e})")
+        sound = mix_sound(build, plan, total, config, sfx_track)
+        main = join_main(build, picture, sound, total)
+        progress.note("")
+        progress.tick()
+        final_src = append_outro(build, main, config)
+        progress.note("")
+        final = run_dir / "final.mp4"
+        shutil.copyfile(final_src, final)
+        print(f"\n[assemble] final: {final}  ({probe_duration(final):.1f}s), new sound on the same picture")
+        return
     progress.plan(len(plan) + 2)      # every shot's clip, then the final mix, then the outro
     clips = []
     scene_clip: Path | None = None   # last real scene, the blurred background for app screens

@@ -994,6 +994,19 @@ button.stile:focus-visible { outline: none; box-shadow: var(--ring); }
 
 /* ---- sound panel ---- */
 .sound-panel .chips { margin-bottom: 8px; }
+.music-pick { display: flex; gap: 8px; align-items: center; }
+.music-pick select { flex: 1; min-width: 0; }
+.music-panel .voice-player { width: 100%; margin-top: 10px; }
+.mix-row { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 4px 10px; margin-top: 14px; }
+.mix-row label { font-size: 13px; font-weight: 500; }
+.mix-val { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mix-row input[type="range"] { grid-column: 1 / -1; width: 100%; height: 22px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.mix-row input[type="range"]:disabled { cursor: default; opacity: .55; }
+.mix-row .field-note, .mix-row .chips { grid-column: 1 / -1; }
+.mix-row.start { grid-template-columns: auto 84px 1fr; align-items: center; }
+.mix-row.start input { width: 84px; }
+.music-default { margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+.link-btn.quiet { color: var(--muted); }
 
 /* ---- deleting a video --------------------------------------------------- */
 .run-row { position: relative; }
