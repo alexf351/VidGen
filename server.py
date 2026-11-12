@@ -936,11 +936,22 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         return FileResponse(target)
 
     if UI_DIR.is_dir():
-        app.mount("/", StaticFiles(directory=UI_DIR, html=True), name="ui")
+        app.mount("/", FreshStaticFiles(directory=UI_DIR, html=True), name="ui")
     return app
 
 
 # ----------------------------------------------------------------- launch ----
+
+class FreshStaticFiles(StaticFiles):
+    """The page's own files, always checked with the server before the browser reuses its copy.
+    Without this a browser keeps yesterday's app.js for a while after an update, and the page
+    looks as if the update never arrived (a new panel is simply not there)."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
 
 def keep_console_awake() -> bool:
     """Windows: turn off the console's QuickEdit mode for this window. With it on, one click
