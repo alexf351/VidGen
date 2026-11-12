@@ -483,6 +483,9 @@ The editor (`ui/`: `index.html`, `app.css`, `app.js`; plain HTML/CSS/JS, no buil
   Scenes, Voice, Render), its stills, and the story editor in the right column.
 - **Jobs drawer**: the live log of the running job, the queue, and recent jobs with the error
   line of any that failed.
+  The log is shown as a list, not as terminal text: a heading for each step ("Putting the
+  video together"), a row for each shot, warnings and errors picked out in colour, and the
+  cost as a small table. **Copy log** gives the lines exactly as the steps printed them.
 
 Every paid action asks first with an estimate (keyframes × image price, clips × clip length ×
 price per second, voice characters × price), using the prices in `config.yaml` (served by

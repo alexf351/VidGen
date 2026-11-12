@@ -28,6 +28,7 @@ const S = {
   runTab: {},                  // run id -> "shots" | "script": the tab open on that video's page
   studioQuery: "",             // what is typed in the format search box
   screens: [], screenGroups: [],   // the app screenshot library (GET /api/screens)
+  logText: [],                 // the lines of the log on show, as they came (for Copy log)
 };
 const CODE_STEPS = ["story", "scenes", "voice", "render"];
 
@@ -2704,10 +2705,15 @@ function openDrawer(open) {
 }
 
 function jobLabel(j) {
-  const what = j.action === "step" ? `step ${j.params.step}${j.params.only ? ` (${j.params.only})` : ""}`
-    : j.action === "reroll" ? (j.params.shots ? `reroll shots ${j.params.shots.join(", ")}` : `reroll shot ${j.params.shot}`)
-    : j.action === "new" ? (j.params.dry_run ? (j.params.engine === "claude_code" ? "new (story only)" : "new (dry run)") : "new video")
-    : j.action === "draw_character" ? `draw ${j.params.character}` : j.action;
+  // Said the way the page says it elsewhere: "Clips · shots 3, 30", not "step video (3,30)".
+  const names = { script: "Script", images: "Pictures", video: "Clips", voice: "Voices", assemble: "Assemble",
+    story: "Story", scenes: "Scenes", render: "Render" };
+  const only = j.params.only ? [].concat(j.params.only) : [];
+  const what = j.action === "step" ? `${names[j.params.step] || j.params.step}${only.length ? ` · ${only.length === 1 ? "shot" : "shots"} ${only.join(", ")}` : ""}`
+    : j.action === "assemble" ? (j.params.sound_only ? "Sound mix" : "Assemble")
+    : j.action === "reroll" ? (j.params.shots ? `Reroll shots ${j.params.shots.join(", ")}` : `Reroll shot ${j.params.shot}`)
+    : j.action === "new" ? (j.params.dry_run ? (j.params.engine === "claude_code" ? "New video (story only)" : "New video (dry run)") : "New video")
+    : j.action === "draw_character" ? `Draw ${j.params.character}` : j.action.charAt(0).toUpperCase() + j.action.slice(1);
   return what;
 }
 function runPremise(runId) {
@@ -2746,10 +2752,55 @@ function renderDrawer() {
   ].flat(Infinity).filter(Boolean));
 }
 
+// The log, read for a person: what the steps print is turned into headings, a row for each
+// shot, call-outs for what went wrong and a small table for the cost. The lines themselves are
+// kept as they came (S.logText) for the Copy button.
+const STEP_SAYS = { script: "Writing the script", images: "Drawing the pictures", video: "Making the clips",
+  voice: "Getting the voices", assemble: "Putting the video together", story: "Writing the story",
+  scenes: "Drawing the scenes", render: "Rendering the video" };
+const LOG_WARN = /NOT A CLEAN TAKE|not the line|has no words|has no sound|not found|could not|cannot be|left out|failed|FAILED|skipping the|is missing|no longer/;
+const sayIt = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
+const lastPart = (path) => { const parts = String(path).split("/").join("\\").split("\\"); return parts[parts.length - 1]; };
+let logTrace = false;                     // inside a Python traceback: its lines stay together
 function logLine(text) {
-  const cls = /^(error:|Traceback|\s*also failed)/.test(text) ? "err" : /^(===|\[assemble\] final)/.test(text) ? "hi" : null;
-  return h("div", { class: cls }, text || " ");
+  const raw = String(text ?? "");
+  S.logText.push(raw);
+  if (S.logText.length > 4000) S.logText.shift();
+  const line = raw.trimEnd();
+  const row = (cls, ...kids) => h("div", { class: `lg ${cls}` }, ...kids);
+  const pill = (t) => h("span", { class: "lg-pill" }, t);
+  let m;
+  if (logTrace && /^\s/.test(line)) return row("err trace", line);
+  logTrace = false;
+  if (!line.trim()) return row("gap");
+  if (/^Traceback/.test(line)) { logTrace = true; return row("err trace", line); }
+  if ((m = line.match(/^error:\s*(.*)$/s))) return row("err", pill("Stopped"), h("span", {}, m[1]));
+  if (/^\s*also failed/.test(line) || /^\w*(Error|Exception): /.test(line)) return row("err", h("span", {}, line.trim()));
+  if ((m = line.match(/^=== (.+?) ===$/))) {
+    const t = m[1].replace(/\s*\([^()]*\)\s*$/, "");                // without the video's long id
+    const step = t.match(/^step: (\w+)/);
+    return row("head", step ? (STEP_SAYS[step[1]] || sayIt(step[1])) : sayIt(t));
+  }
+  if ((m = line.match(/^\s*shot (\d+): (.*)$/))) {
+    const kind = LOG_WARN.test(m[2]) ? "warn" : /exists, skipping|nothing to/.test(m[2]) ? "quiet" : "";
+    return row(`item ${kind}`, pill(`Shot ${m[1]}`), h("span", {}, sayIt(m[2])));
+  }
+  if ((m = line.match(/^\[(\w+)\] (.*)$/))) {
+    const said = m[2];
+    const f = said.match(/^final: (.+?)\s+\(([^)]*)\)(.*)$/);
+    if (f) return row("done", icon("check", 14), h("span", {}, `Finished: ${lastPart(f[1])}, ${f[2]} long${f[3]}`));
+    if (/^estimated cost:/.test(said)) return row("sub", "Estimated cost");
+    return row(LOG_WARN.test(said) ? "info warn" : "info", h("span", {}, sayIt(said)));
+  }
+  if ((m = line.match(/^\s{2,}(.+?)\s{2,}\$([\d,.]+)\s*$/))) {
+    return row(`cost${/^total$/i.test(m[1].trim()) ? " total" : ""}`, h("span", {}, sayIt(m[1].trim())), h("span", { class: "lg-usd" }, `$${m[2]}`));
+  }
+  if ((m = line.match(/^\s+([a-z][a-z ]{2,24}): (.*)$/))) {
+    return row(`item ${LOG_WARN.test(m[2]) ? "warn" : ""}`, pill(sayIt(m[1])), h("span", {}, sayIt(m[2])));
+  }
+  return row(/^\s/.test(line) ? "info sub-line" : LOG_WARN.test(line) ? "info warn" : "info", h("span", {}, line.trim()));
 }
+function clearLog() { S.logText = []; logTrace = false; $("#log").replaceChildren(); }
 function nearBottom() { const l = $("#log"); return l.scrollHeight - l.scrollTop - l.clientHeight < 40; }
 function scrollLog(force) { const l = $("#log"); if (force || nearBottom()) l.scrollTop = l.scrollHeight; }
 
@@ -2758,13 +2809,18 @@ async function watchJob(id, pinned) {
   if (S.es) { S.es.close(); S.es = null; }
   S.viewJob = id; S.viewPinned = !!pinned;
   const log = $("#log");
-  log.replaceChildren();
+  clearLog();
   const j = S.jobs.find((x) => x.id === id);
   const title = $("#log-title");
   const setTitle = (job) => title.replaceChildren(...[h("span", { class: `dot ${job.status === "done" ? "done" : job.status}` }),
     h("b", {}, jobLabel(job)), h("span", {}, `· ${runPremise(job.run_id)} · ${job.status}`),
-    job.run_id ? h("a", { href: `#/run/${encodeURIComponent(job.run_id)}`, class: "muted", style: "margin-left:auto" }, "open run ›")
-      : job.action === "draw_character" ? h("a", { href: `#/characters/${encodeURIComponent(job.params.character)}`, class: "muted", style: "margin-left:auto" }, "open character ›") : null,
+    h("button", { class: "link-btn quiet log-copy", type: "button", title: "Copy the log as plain text, to paste somewhere or send to someone",
+      onclick: async () => {
+        try { await navigator.clipboard.writeText(S.logText.join("\n")); toast("Log copied", "ok"); }
+        catch { toast("Could not copy the log from this page", "bad"); }
+      } }, "Copy log"),
+    job.run_id ? h("a", { href: `#/run/${encodeURIComponent(job.run_id)}`, class: "muted" }, "Open video ›")
+      : job.action === "draw_character" ? h("a", { href: `#/characters/${encodeURIComponent(job.params.character)}`, class: "muted" }, "Open character ›") : null,
   ].filter(Boolean));
   if (j) setTitle(j);
   renderDrawer();
@@ -2773,10 +2829,11 @@ async function watchJob(id, pinned) {
       const full = await api("GET", `/api/jobs/${encodeURIComponent(id)}`);
       if (S.viewJob !== id) return;
       setTitle(full);
+      clearLog();
       log.replaceChildren(...full.log.map(logLine));
       if (full.error) log.append(logLine(`error: ${full.error}`));
       scrollLog(true);
-    } catch (e) { log.replaceChildren(logLine(`error: ${e.message}`)); }
+    } catch (e) { clearLog(); log.replaceChildren(logLine(`error: ${e.message}`)); }
     return;
   }
   const es = new EventSource(`/api/jobs/${encodeURIComponent(id)}/stream`);

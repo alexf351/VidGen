@@ -225,10 +225,32 @@ input[type=checkbox] { accent-color: var(--accent); }
 #drawer.collapsed #drawer-body { display: none; }
 #log-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 #log-title { padding: 6px 12px; font-size: 11px; border-bottom: 1px solid var(--line); display: flex; gap: 8px; align-items: center; }
-#log { margin: 0; padding: 8px 12px; overflow: auto; flex: 1; font: 11.5px/1.5 var(--mono); color: var(--log-text);
-  white-space: pre-wrap; word-break: break-word; background: var(--log-bg); }
-#log .err { color: var(--bad); }
-#log .hi { color: var(--accent-soft); }
+/* The log reads like a list of what happened, not like a terminal: the page's own lettering,
+   a heading for each step, a row for each shot, call-outs for trouble. */
+#log { margin: 0; padding: 6px 18px 16px; overflow: auto; flex: 1; font: inherit; font-size: 13px; line-height: 1.5;
+  color: var(--muted); white-space: normal; overflow-wrap: anywhere; background: var(--panel); }
+.lg { display: flex; align-items: baseline; gap: 10px; padding: 3px 0; }
+.lg.gap { height: 6px; padding: 0; }
+.lg.head { margin-top: 12px; padding: 12px 0 4px; border-top: 1px solid var(--line); font-size: 14px; font-weight: 600; color: var(--text); }
+.lg.head:first-child, .lg.gap:first-child + .lg.head { margin-top: 0; border-top: 0; padding-top: 6px; }
+.lg.sub { margin-top: 8px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.lg.info { color: var(--muted); }
+.lg.sub-line { padding-left: 2px; color: var(--dim); }
+.lg.item { color: var(--text); }
+.lg.quiet, .lg.quiet .lg-pill { color: var(--dim); }
+.lg-pill { flex: none; min-width: 62px; padding: 1px 9px; border-radius: 999px; background: rgba(127, 132, 150, .15); color: var(--muted);
+  font-size: 11.5px; font-weight: 600; line-height: 1.6; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lg.warn { color: var(--text); }
+.lg.warn .lg-pill { background: var(--warn-bg); color: var(--warn); }
+.lg.info.warn { color: var(--warn); }
+.lg.err { color: var(--bad); font-weight: 500; }
+.lg.err .lg-pill { background: rgba(255, 93, 108, .14); color: var(--bad); }
+.lg.err.trace { padding: 0; font: 11.5px/1.5 var(--mono); font-weight: 400; white-space: pre-wrap; opacity: .85; }
+.lg.done { margin-top: 8px; align-items: center; color: var(--ok); font-weight: 600; }
+.lg.cost { max-width: 440px; justify-content: space-between; color: var(--muted); }
+.lg.cost.total { margin-top: 2px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--text); font-weight: 600; }
+.lg-usd { font-variant-numeric: tabular-nums; }
+#log-title .log-copy { margin-left: auto; font-size: 11.5px; }
 #job-list { border-left: 1px solid var(--line); overflow: auto; padding: 6px 0; }
 .job-group { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); padding: 6px 12px 3px; }
 .job { padding: 5px 12px; cursor: pointer; display: grid; grid-template-columns: 10px 1fr; gap: 3px 8px; align-items: baseline; }
