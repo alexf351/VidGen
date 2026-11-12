@@ -991,8 +991,8 @@ The **Music** panel on a video's page sets the track and how loud everything is:
   shot, stays up to the end and fades out over the last 0.8 seconds. A script with no montage
   plays it at the first level all the way.
 - **Voices and clip sound**: one level for every spoken line and for the clips' own sound.
-- **Speed**: Slowed plays the track slower and lower in pitch, the way a slowed version of a
-  song sounds. **Start the track at** skips its opening seconds.
+- **Speed**: Slowed (85%), Slower (80%) and Very slow (75%) play the track slower and lower in
+  pitch, the way a slowed version of a song sounds; Sped up is 115%. **Start the track at** skips its opening seconds.
 - **Mix the sound again** puts the new sound on the picture the video already has. Only the
   sound is made, so it takes seconds and makes no API calls. It is offered once a video has
   been assembled; if a shot's length has changed since (a new line, a new clip), the whole

@@ -985,7 +985,7 @@ function musicPanel(run, busy) {
         m.loud_shot ? `Comes up at shot ${m.loud_shot}, where the montage starts, and stays up to the end.` : "This script has no montage, so the music stays at the first level all the way.") : null,
       slider("voices", "Voices and clip sound"),
       hasMusic && m.own ? h("div", { class: "mix-row" }, h("label", {}, "Speed"),
-        chips([[1, "Normal"], [0.85, "Slowed"], [0.75, "Very slow"], [1.15, "Sped up"]], [1, 0.85, 0.75, 1.15].includes(m.speed) ? m.speed : null, (v) => save({ speed: v }), "Track speed"),
+        chips([[1, "Normal"], [0.85, "Slowed"], [0.8, "Slower"], [0.75, "Very slow"], [1.15, "Sped up"]], [1, 0.85, 0.8, 0.75, 1.15].includes(m.speed) ? m.speed : null, (v) => save({ speed: v }), "Track speed"),
         h("div", { class: "field-note" }, "Slowed plays the track slower and lower, like the slowed versions of a song.")) : null,
       hasMusic && m.own ? h("div", { class: "mix-row start" }, h("label", { for: "mix-start" }, "Start the track at"),
         h("input", { id: "mix-start", type: "number", min: "0", step: "1", value: String(m.start), disabled: busy, inputmode: "numeric",
