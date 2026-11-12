@@ -1201,3 +1201,10 @@ input[type=text], input[type=number], input[type=search], select, textarea { bor
 }
 /* The labels on a shot's picture leave the corner to its tick box, and wrap rather than slide under it. */
 .shot .badges { right: 32px; flex-wrap: wrap; row-gap: 4px; }
+
+/* ---- a shot card's players: the line alone (speaker), the clip with its sound (play) ---- */
+.shot .play-row { position: absolute; bottom: 8px; right: 8px; display: flex; gap: 6px; z-index: 2; }
+.shot .play-row .play-audio { position: static; width: 30px; height: 30px; display: inline-grid; place-items: center; padding: 0;
+  color: var(--on-media); background: rgba(5, 6, 10, .72); border: 1px solid rgba(255, 255, 255, .16); transition: background .15s, color .15s; }
+.shot .play-row .play-audio:hover, .shot .play-row .play-audio:focus-visible { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+@media (max-width: 760px) { .shot .play-row .play-audio { width: 36px; height: 36px; } }

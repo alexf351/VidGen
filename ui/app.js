@@ -65,6 +65,8 @@ const ICONS = {
   text: ["M4 6h16", "M4 12h16", "M4 18h10"],
   phone: ["M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z", "M11 18h2"],
   play: ["M7 4v16l13-8z"],
+  volume: ["M11 5L6 9H2v6h4l5 4V5z", "M15.5 8.5a5 5 0 0 1 0 7", "M18.8 5.6a9.5 9.5 0 0 1 0 12.8"],
+  stop: ["M7 7h10v10H7z"],
   moon: ["M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"],
   sun: ["M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z", "M12 1v2", "M12 21v2", "M4.2 4.2l1.4 1.4", "M18.4 18.4l1.4 1.4", "M1 12h2", "M21 12h2", "M4.2 19.8l1.4-1.4", "M18.4 5.6l1.4-1.4"],
   trash: ["M3 6h18", "M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2", "M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6", "M10 11v6", "M14 11v6"],
@@ -1449,14 +1451,37 @@ function shotCard(run, s, busy) {
     thumb.append(h("div", { class: "placeholder" }, "No image yet"));
   }
   if (shot.letter) thumb.append(h("div", { class: "letter-peek" }, shot.letter));
+  // The clip plays silently while the pointer is over the card. The play button plays it once
+  // with its sound, as it will be heard in the video; the speaker button plays the line alone.
+  let video = null, voice = null, sounding = false;
+  let playBtn = null, voiceBtn = null;
+  const theVideo = () => {
+    if (!video || !video.getAttribute("src")) {            // made on first use; made again after releaseMedia() let it go
+      if (video) video.remove();
+      video = h("video", { muted: true, loop: true, playsinline: true, preload: "auto", src: bust(s.clip, run.run_id) });
+      video.muted = true; thumb.append(video);
+    }
+    return video;
+  };
+  const theVoice = () => {
+    if (!voice || !voice.getAttribute("src")) { voice = new Audio(bust(s.audio, run.run_id)); LOOSE_AUDIO.add(voice); }
+    return voice;
+  };
+  const setIcon = (btn, name) => { if (btn) btn.replaceChildren(icon(name, 13)); };
+  const stopAll = () => {
+    sounding = false;
+    if (video) { video.pause(); video.muted = true; video.loop = true; video.onended = null; }
+    if (voice) { voice.pause(); voice.onended = null; }
+    thumb.classList.remove("playing");
+    setIcon(playBtn, "play"); setIcon(voiceBtn, "volume");
+  };
   if (s.clip) {
-    let video = null;
     thumb.addEventListener("mouseenter", () => {
-      if (!video) { video = h("video", { muted: true, loop: true, playsinline: true, preload: "auto", src: bust(s.clip, run.run_id) }); video.muted = true; thumb.append(video); }
+      if (sounding) return;
       thumb.classList.add("playing");
-      video.play().catch(() => {});
+      theVideo().play().catch(() => {});
     });
-    thumb.addEventListener("mouseleave", () => { thumb.classList.remove("playing"); if (video) video.pause(); });
+    thumb.addEventListener("mouseleave", () => { if (sounding) return; thumb.classList.remove("playing"); if (video) video.pause(); });
   }
   thumb.append(h("div", { class: "badges" },
     h("span", { class: "badge n" }, `#${s.n}`),
@@ -1479,17 +1504,39 @@ function shotCard(run, s, busy) {
     thumb.append(h("button", { class: "set-cover", title: "Use as this format's cover in the Studio",
       "aria-label": `Use shot ${s.n} as the format cover`, onclick: (e) => { e.stopPropagation(); setFormatMedia(run, "cover", s.n); } }, icon("star", 12)));
   }
-  if (s.audio && !run.song) {
-    let audio = null;
-    const btn = h("button", { class: "play-audio", title: "Play line", "aria-label": `Play shot ${s.n} line`,
+  const hasVoice = !!(s.audio && !run.song);
+  // In the video, a line taken from its clip and a silent shot of a clip-sound video are heard
+  // from the clip itself; any other line is the voice file laid over a silent clip.
+  const clipHasTheSound = !!(s.own_voice || (run.clip_sound && !spoken));
+  if (s.clip) {
+    playBtn = h("button", { class: "play-audio", type: "button", title: hasVoice || clipHasTheSound ? "Play the clip with its sound" : "Play the clip",
+      "aria-label": `Play shot ${s.n}'s clip with its sound`,
       onclick: (e) => {
         e.stopPropagation();
-        if (!audio || !audio.getAttribute("src")) { audio = new Audio(bust(s.audio, run.run_id)); LOOSE_AUDIO.add(audio); }
-        if (audio.paused) { audio.currentTime = 0; audio.play(); btn.textContent = "■"; audio.onended = () => (btn.textContent = "▶"); }
-        else { audio.pause(); btn.textContent = "▶"; }
-      } }, "▶");
-    thumb.append(btn);
+        if (sounding) { stopAll(); return; }
+        stopAll();
+        const v = theVideo();
+        sounding = true; v.loop = false; v.muted = !clipHasTheSound; v.currentTime = 0;
+        thumb.classList.add("playing"); setIcon(playBtn, "stop");
+        v.onended = stopAll;
+        v.play().catch(() => stopAll());
+        if (!clipHasTheSound && hasVoice) { const a = theVoice(); a.currentTime = 0; a.play().catch(() => {}); }
+      } }, icon("play", 13));
   }
+  if (hasVoice) {
+    voiceBtn = h("button", { class: "play-audio", type: "button", title: "Play the line only", "aria-label": `Play shot ${s.n}'s line only`,
+      onclick: (e) => {
+        e.stopPropagation();
+        const a = theVoice();
+        const wasPlaying = !sounding && !a.paused;
+        stopAll();
+        if (wasPlaying) return;
+        a.currentTime = 0; setIcon(voiceBtn, "stop");
+        a.onended = () => setIcon(voiceBtn, "volume");
+        a.play().catch(() => setIcon(voiceBtn, "volume"));
+      } }, icon("volume", 13));
+  }
+  if (playBtn || voiceBtn) thumb.append(h("div", { class: "play-row" }, voiceBtn, playBtn));
   const info = h("div", { class: "shot-info" },
     spoken ? [h("div", { class: "speaker" }, shot.speaker), h("div", { class: "line" }, shot.vo_line)]
       : s.kind === "texts" ? [h("div", { class: "speaker" }, `texts from ${(shot.texts || {}).from || "?"}`), h("div", { class: "line" }, ((shot.texts || {}).messages || []).join(" / "))]

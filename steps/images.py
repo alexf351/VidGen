@@ -150,8 +150,8 @@ def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False,
         order = ", ".join(f"{i + 1}) {cid}" for i, cid in enumerate(ref_ids))
         parts.append(
             f"Reference images, in order: {order}. Each reference is a character sheet; keep that "
-            "character's face, hair, skin and build identical to its sheet. Do not copy the sheet "
-            "layout or grey background; render the scene described above.")
+            "character's face, hair, skin and build identical to its sheet. The sheet's plain grey "
+            "clothes, layout and background are placeholders: dress everyone as described above.")
     at = len(ref_ids)
     if scene:
         at += 1
@@ -167,7 +167,8 @@ def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False,
         who = " and ".join(ids)
         parts.append(
             f"Reference image {at} is an earlier shot of this scene with {who}: {who} "
-            f"{'wear' if len(ids) > 1 else 'wears'} exactly the same clothes here. Take only the clothes from it.")
+            f"{'wear' if len(ids) > 1 else 'wears'} exactly the same clothes here, whatever the description "
+            f"says. Take only the clothes from it.")
     if scene or wardrobe:
         # An earlier shot shows other people too (the scene's first shot has whoever opened the
         # scene), and the model would carry one of them into a shot meant for one person.

@@ -25,7 +25,7 @@
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a white ribbed tank top and light blue jeans, holding a red plastic cup and pointing off to the left of the frame with her whole arm, biting her lip, eyes locked on whoever she is pointing at, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a white ribbed tank top and light blue jeans, pointing off to the left of the frame with one arm while her other hand holds a single red plastic cup against her chest, biting her lip, eyes locked on whoever she is pointing at, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Jess jabs her finger across the room twice and her mouth moves as she says it fast, eyes never leaving whoever she points at. Push-in on her face.",
       "vo_line": "Go tell Tyler I think he's hot.",
       "speaker": "jess",
@@ -283,7 +283,7 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "medium shot, a bright loft office with brick walls and big windows, {marcus}, in a tailored charcoal suit with a black open-collar shirt and a heavy gold watch, standing at the head of a long wooden table while a small team of adult coworkers in their thirties clap and cheer around him, both fists in the air, head thrown back laughing. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "medium shot, a bright loft office with brick walls and big windows, {marcus}, in a tailored charcoal suit with a black open-collar shirt and a heavy gold watch, standing on the floor in the middle of a small team of adult coworkers in their thirties who clap and cheer around him, desks and laptops behind them, both fists in the air, head thrown back laughing. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "The team claps and whoops and Marcus punches both fists at the ceiling, laughing. Fast punch-in.",
       "montage": true
     },

@@ -450,8 +450,10 @@ The editor (`ui/`: `index.html`, `app.css`, `app.js`; plain HTML/CSS/JS, no buil
 - **Run**: one bright button top right is always the next thing to do ("Make the images",
   "Record the voices", then "Download video"). Under it, the numbered steps with their progress
   (click any step to run it again). Two tabs:
-  - **Shots**: the cast sheets and a 9:16 card per shot (keyframe, clip plays on hover, play
-    button for the line, Reroll / Image / Voice, the star to use it as the format's cover).
+  - **Shots**: the cast sheets and a 9:16 card per shot (keyframe; the clip plays silently on
+    hover; the play button plays the clip once with its sound as the video will have it; the
+    speaker button plays the line alone; Reroll / Image / Voice; the star to use it as the
+    format's cover).
     Select several shots to redo images, video or voice for just those.
   - **Script and editing**: every shot as a row with its picture, speaker, caption and line
     (the two arrows under a row's picture move the shot one place earlier or later; its
