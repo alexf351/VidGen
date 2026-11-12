@@ -11,7 +11,7 @@ import subprocess
 from pathlib import Path
 
 from common import ROOT, StepError, read_json, read_script
-from media import has_audio_stream, probe_duration, require_ffmpeg, run_ffmpeg
+from media import ffmpeg_version, has_audio_stream, probe_duration, require_ffmpeg, run_ffmpeg
 from steps.images import shot_path
 from steps.video import video_path
 from steps.voice import audio_path, timing_path
@@ -830,27 +830,28 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
 
 # ------------------------------------------------------------------- mix ----
 
-def _encode_watch(label: str, total: float):
-    """Progress for a long encode: the bar's note ("final mix 40%") and a log line each quarter."""
+def _encode_watch(label: str, total: float, quiet: bool = False):
+    """Progress for a long encode: the bar's note ("final mix 40%") and a log line each quarter.
+    `quiet`: the note only, for a pass that takes seconds."""
     import progress
     last = [-1]
 
     def on(seconds: float) -> None:
         pct = max(0, min(100, int(seconds / total * 100))) if total > 0 else 0
         progress.note(f"{label} {pct}%")
-        if pct // 25 > last[0]:
+        if not quiet and pct // 25 > last[0]:
             last[0] = pct // 25
             print(f"  {label}: {pct}%")
     return on
 
 
-def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total: float,
-                config: dict, sfx_track: Path | None = None) -> Path:
+def mix_sound(build: Path, plan: list[dict], total: float, config: dict,
+              sfx_track: Path | None = None) -> Path:
+    """build/mix.wav: every voice line at its shot's start, the music bed or the song, and the
+    sound effects, exactly as long as the cut. Sound only: no picture is read here."""
     asm = config["assemble"]
-    w, h, fps = int(asm["width"]), int(asm["height"]), int(asm["fps"])
-    out = build / "main.mp4"
-
-    args: list[str] = ["-i", str(cut)]
+    out = build / "mix.wav"
+    args: list[str] = []
     vo_items = [it for it in plan if it["vo"] is not None]
     for it in vo_items:
         args += ["-i", str(it["vo"])]
@@ -867,38 +868,27 @@ def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total:
     if sfx_track:
         args += ["-i", str(sfx_track)]
 
-    # Video: burn captions, then the format's grade (pixar_arc: desaturate + a slight cool tint).
-    sat = float(asm["saturation"])
-    # Relative paths only (cwd is the build dir), so no Windows drive-letter colon ever
-    # reaches the filter graph.
-    fonts = f":fontsdir={FONTS_SUBDIR}" if (build / FONTS_SUBDIR).is_dir() else ""
-    cb = str(asm.get("colorbalance") or "").strip()
-    tint = f"colorbalance={cb}," if cb else ""
-    vchain = (f"[0:v]ass=captions.ass{fonts},eq=saturation={sat:.3f},"
-              f"{tint}"
-              f"format=yuv420p[v]")
-
-    # Audio: VO clips at their shot start times, optional music bed, padded to the cut length.
-    parts = [vchain]
+    # VO clips at their shot start times, optional music bed, padded to the cut length.
+    parts: list[str] = []
     labels: list[str] = []
-    for i, it in enumerate(vo_items, start=1):
+    for i, it in enumerate(vo_items):
         ms = int(round(it["start"] * 1000))
         parts.append(f"[{i}:a]aresample=44100,adelay={ms}:all=1[vo{i}]")
         labels.append(f"[vo{i}]")
     if music_file:
-        mi = len(vo_items) + 1
+        mi = len(vo_items)
         parts.append(f"[{mi}:a]aresample=44100,volume={float(asm['music_volume']):.3f},"
                      f"atrim=0:{total:.3f}[mu]")
         labels.append("[mu]")
     if song:
-        si = len(vo_items) + 1
+        si = len(vo_items)
         fade = min(1.2, total / 4)
         parts.append(f"[{si}:a]aresample=44100,atrim=0:{total:.3f},"
                      f"afade=t=out:st={max(0.0, total - fade):.3f}:d={fade:.3f}[song]")
         labels.append("[song]")
     if sfx_track:
         # Already at its own level and as long as the cut (sfx.py); it goes in as it is.
-        xi = len(vo_items) + 1 + (1 if (music_file or song) else 0)
+        xi = len(vo_items) + (1 if (music_file or song) else 0)
         parts.append(f"[{xi}:a]aresample=44100[sfx]")
         labels.append("[sfx]")
     if labels:
@@ -909,13 +899,46 @@ def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total:
                          f"apad,atrim=0:{total:.3f}[a]")
     else:
         parts.append(f"anullsrc=r=44100:cl=stereo,atrim=0:{total:.3f}[a]")
+    run_ffmpeg([*args, "-filter_complex", ";".join(parts), "-map", "[a]", "-t", f"{total:.3f}",
+                "-ar", "44100", "-ac", "2", "-c:a", "pcm_s16le", out.name], "sound mix", cwd=build,
+               on_progress=_encode_watch("sound mix", total, quiet=True))
+    return out
 
-    run_ffmpeg([*args, "-filter_complex", ";".join(parts), "-map", "[v]", "-map", "[a]",
-                "-t", f"{total:.3f}", "-r", str(fps), "-s", f"{w}x{h}",
-                "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
-                "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
-                "-movflags", "+faststart", str(out)], "final mix", cwd=build,
-               on_progress=_encode_watch("final mix", total))
+
+def burn_captions(build: Path, cut: Path, total: float, asm: dict) -> Path:
+    """build/main_video.mp4: the cut with the captions burned in and the format's grade
+    (pixar_arc: desaturate + a slight cool tint). Picture only: no sound is read here."""
+    w, h, fps = int(asm["width"]), int(asm["height"]), int(asm["fps"])
+    out = build / "main_video.mp4"
+    sat = float(asm["saturation"])
+    # Relative paths only (cwd is the build dir), so no Windows drive-letter colon ever
+    # reaches the filter graph.
+    fonts = f":fontsdir={FONTS_SUBDIR}" if (build / FONTS_SUBDIR).is_dir() else ""
+    cb = str(asm.get("colorbalance") or "").strip()
+    tint = f"colorbalance={cb}," if cb else ""
+    run_ffmpeg(["-i", cut.name, "-vf", f"ass=captions.ass{fonts},eq=saturation={sat:.3f},{tint}format=yuv420p",
+                "-an", "-t", f"{total:.3f}", "-r", str(fps), "-s", f"{w}x{h}",
+                "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", out.name],
+               "final mix (captions and picture)", cwd=build, on_progress=_encode_watch("final mix", total))
+    return out
+
+
+def render_main(build: Path, cut: Path, captions: Path, plan: list[dict], total: float,
+                config: dict, sfx_track: Path | None = None) -> Path:
+    """build/main.mp4, in three plain passes: the sound alone, the picture alone, then the two
+    joined without encoding the picture again.
+
+    It used to be one ffmpeg command reading the cut and every voice file at once (twenty
+    inputs into one filter graph). On some Windows ffmpeg builds that command stopped part of
+    the way through and never finished. Each pass now does one thing, so there is nothing to
+    wait on between picture and sound, and a pass that does stop names itself."""
+    asm = config["assemble"]
+    out = build / "main.mp4"
+    sound = mix_sound(build, plan, total, config, sfx_track)
+    picture = burn_captions(build, cut, total, asm)
+    run_ffmpeg(["-i", picture.name, "-i", sound.name, "-map", "0:v", "-map", "1:a", "-c:v", "copy",
+                "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2", "-t", f"{total:.3f}",
+                "-movflags", "+faststart", out.name], "final mix (joining picture and sound)", cwd=build)
     return out
 
 
@@ -1069,8 +1092,8 @@ def run(run_dir: Path, config: dict) -> None:
             sfx_track = sfx.render_track(build, plan, total, config)
         except StepError as e:      # effects are an extra: the video is still made without them
             print(f"  sound effects: left out of this cut ({e})")
-    print(f"[assemble] final mix: encoding {total:.1f}s of video with captions and sound in one pass. "
-          f"This is the slowest part of the step (minutes on an older computer); progress follows")
+    print(f"[assemble] final mix: {total:.1f}s of video. Sound first (seconds), then captions onto the "
+          f"picture (the slowest part: minutes on an older computer), then the two are joined  [{ffmpeg_version()}]")
     main = render_main(build, cut, captions, plan, total, config, sfx_track=sfx_track)
     progress.note("")
     progress.tick()

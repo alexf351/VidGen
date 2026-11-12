@@ -80,7 +80,17 @@ atexit.register(stop_all)
 
 
 # A long encode that reports no new frame for this long is taken to be stuck, and stopped.
-STALL_SECONDS = 600
+STALL_SECONDS = 240
+
+
+def ffmpeg_version() -> str:
+    """"ffmpeg 7.1.1" (for the log: which build made a video matters when one misbehaves)."""
+    try:
+        proc = subprocess.run([tool_path("ffmpeg") or common.TOOLS["ffmpeg"], "-version"], stdin=subprocess.DEVNULL, **_TEXT)
+        words = (proc.stdout.splitlines() or [""])[0].split()
+        return f"ffmpeg {words[2]}" if len(words) > 2 and words[1] == "version" else "ffmpeg"
+    except (OSError, IndexError):
+        return "ffmpeg"
 
 
 def run_ffmpeg(args: list[str], label: str, cwd: Path | None = None, on_progress=None) -> None:
@@ -145,8 +155,12 @@ def _run_watched(cmd: list[str], label: str, cwd: Path | None, on_progress) -> N
                 proc.wait()
                 with _live_lock:
                     _live.discard(proc)
-                raise StepError(f"{label}: ffmpeg wrote nothing new for {STALL_SECONDS // 60} minutes and was stopped. "
-                                f"Run the step again; everything already made is kept.")
+                errors.seek(0)
+                said = "\n".join(errors.read().decode("utf-8", "replace").strip().splitlines()[-6:])
+                at = f"{best:.1f}s in" if best >= 0 else "before the first frame"
+                raise StepError(f"{label}: ffmpeg stopped {at} and wrote nothing new for {STALL_SECONDS // 60} minutes, "
+                                f"so it was ended. Everything already made is kept."
+                                + (f"\nffmpeg said:\n{said}" if said else ""))
         code = proc.wait()
         with _live_lock:
             _live.discard(proc)
