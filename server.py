@@ -64,6 +64,7 @@ class NewRun(BaseModel):
     captions: str | None = None       # a caption style id (caption_styles.py); None = the default
     screens: list[str] = []           # app screenshots this video must show (library paths)
     ready: str | None = None          # a ready-made script of the format (ready_scripts.py)
+    clip_sound: bool | None = None    # clips made with their own sound (clip_sound.py); None = the config's setting
 
 
 class ScreenIn(BaseModel):
@@ -94,6 +95,10 @@ class CaptionChoice(BaseModel):
 class VoiceChoice(BaseModel):
     speaker: str
     voice_id: str | None = None       # None or "" goes back to the config / default voice
+
+
+class ClipSoundChoice(BaseModel):
+    on: bool | None = None            # None = follow the config again
 
 
 class LibraryVoice(BaseModel):
@@ -442,6 +447,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             "video": {"clip_seconds": cfg["fal"]["video_seconds"],
                       "resolution": cfg[cfg["providers"]["video"]]["video_resolution"]},
             "prices": prices(cfg),
+            "clip_sound": bool(cfg["clip_sound"]["enabled"]),
         }
 
     def caption_default(cfg: dict) -> str:
@@ -510,6 +516,11 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         except StepError as e:
             raise HTTPException(400, str(e)) from e
         premise = run_status.run_meta(run_dir)["premise"] or premise
+        if body.clip_sound is not None and body.engine != "claude_code":
+            import clip_sound
+            clip_sound.set_for_run(run_dir, body.clip_sound)
+            if body.clip_sound:
+                preface.append("  clip sound: on (clips are made with their own sound; lines are taken from them)")
         if captions and captions != caption_styles.FORMAT:
             preface.append(f"  captions: {caption_styles.title(captions)}")
         for line in lib.describe_cast(cfg):
@@ -674,6 +685,20 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             return {"voices": voice_cast.list_voices(refresh=refresh), "error": None}
         except StepError as e:
             return {"voices": [], "error": str(e)}
+
+    @app.put("/api/runs/{run_id}/clip-sound")
+    def set_run_clip_sound(run_id: str, body: ClipSoundChoice) -> dict:
+        """Switch clip sound on or off for this video. Clips already made keep what they have:
+        redo the video step for them, then the voice step, then assemble."""
+        import clip_sound
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "clip sound")
+        active = runner.active_for_run(run_id)
+        if active:
+            raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
+                                     f"wait for it to finish")
+        clip_sound.set_for_run(run_dir, body.on)
+        return {"clip_sound": clip_sound.on(config_for_run(run_dir), run_dir)}
 
     @app.get("/api/voices/library")
     def voice_library(gender: str = "", age: str = "", search: str = "", page: int = 0) -> dict:

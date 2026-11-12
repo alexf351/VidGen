@@ -197,6 +197,14 @@ def _caption_style(run_dir: Path, config: dict | None) -> str:
     return caption_styles.for_run(run_dir, config or {})
 
 
+def _clip_sound_on(run_dir: Path, config: dict | None) -> bool:
+    try:
+        import clip_sound
+        return clip_sound.on(config or {}, run_dir)
+    except Exception:
+        return False
+
+
 def detail(run_dir: Path, config: dict | None) -> dict:
     meta = run_meta(run_dir)
     if meta["engine"] == "claude_code":
@@ -213,17 +221,20 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             continue
         n = s["n"]
         timing = None
+        own_voice = False                     # the line is the clip's own (clip_sound.py)
         tp = timing_path(run_dir, n)
         if tp.is_file():
             try:
-                timing = read_json(tp).get("words")
-            except (OSError, ValueError):
+                data = read_json(tp)
+                timing = data.get("words")
+                own_voice = data.get("source") == "clip"
+            except (OSError, ValueError, AttributeError):
                 timing = None
         kind = ("card" if s.get("card") else "app_screen" if s.get("app_screen")
                 else "montage" if s.get("montage") else "flash" if s.get("flash")
                 else "letter" if s.get("letter") else "shot")
         preview = app_preview(run_dir, n, s) if kind == "app_screen" else None
-        shots.append({"n": n, "kind": kind, "shot": s,
+        shots.append({"n": n, "kind": kind, "shot": s, "own_voice": own_voice,
                       "image": file_url(preview) if preview else file_url(shot_path(run_dir, n)),
                       "clip": file_url(video_path(run_dir, n)),
                       "audio": file_url(audio_path(run_dir, n)),
@@ -247,6 +258,8 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             "animate_all": bool((config or {}).get("animate_all")),
             # app-screen shots go on a phone in the hero's hand (the hand is drawn by the images step)
             "app_hand": bool((config or {}).get("app_screen_hand")),
+            # clips made with their own sound, lines taken from them (clip_sound.py)
+            "clip_sound": _clip_sound_on(run_dir, config),
             "sfx": bool(((config or {}).get("sfx") or {}).get("enabled")),
             # ranks and units for the progress overlay, when the format has one
             "stats": (((config or {}).get("format") or {}).get("rules") or {}).get("stats"),

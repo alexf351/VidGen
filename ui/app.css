@@ -963,3 +963,6 @@ button.stile:focus-visible { outline: none; box-shadow: var(--ring); }
   .vf-row { grid-template-columns: 40px minmax(0, 1fr); }
   .vf-row > .btn, .vf-row > .vf-done { grid-column: 1 / -1; justify-self: stretch; justify-content: center; }
 }
+
+/* ---- sound panel ---- */
+.sound-panel .chips { margin-bottom: 8px; }

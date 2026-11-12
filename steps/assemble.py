@@ -94,18 +94,28 @@ def shot_durations(run_dir: Path, script: dict, asm: dict, song: bool = False) -
             continue
         vo = audio_path(run_dir, n)
         vo_len = 0.0
+        own = {}
         if shot["vo_line"].strip():
             if not vo.exists():
                 raise StepError(f"shot {n} has a vo_line but {vo} is missing; run the voice step first")
             vo_len = probe_duration(vo)
+            # Clip sound: the line is the clip's own (clip_sound.py). The shot is then exactly
+            # that stretch of the clip, picture and sound together, with no pad after it.
+            import clip_sound
+            own = clip_sound.timing_source(timing_path(run_dir, n)) if video_path(run_dir, n).exists() else {}
         else:
             vo = None
         duration = max(minimum, vo_len + pad) if vo else minimum
+        if own:
+            duration = max(0.5, vo_len)
         if shot.get("stat") and not vo:
             duration = max(duration, float(asm["stat_seconds"]))    # long enough to read the number
         if shot.get("letter"):
             duration = max(duration, letter_seconds(shot, asm))
-        plan.append({"shot": shot, "n": n, "start": t, "duration": duration, "vo": vo, "vo_len": vo_len})
+        item = {"shot": shot, "n": n, "start": t, "duration": duration, "vo": vo, "vo_len": vo_len}
+        if own:
+            item["clip_offset"] = own["clip_offset"]
+        plan.append(item)
         t += duration
     return plan
 
@@ -445,7 +455,10 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
         # is as long as its voice line and starts with it, so its lips stay in sync.
         vf = (f"{_fill_filter(w, h)},fps={fps},"
               f"tpad=stop_mode=clone:stop_duration={duration + 1:.3f},setsar=1")
-        run_ffmpeg(["-i", str(clip), "-t", f"{duration:.3f}", "-vf", vf, "-an",
+        # A shot that speaks from its own clip starts where its line starts in the clip, so the
+        # picture is the same stretch as the sound and the lips stay with the words.
+        seek = ["-ss", f"{float(item['clip_offset']):.3f}"] if item.get("clip_offset") else []
+        run_ffmpeg([*seek, "-i", str(clip), "-t", f"{duration:.3f}", "-vf", vf, "-an",
                     "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
                     str(out)], label)
         return out
@@ -845,6 +858,25 @@ def _encode_watch(label: str, total: float, quiet: bool = False):
     return on
 
 
+def own_sound_shots(run_dir: Path, plan: list[dict], config: dict) -> list[dict]:
+    """Clip sound (clip_sound.py): the shots that play their clip's own sound under the cut:
+    an animated shot where nobody speaks, whose clip was made with sound. Montage shots, cards,
+    app screens and letters are left to the effects and the music."""
+    import clip_sound
+    if not clip_sound.on(config, run_dir) or clip_sound.settings(config)["level"] <= 0:
+        return []
+    out = []
+    for it in plan:
+        shot = it["shot"]
+        if (it["vo"] is not None or not shot.get("animate") or shot.get("talk") or shot.get("card")
+                or shot.get("app_screen") or shot.get("montage") or shot.get("flash") or shot.get("letter")):
+            continue
+        clip = video_path(run_dir, it["n"])
+        if clip.exists() and has_audio_stream(clip):
+            out.append(it)
+    return out
+
+
 def mix_sound(build: Path, plan: list[dict], total: float, config: dict,
               sfx_track: Path | None = None) -> Path:
     """build/mix.wav: every voice line at its shot's start, the music bed or the song, and the
@@ -867,6 +899,10 @@ def mix_sound(build: Path, plan: list[dict], total: float, config: dict,
         args += ["-i", str(song)]
     if sfx_track:
         args += ["-i", str(sfx_track)]
+    first_own = len(vo_items) + (1 if (music_file or song) else 0) + (1 if sfx_track else 0)
+    own_items = own_sound_shots(build.parent, plan, config)
+    for it in own_items:
+        args += ["-t", f"{it['duration']:.3f}", "-i", str(video_path(build.parent, it["n"]))]
 
     # VO clips at their shot start times, optional music bed, padded to the cut length.
     parts: list[str] = []
@@ -875,6 +911,18 @@ def mix_sound(build: Path, plan: list[dict], total: float, config: dict,
         ms = int(round(it["start"] * 1000))
         parts.append(f"[{i}:a]aresample=44100,adelay={ms}:all=1[vo{i}]")
         labels.append(f"[vo{i}]")
+    if own_items:
+        # Clip sound: a shot where nobody speaks plays its clip's own sound (a door, footsteps),
+        # faded at both ends so the cut does not click.
+        import clip_sound
+        level = clip_sound.settings(config)["level"]
+        for k, it in enumerate(own_items):
+            d = float(it["duration"])
+            ms = int(round(it["start"] * 1000))
+            parts.append(f"[{first_own + k}:a]aresample=44100,atrim=0:{d:.3f},afade=t=in:d=0.04,"
+                         f"afade=t=out:st={max(0.0, d - 0.08):.3f}:d=0.08,volume={level:.3f},adelay={ms}:all=1[own{k}]")
+            labels.append(f"[own{k}]")
+        print(f"  clip sound: {len(own_items)} shot(s) where nobody speaks play their clip's own sound")
     if music_file:
         mi = len(vo_items)
         parts.append(f"[{mi}:a]aresample=44100,volume={float(asm['music_volume']):.3f},"
@@ -1068,7 +1116,9 @@ def run(run_dir: Path, config: dict) -> None:
             kind = "talking clip" if video_path(run_dir, it["n"]).exists() else "push-in (no talking clip)"
         else:
             kind = "clip" if (it["shot"].get("animate") and video_path(run_dir, it["n"]).exists()) else "push-in"
-        print(f"  shot {it['n']}: {kind} {it['duration']:.2f}s" + (f" (VO {it['vo_len']:.2f}s)" if it["vo"] else ""))
+        voiced = ("" if not it["vo"] else f" (its own voice, from {it['clip_offset']:.2f}s of the clip)" if "clip_offset" in it
+                  else f" (VO {it['vo_len']:.2f}s)")
+        print(f"  shot {it['n']}: {kind} {it['duration']:.2f}s{voiced}")
         clip = build_shot_clip(run_dir, build, it, asm, background=scene_clip)
         progress.tick()
         if not (it["shot"].get("card") or it["shot"].get("app_screen")):

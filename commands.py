@@ -161,11 +161,22 @@ def reroll(run_id: str, shot_number: int, config: dict) -> None:
     run_dir = run_dir_for(run_id)
     _image_pipeline_only(run_dir, "reroll")
     print(f"\n=== reroll shot {shot_number} ({run_dir.name}) ===")
-    progress.start(["images", "video"])
+    # Clip sound: a spoken shot's voice is cut from its clip, so a new clip needs its line read again.
+    import clip_sound
+    revoice = False
+    if clip_sound.on(config, run_dir):
+        from run_status import load_script
+        shot = next((s for s in (load_script(run_dir) or {}).get("shots", [])
+                     if isinstance(s, dict) and s.get("n") == shot_number), {})
+        revoice = bool(str(shot.get("vo_line") or "").strip()) and not shot.get("app_screen")
+    progress.start(["images", "video"] + (["voice"] if revoice else []))
     progress.step("images")
     step_module("images").reroll_shot(run_dir, config, shot_number)
     progress.step("video")
     step_module("video").reroll_shot(run_dir, config, shot_number)
+    if revoice:
+        progress.step("voice")
+        step_module("voice").run(run_dir, config, only=str(shot_number))
 
 
 def move_shot(run_id: str, shot_number: int, to: int, config: dict) -> dict:

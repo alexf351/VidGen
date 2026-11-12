@@ -44,11 +44,17 @@ ONE_TAKE = ("One continuous take that starts on this exact picture: no cut, no j
             "or place, and nobody turns to face the other way unless the action says so.")
 
 
-def _motion(config: dict, shot: dict, descriptions: dict[str, str] | None) -> str:
+def _motion(config: dict, shot: dict, descriptions: dict[str, str] | None, sound: bool = False) -> str:
     # mouths_move (config, on by default): spoken shots tell the video model who is talking.
-    if config.get("mouths_move", True) is False:
+    # `sound`: the clip is made with its own sound (clip_sound.py), so the model is also told
+    # what should be heard: the line in the speaker's kind of voice, or nobody speaking.
+    if config.get("mouths_move", True) is False and not sound:
         return f"{shot['motion_prompt'].strip()} {ONE_TAKE}"
-    return f"{clip_prompt(shot, descriptions)} {ONE_TAKE}"
+    text = clip_prompt(shot, descriptions)
+    if sound:
+        import clip_sound
+        text = f"{text} {clip_sound.sound_note(shot, config.get('locked_characters'))}"
+    return f"{text} {ONE_TAKE}"
 
 
 def _workers(config: dict) -> int:
@@ -137,22 +143,25 @@ def generate_clip(run_dir: Path, config: dict, shot: dict,
         raise StepError(f"shot {n}: keyframe {keyframe} is missing; run the images step first")
     dest = video_path(run_dir, n)
     label = f"shot {n}"
+    import clip_sound
+    sound = clip_sound.on(config, run_dir)          # the clip comes with its own sound
     if video_provider(config) == "sume":
         video_resolution(config)
         if downloads.resume(dest, sume_api.download, label):
             return dest
-        url = sume_api.generate_video(config, _motion(config, shot, descriptions), keyframe, label)
+        with_sound = {**config, "sume": {**config["sume"], "video_audio": True}} if sound else config
+        url = sume_api.generate_video(with_sound, _motion(config, shot, descriptions, sound), keyframe, label)
         downloads.save(url, dest, sume_api.download)
         return dest
     if downloads.resume(dest, fal_api.download, label):
         return dest
     result = fal_api.call(fal["video_model"], {
-        "prompt": _motion(config, shot, descriptions),
+        "prompt": _motion(config, shot, descriptions, sound),
         "image_url": fal_api.upload(keyframe),
         "duration": int(fal["video_seconds"]),
         "resolution": video_resolution(config),
         "aspect_ratio": ASPECT,
-        "generate_audio": bool(fal["video_audio"]),
+        "generate_audio": bool(fal["video_audio"]) or sound,
     }, label=label)
     downloads.save(fal_api.video_url(result, label), dest, fal_api.download)
     return dest
@@ -189,8 +198,10 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         print(f"[video] shot(s) {skipped_static} are animate: false, nothing to render")
     via = "" if video_provider(config) == "fal" else \
         f" via Sume ({block['video_model']}, up to {_workers(config)} at once)"
+    import clip_sound
+    sound = clip_sound.on(config, run_dir)
     print(f"[video] {len(animated)} animated shot(s), {seconds}s each at {resolution}, "
-          f"${rate:.4f}/s{via}")
+          f"${rate:.4f}/s{via}" + (", each with its own sound" if sound else ""))
     if talking:
         print(f"[video] {len(talking)} talking shot(s), lip-synced on fal ({config['fal']['avatar_model']}), "
               f"${talk_rate:.4f}/s of speech")
@@ -204,6 +215,13 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         n = shot["n"]
         print(f"  shot {n}: generating...")
         generate_clip(run_dir, config, shot, descriptions)
+        if sound:
+            # A voice file cut from the old clip no longer goes with the picture.
+            from steps.voice import audio_path, timing_path
+            if clip_sound.timing_source(timing_path(run_dir, n)):
+                audio_path(run_dir, n).unlink(missing_ok=True)
+                timing_path(run_dir, n).unlink(missing_ok=True)
+                print(f"  shot {n}: its line was read from the old clip; run the voice step for it again")
         progress.tick()
         cost = seconds * rate
         with lock:

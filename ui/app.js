@@ -836,6 +836,44 @@ function captionsPanel(run, busy) {
   return box;
 }
 
+// ------------------------------------------------------------ sound panel
+// Clip sound for this video: the clips speak their own lines (clip_sound.py on the server).
+function soundPanel(run, busy) {
+  const box = h("section", { class: "captions-panel sound-panel", "aria-label": "Sound" });
+  const draw = () => {
+    const on = !!run.clip_sound;
+    const set = async (v) => {
+      if (v === on) return;
+      try {
+        const r = await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/clip-sound`, { on: v });
+        run.clip_sound = r.clip_sound;
+        S.soundChanged = run.run_id;
+      } catch (e) { toast(e.message, "bad"); }
+      draw();
+    };
+    const clips = run.shots.filter((s) => s.clip).map((s) => s.n);
+    const spoken = run.shots.filter((s) => (s.shot.vo_line || "").trim() && s.kind === "shot");
+    const own = spoken.filter((s) => s.own_voice).length;
+    const changed = S.soundChanged === run.run_id && clips.length;
+    box.replaceChildren(...[
+      h("div", { class: "panel-title" }, "Sound"),
+      chips([[false, "Voices added after"], [true, "Clips speak for themselves"]], on, set, "Sound for this video"),
+      on && spoken.length && run.steps.voice && run.steps.voice.done ? h("div", { class: "field-note" },
+        `${own} of ${spoken.length} spoken shots use their clip's own voice.${own < spoken.length ? " The rest use the ElevenLabs voice: their clip is silent or said the line wrong. Reroll one to try again." : ""}`) : null,
+      changed ? h("div", { class: "notice" }, on
+        ? "The clips made so far have the sound they were made with. To hear them speak, redo the clips, then the voices, then assemble. "
+        : "Lines taken from clips stay until the voices are redone. Redo the voices, then assemble. ",
+        on ? h("button", { class: "btn small", disabled: busy, onclick: () => { S.soundChanged = null; runStep(run, "video", clips); } }, `Redo all ${clips.length} clips`)
+           : h("button", { class: "btn small", disabled: busy, onclick: () => { S.soundChanged = null; runStep(run, "voice", spoken.map((s) => s.n)); } }, "Redo the voices")) : null,
+      !changed ? h("div", { class: "field-note" }, on
+        ? "The video model makes each clip with its own sound: lines are said with matching lips, and silent shots keep their footsteps and doors. The voices are the model's own."
+        : "Clips are silent and the ElevenLabs voices are laid over them. Switch to hear the clips speak for themselves, with lips that match.") : null,
+    ].filter(Boolean));
+  };
+  draw();
+  return box;
+}
+
 // --------------------------------------------------------------- sidebar
 function runState(r) {
   if (r.job && ACTIVE.has(r.job.status)) return r.job.status;
@@ -990,6 +1028,7 @@ function renderCreate(formatName) {
     keyWarn.textContent = missing.length ? `No API key set for ${missing.join(", ")}.` : "";
     provSec.classList.toggle("hidden", st.engine === "claude_code");
     capSec.classList.toggle("hidden", st.engine === "claude_code");
+    sndSec.classList.toggle("hidden", st.engine === "claude_code");
     if (scrSec) scrSec.classList.toggle("hidden", st.engine === "claude_code" || !!readyOn);
     codeWarn.textContent = st.engine === "claude_code" ? codeEngineProblem() : "";
     if (st.engine === "claude_code") {
@@ -1045,6 +1084,11 @@ function renderCreate(formatName) {
     h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Captions")),
     captionPicker(f.name, st.captions, (v) => { st.captions = v; }),
     h("div", { class: "field-note" }, "You can change this after the video is made, for free."));
+  if (st.clipSound === undefined) st.clipSound = !!(S.config && S.config.clip_sound);
+  const sndSec = h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Sound")),
+    chips([[false, "Voices added after", "ElevenLabs voices you pick"], [true, "Clips speak for themselves", "lips match, real scene sound"]],
+      st.clipSound, (v) => { st.clipSound = v; }, "Sound"),
+    h("div", { class: "field-note" }, "With clips speaking for themselves the video model makes each clip with its own sound: people say their lines with matching lips, doors slam, feet walk. The voices are then the model's own. You can switch this per video later."));
   const scrSec = screensSection(f, st);
   const readySec = readySection(f, st, () => { drawOutput(); update(); });
   S.onDoctor = update;
@@ -1072,7 +1116,8 @@ function renderCreate(formatName) {
     go.disabled = true;
     const r = await submit(api("POST", "/api/runs", { premise: text, format: f.name, provider: st.engine === "ai" ? (st.provider || null) : null,
       dry_run: st.dry, engine: st.engine, cast: st.cast, captions: st.engine === "ai" ? st.captions : null,
-      screens: st.engine === "ai" && !ready ? st.screens : [], ready }),
+      screens: st.engine === "ai" && !ready ? st.screens : [], ready,
+      clip_sound: st.engine === "ai" ? !!st.clipSound : null }),
       st.dry ? (st.engine === "claude_code" ? "story" : "script") : `${formatTitle(f)} video`);
     go.disabled = false;
     if (r) { await refreshRuns(); location.hash = `#/run/${encodeURIComponent(r.run_id)}`; }
@@ -1087,6 +1132,7 @@ function renderCreate(formatName) {
     h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Output")), outputBox),
     scrSec,
     provSec,
+    sndSec,
     capSec,
     castSection(f, st, update),
     h("section", { class: "card-sec cost-card" }, h("div", {}, costLine, costSub), go));
@@ -1453,6 +1499,7 @@ function sideColumn(run, busy) {
     final.append(h("div", { class: "player-empty" }, run.script ? "Not assembled yet. It appears here once the images, clips and voices are in." : "No video yet."));
   }
   col.append(final);
+  if (run.script) col.append(soundPanel(run, busy));
   if (run.script && captionStyles().length) col.append(captionsPanel(run, busy));
   if (run.voices && run.voices.length) col.append(voicesPanel(run, busy));
   if (run.song) {
@@ -2317,7 +2364,7 @@ async function watchJob(id, pinned) {
 function route() {
   const m = location.hash.match(/^#\/run\/(.+)$/);
   const runId = m ? decodeURIComponent(m[1]) : null;
-  if (runId !== S.runId) { S.selected.clear(); S.saveErrors = null; S.afterSave = null; S.moved = null; S.draft = null; S.draftFor = null; S.run = null;
+  if (runId !== S.runId) { S.selected.clear(); S.saveErrors = null; S.afterSave = null; S.moved = null; S.soundChanged = null; S.draft = null; S.draftFor = null; S.run = null;
     S.storyDraft = null; S.storyFor = null; S.storyErrors = null; }
   S.runId = runId;
   renderSidebar();

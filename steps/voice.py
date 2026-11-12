@@ -115,6 +115,57 @@ def generate_voice(run_dir: Path, config: dict, shot: dict) -> Path:
     return mp3
 
 
+def voice_from_clip(run_dir: Path, config: dict, shot: dict) -> bool:
+    """Clip sound (clip_sound.py): the line as the shot's own clip says it. Finds the words in
+    the clip, and when they are the line, cuts that stretch of the clip's sound as the shot's
+    voice file, with the words' times for the captions. False when the clip cannot be used (no
+    clip, no sound in it, or it says something else): the caller then uses the ElevenLabs voice."""
+    import clip_sound
+    from media import has_audio_stream, probe_duration
+    n = shot["n"]
+    clip = run_dir / "shots" / f"{n}.mp4"
+    label = f"shot {n}"
+    if shot.get("app_screen") or shot.get("talk") or shot.get("montage") or not clip.is_file():
+        return False
+    if not has_audio_stream(clip):
+        print(f"  shot {n}: its clip has no sound (it was made before clip sound was on). Using the "
+              f"ElevenLabs voice; redo its video to hear the clip's own.")
+        return False
+    line = shot["vo_line"].strip()
+    try:
+        heard = clip_sound.transcribe(clip, config, label)
+    except StepError as e:
+        print(f"  {e}. Using the ElevenLabs voice for this shot.")
+        return False
+    said = " ".join(w["word"] for w in heard)
+    score = clip_sound.match(line, heard)
+    need = clip_sound.settings(config)["match"]
+    if score < need:
+        what = f'says "{said}"' if said else "has no words in it"
+        print(f"  shot {n}: the clip {what}, not the line (match {score:.0%}, needs {need:.0%}). Using the "
+              f"ElevenLabs voice; reroll the shot for another try at the clip's own.")
+        return False
+    words = clip_sound.align(line, heard)
+    start, length = clip_sound.window(words, probe_duration(clip))
+    clip_sound.cut_voice(clip, start, length, audio_path(run_dir, n), label)
+    write_json(timing_path(run_dir, n), {
+        "shot": n,
+        "speaker": shot.get("speaker") or "narrator",
+        "voice_id": "",
+        "text": line,
+        "characters": 0,                       # nothing was synthesized, so nothing to count as voice cost
+        "duration": length,
+        "words": [{"word": w["word"], "start": round(min(length, max(0.0, w["start"] - start)), 3),
+                   "end": round(min(length, max(0.0, w["end"] - start)), 3)} for w in words],
+        "source": "clip",
+        "clip_offset": start,
+        "said": said,
+        "match": score,
+    })
+    print(f"  shot {n}: said in the clip, {start:.2f}s to {start + length:.2f}s (match {score:.0%})")
+    return True
+
+
 def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> None:
     require_key()
     script = read_script(run_dir)
@@ -132,12 +183,21 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
     import progress
     progress.plan(sum(1 for s in spoken if force or not (audio_path(run_dir, s["n"]).exists()
                                                         and timing_path(run_dir, s["n"]).exists())), "lines")
+    import clip_sound
+    from_clips = clip_sound.on(config, run_dir)
+    if from_clips:
+        print("[voice] clip sound is on: a line is taken from its shot's own clip when the clip says it")
     generated = 0
     chars = 0
+    heard = 0
     for shot in spoken:
         n = shot["n"]
         if audio_path(run_dir, n).exists() and timing_path(run_dir, n).exists() and not force:
             print(f"  shot {n}: exists, skipping")
+            continue
+        if from_clips and voice_from_clip(run_dir, config, shot):
+            heard += 1
+            progress.tick()
             continue
         speaker = shot.get("speaker") or "narrator"
         print(f"  shot {n}: {speaker} ({voice_cast.voice_for(run_dir, speaker, config)}) \"{shot['vo_line'].strip()}\"")
@@ -149,6 +209,8 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
             print(f"  shot {n}: removed its talking clip (made for the old line); rerun video --only {n}")
         generated += 1
         chars += len(shot["vo_line"].strip())
+    if heard:
+        print(f"[voice] {heard} line(s) taken from their clips")
     print(f"[voice] generated {generated} clip(s), {chars} chars, est. ${chars / 1000 * rate:.2f} "
           f"-> {audio_dir(run_dir)}")
 

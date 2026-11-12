@@ -58,6 +58,16 @@ sfx:
   cuts: true                    # a soft swish on every cut, not only on scene changes; false = cuts
                                 # inside a scene stay clean
 
+# Clip sound: the video model makes every clip with its own sound. People say their lines with
+# lips that match, and a door slams when it shuts (see clip_sound.py and the README). The voices
+# are then the model's own, not the ElevenLabs voices; a line the clip gets wrong is still spoken
+# by the ElevenLabs voice. One video can switch it on or off for itself on its run page.
+clip_sound:
+  enabled: false
+  level: 0.8                    # how loud a shot's own sound plays when nobody speaks in it
+  match: 0.7                    # how much of a line must be heard in its clip (0-1) to use the clip's voice
+  model: scribe_v2              # the ElevenLabs model that finds the words in a clip
+
 script:
   model: "claude-sonnet-5-5"
   # The cap on one reply. The model thinks before it writes and the thinking counts toward this

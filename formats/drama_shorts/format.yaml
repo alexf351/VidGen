@@ -1,0 +1,64 @@
+# Imported from the skill drama-shorts/SKILL.md by `python main.py import-skill`.
+# The original is in source/. Review and edit freely; see formats/pixar_arc/format.yaml for every setting.
+
+name: drama_shorts
+description: Cliffhanger micro-drama episodes.
+duration_target: about 30 seconds
+aspect: '9:16'
+resolution:
+- 1080
+- 1920
+fps: 30
+clip_seconds: 5
+cast: locked
+beats:
+- hook
+- conflict
+- twist
+- cliffhanger
+style: cinematic photoreal drama, moody lighting, vertical 9:16
+max_animated_shots: 3
+rules:
+  story_shots:
+  - 6
+  - 10
+  vo_words:
+  - 10
+  - 40
+  caption_max_words: 3
+  cta_caption: FOLLOW FOR PART 2
+  narrator: false
+  cards:
+    count:
+    - 1
+    - 2
+    words:
+    - 2
+    - 4
+  banned_image_prompt:
+    fix: no logos
+    patterns:
+    - - \blogo\b
+      - a logo
+prompt:
+  app_screen_line: '* "{{PATH}}": {{SHOWS}}'
+  app_screen_unknown: an app screen
+captions:
+  max_words: 3
+  y: 0.6
+  fill: '&H0000D4FF'
+grade:
+  saturation: 1.0
+  colorbalance: rs=0.03:bs=-0.04:rm=0.02:bm=-0.03:rh=0.01:bh=-0.02
+timing:
+  card_seconds: 1.0
+app_screens: []
+locked_characters:
+- id: ava
+  role: lead
+  description: a 28 year old woman with short black hair
+  image_path: ''
+- id: leo
+  role: ex
+  description: a 30 year old man with a beard
+  image_path: ''

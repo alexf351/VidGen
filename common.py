@@ -168,6 +168,8 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
             raise StepError(f"config: {flag} must be true or false")
     import sfx as _sfx
     cfg["sfx"] = _sfx.settings(cfg)
+    import clip_sound as _clip_sound
+    cfg["clip_sound"] = _clip_sound.settings(cfg)
     cfg.setdefault("script", {})
     cfg["script"].setdefault("model", "claude-sonnet-5-5")
     cfg["script"].setdefault("max_tokens", 64000)

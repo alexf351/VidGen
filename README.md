@@ -549,6 +549,7 @@ Set by the format (`formats/<name>/format.yaml`), overridable in `config.local.y
 | `extends`            | another format to start from; this file then lists only what differs |
 | `animate_all`        | `true`: every drawn shot becomes a video clip (set by the format; Pixar Arc: on) |
 | `sfx`                | `true`: sound effects under the cut (set by the format; Pixar Arc: on). `sfx: false` or `sfx: {enabled: true}` in `config.local.yaml` decides for every format |
+| `clip_sound`         | clips made with their own sound, lines taken from them (see Clip sound). Off unless switched on per video or in `config.local.yaml` |
 | `assemble.caption_style` | caption style for new videos (see Caption styles); empty = the format's own |
 | `app_screens`        | a format's own app screenshots (`path`, `shows`); every format also gets the whole library (see App screens) |
 | `locked_characters` (with `cast: locked`) | recurring cast: `id`, `role`, `description`, `image_path` |
@@ -841,6 +842,42 @@ Anton, Bangers, Montserrat) are bundled in `assets/fonts/` under the SIL Open Fo
 - A music bed is mixed under the cut only when `music_path` is set, and the outro is appended
   only when `outro_path` is set. The result is `runs/<run_id>/final.mp4`, H.264 + AAC at 30 fps,
   and the step ends with an estimated cost breakdown for images, video and voice.
+
+### Clip sound: the clips speak for themselves
+
+By default a clip is silent: the picture moves, an ElevenLabs voice is laid over it afterwards,
+and the mouth was animated without ever hearing the line, so lips and words do not match. With
+**clip sound** on, the video model makes each clip together with its sound: a character says
+the line with lips that match, a door slams when it shuts, feet are heard on the floor.
+
+Switch it on for one video in the **Sound** choice on the create screen or the Sound panel on
+its run page, or for every video in `config.local.yaml`:
+
+```yaml
+clip_sound:
+  enabled: true
+  level: 0.8       # how loud a shot's own sound plays when nobody speaks in it
+  match: 0.7       # how much of a line must be heard in its clip (0-1) to use the clip's voice
+```
+
+What each step then does:
+
+| step     | with clip sound                                                                    |
+|----------|------------------------------------------------------------------------------------|
+| video    | every clip is requested with sound. The prompt says who speaks, the line, and how the voice sounds (the character's `voice_style` in `format.yaml`, so it stays alike from shot to shot), and asks for the sound of the scene with no music |
+| voice    | for a spoken shot, the words in its clip are found with ElevenLabs Speech to Text (one short call per shot). If they are the line, that stretch of the clip becomes the shot's voice file and the captions follow those words. If the clip says something else, or nothing, the line is spoken by the ElevenLabs voice as before, and the log says so |
+| assemble | a shot that speaks from its clip shows the same stretch of the clip, so sound and picture stay together. A shot where nobody speaks plays its clip's own sound under the cut |
+
+Things to know:
+
+- The voices are the video model's own, not the ElevenLabs voices in the Voices panel. Those are
+  used only for lines a clip got wrong, lines over an app screen, and narration.
+- The run page shows how many spoken shots use their clip's own voice. **Reroll** on one that
+  does not gives the clip another try (a reroll then also reads the line again).
+- Clips made before the switch stay silent. After switching a finished video over, redo its
+  clips, then the voices, then assemble; the Sound panel offers the buttons.
+- A line has to fit in the clip: a long line in a 4 second clip is rushed or cut off, and then
+  falls back to the ElevenLabs voice.
 
 ### Sound effects
 
