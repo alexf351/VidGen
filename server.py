@@ -88,6 +88,10 @@ class DrawRequest(BaseModel):
     provider: ProviderChoice = None
 
 
+class CaptionWords(BaseModel):
+    words: int | None = None          # 1, 2 or 3 words at a time; None = the format's own
+
+
 class CaptionChoice(BaseModel):
     style: str | None = None          # None or "format" = the format's own look
 
@@ -948,6 +952,24 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         except StepError as e:
             raise HTTPException(400, str(e)) from e
         return {"caption_style": saved, "assembled": (run_dir / "final.mp4").is_file()}
+
+    @app.put("/api/runs/{run_id}/caption-words")
+    def set_run_caption_words(run_id: str, body: CaptionWords) -> dict:
+        """How many words this video's captions show at a time. Like the style, it takes effect
+        when the assemble step runs again."""
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "caption styles")
+        active = runner.active_for_run(run_id)
+        if active:
+            raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
+                                     f"wait for it to finish")
+        try:
+            caption_styles.set_words_for_run(run_dir, body.words)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        cfg = config_for_run(run_dir)
+        return {"caption_words": caption_styles.words_for_run(run_dir, cfg["assemble"]),
+                "assembled": (run_dir / "final.mp4").is_file()}
 
     @app.put("/api/runs/{run_id}/voices")
     def set_run_voice(run_id: str, body: VoiceChoice) -> dict:

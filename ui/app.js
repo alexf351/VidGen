@@ -864,9 +864,21 @@ function captionsPanel(run, busy) {
       draw();
     } }, captionStyles().map((c) => h("option", { value: c.id, selected: c.id === current }, c.title)));
     const redo = S.captionRedo === run.run_id;
+    const setWords = async (n) => {
+      if (n === run.caption_words) return;
+      try {
+        const r = await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/caption-words`, { words: n });
+        run.caption_words = r.caption_words;
+        S.captionRedo = r.assembled ? run.run_id : null;
+      } catch (err) { toast(err.message, "bad"); }
+      draw();
+    };
     box.replaceChildren(...[
       h("div", { class: "panel-title" }, "Captions"),
       h("div", { class: "cap-row" }, captionPreview(run.format, current), sel),
+      current !== "off" ? h("div", { class: "mix-row" }, h("label", {}, "Words at a time"),
+        chips([[1, "1"], [2, "2"], [3, "3"]], run.caption_words || 1, setWords, "Words shown at a time"),
+        h("div", { class: "field-note" }, "One word pops with the voice. Two or three read like a sentence, split evenly so no word is left on its own.")) : null,
       redo ? h("div", { class: "notice" }, `The finished video still has the old captions. `,
         h("button", { class: "btn small", disabled: busy, onclick: () => { S.captionRedo = null; runStep(run, "assemble"); } }, "Assemble again"),
         h("div", { class: "field-note" }, "Assembling makes no API calls, so it costs nothing.")) : null,

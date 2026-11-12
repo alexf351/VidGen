@@ -61,6 +61,13 @@ rules:
 
 # The small stage-direction tag: dark italic text on a white box in the lower third, with an
 # asterisk on each side.
+# Captions: two or three words at a time, as in the ads this copies (Pixar Arc shows one).
+# The lettering is a little smaller so three words fit on a line. A video can choose 1, 2 or 3
+# for itself in its Captions panel.
+captions:
+  max_words: 3
+  size: 76
+
 labels:
   y: 0.74
   size: 40

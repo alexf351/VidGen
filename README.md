@@ -858,6 +858,15 @@ Pick one on the create screen, with `new --captions <style>`, or for every new v
 API calls, so it costs nothing. The presets live in `caption_styles.py`; the fonts (Poppins,
 Anton, Bangers, Montserrat) are bundled in `assets/fonts/` under the SIL Open Font License.
 
+**Words at a time.** A caption shows one, two or three words. The format sets it
+(`captions.max_words`: 1 for `pixar_arc`, 3 for `pixar_mirror`, like the ads it copies) and a
+video can choose for itself in its Captions panel (`"caption_words": 2` in its `run.json`,
+`PUT /api/runs/{run_id}/caption-words`). A line is shared out evenly between its captions, so
+no word is left on its own: seven words at three a time show as 3, 2, 2. A full stop, a
+question mark or an exclamation mark always ends a caption; at three words a comma does not,
+so "Wait, what?" is one caption. At three words the lettering is 16% smaller so a caption fits
+on one line. Like the style, it takes effect when the assemble step runs again.
+
 - Each shot lasts its voice-over length plus 0.25 s, with a 1.2 s minimum.
 - Animated shots are trimmed to that length (the last frame is held if the clip is shorter).
   Still shots get a slow push-in from 1.00 to 1.08 on the keyframe.
@@ -866,7 +875,7 @@ Anton, Bangers, Montserrat) are bundled in `assets/fonts/` under the SIL Open Fo
 - Captions come from a generated `.ass` file and are burned in. Every spoken word is shown,
   one word at a time in all caps for `pixar_arc` (the format's `captions.max_words`; set it to
   2 for two-word chunks), built from the word timings in `audio/<n>.json`: a chunk never holds
-  more than `max_words` words and always breaks after punctuation, appears when its first
+  more than `max_words` words and always breaks after punctuation (see Words at a time), appears when its first
   word starts and stays until the next chunk starts (the last one until the shot ends). Each
   chunk pops in from 85% to 100% scale over 80 ms. Commas and periods are dropped from the
   display; `!` and `?` are kept. Silent shots show the shot's `caption` field for the whole

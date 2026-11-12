@@ -618,25 +618,35 @@ def chunk_words(words: list[dict], max_words: int = MAX_CHUNK_WORDS) -> list[dic
     """Group timed words into chunks of at most max_words, breaking after punctuation.
 
     Returns [{"text": "THE WINDOW", "start": seconds into the clip}]. A token that is pure
-    punctuation (a standalone dash, an ellipsis) shows nothing and ends the current chunk."""
-    chunks: list[dict] = []
-    cur: list[str] = []
-    cur_start = 0.0
+    punctuation (a standalone dash, an ellipsis) shows nothing and ends the current chunk.
+
+    A stretch of words between two breaks is shared out evenly, so the last chunk is not one
+    word left over: seven words at three a time are 3, 2, 2 ("GO TELL TYLER", "I THINK",
+    "HE'S HOT"), not 3, 3, 1. At three or more words a comma no longer ends a chunk, so
+    "Wait, what?" is one caption; a full stop, a question or an exclamation always does."""
+    hard = tuple(c for c in _BREAK_AFTER if c != ",") if max_words >= 3 else _BREAK_AFTER
+    stretches: list[list[tuple[str, float]]] = [[]]
     for w in words:
         text = _display(w["word"])
         if not text:
-            if cur:
-                chunks.append({"text": " ".join(cur), "start": cur_start})
-                cur = []
+            stretches.append([])
             continue
-        if not cur:
-            cur_start = float(w["start"])
-        cur.append(text)
-        if len(cur) >= max_words or _ends_clause(w["word"]):
-            chunks.append({"text": " ".join(cur), "start": cur_start})
-            cur = []
-    if cur:
-        chunks.append({"text": " ".join(cur), "start": cur_start})
+        stretches[-1].append((text, float(w["start"])))
+        if w["word"].strip().rstrip(_QUOTES).endswith(hard):
+            stretches.append([])
+    chunks: list[dict] = []
+    for stretch in stretches:
+        n = len(stretch)
+        if not n:
+            continue
+        groups = -(-n // max(1, max_words))                 # as few chunks as the limit allows
+        size, extra = divmod(n, groups)
+        at = 0
+        for g in range(groups):
+            take = size + (1 if g < extra else 0)           # the longer chunks come first
+            part = stretch[at:at + take]
+            chunks.append({"text": " ".join(t for t, _ in part), "start": part[0][1]})
+            at += take
     return chunks
 
 
@@ -1150,6 +1160,7 @@ def run(run_dir: Path, config: dict, sound_only: bool = False) -> None:
     import caption_styles
     style = caption_styles.for_run(run_dir, config)
     asm = caption_styles.apply(config["assemble"], style)
+    asm = caption_styles.with_words(asm, caption_styles.words_for_run(run_dir, asm))
     config = {**config, "assemble": asm}
     build = run_dir / "build"
     build.mkdir(parents=True, exist_ok=True)

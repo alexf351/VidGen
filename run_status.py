@@ -209,6 +209,15 @@ def _caption_style(run_dir: Path, config: dict | None) -> str:
     return caption_styles.for_run(run_dir, config or {})
 
 
+def _caption_words(run_dir: Path, config: dict | None) -> int:
+    """How many words a caption shows at a time in this video (its own choice, else the format's)."""
+    try:
+        import caption_styles
+        return caption_styles.words_for_run(run_dir, (config or {}).get("assemble") or {})
+    except Exception:
+        return 1
+
+
 def _clip_sound_on(run_dir: Path, config: dict | None) -> bool:
     try:
         import clip_sound
@@ -275,6 +284,7 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             "final_video": file_url(run_dir / "final.mp4"),
             "captions": file_url(run_dir / "build" / "captions.ass"),
             "caption_style": _caption_style(run_dir, config),
+            "caption_words": _caption_words(run_dir, config),
             "animate_all": bool((config or {}).get("animate_all")),
             # app-screen shots go on a phone in the hero's hand (the hand is drawn by the images step)
             "app_hand": bool((config or {}).get("app_screen_hand")),

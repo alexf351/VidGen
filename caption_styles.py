@@ -142,6 +142,55 @@ def set_for_run(run_dir: Path, style: str | None) -> str:
     return style
 
 
+WORDS = (1, 2, 3)              # how many words a caption may show at a time
+WIDE_FROM = 3                  # from this many words the lettering is a little smaller, to fit a line
+WIDE_SIZE = 0.84
+
+
+def words_for_run(run_dir: Path, asm: dict) -> int:
+    """How many words a caption shows at a time in this video: its own choice (run.json
+    "caption_words"), else the format's (captions.max_words)."""
+    from common import read_json
+    try:
+        saved = read_json(Path(run_dir) / "run.json").get("caption_words")
+    except (OSError, ValueError, AttributeError):
+        saved = None
+    if isinstance(saved, int) and not isinstance(saved, bool) and saved in WORDS:
+        return saved
+    try:
+        return max(1, int(asm.get("caption_max_words") or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def set_words_for_run(run_dir: Path, words: int | None) -> int | None:
+    """Save this video's words-at-a-time (None = the format's again)."""
+    from common import read_json, write_json
+    if words is not None and (isinstance(words, bool) or words not in WORDS):
+        raise StepError(f"captions can show {', '.join(str(n) for n in WORDS[:-1])} or {WORDS[-1]} words at a time, got {words!r}")
+    path = Path(run_dir) / "run.json"
+    meta = read_json(path) if path.is_file() else {"run_id": Path(run_dir).name}
+    if words is None:
+        meta.pop("caption_words", None)
+    else:
+        meta["caption_words"] = int(words)
+    write_json(path, meta)
+    return words
+
+
+def with_words(asm: dict, words: int) -> dict:
+    """assemble settings for captions of `words` at a time (a copy). When that is more than
+    the format was drawn for, the lettering comes down a little so three words fit a line."""
+    out = dict(asm)
+    was = max(1, int(asm.get("caption_max_words") or 1))
+    out["caption_max_words"] = int(words)
+    if words >= WIDE_FROM > was:
+        out["caption_size"] = max(12, int(round(float(asm["caption_size"]) * WIDE_SIZE)))
+    elif was >= WIDE_FROM > words:                           # and back up when it shows fewer
+        out["caption_size"] = max(12, int(round(float(asm["caption_size"]) / WIDE_SIZE)))
+    return out
+
+
 # ------------------------------------------------------------------ previews ----
 
 PREVIEW_TEXT = "LOCK IN"
