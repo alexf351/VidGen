@@ -601,6 +601,7 @@ the premise fills in; pick "Write my own" to go back to Claude writing it.
 | --------------- | ---------------- | ------------------------------------------------------------------------ |
 | `pixar_mirror`  | `the_standup`    | laughed at in the Monday meeting; six months later they bring him coffee |
 | `pixar_mirror`  | `two_minute_fix` | sent to another table in a coffee shop; later she slides him the laptop   |
+| `pixar_mirror`  | `the_wingman`    | he thinks it is a date, she wants a wingman; later he asks her to be his  |
 | `pixar_revenge` | `the_fountain`   | she says no at the fountain; two years later his car pulls up beside theirs |
 | `pixar_ladder`  | `the_cafe`       | his cafe is dead; the app he builds for it fills the room                |
 | `pixar_steps`   | `the_cactus`     | four steps to a first client, and the line he used is the last step      |
