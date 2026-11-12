@@ -107,8 +107,9 @@ shots come on top. Number every shot "n" from 1 upward with no gaps.
      seconds.
   5. THE TIME CARD (exactly 1 shot). "6 MONTHS LATER" or the span that fits the numbers.
   6. THE SCENE, SECOND TIME (7-10 shots, 6-9 lines). The SAME place as beat 1, described
-     in the same words, the same people, the same time of day. The hero looks different:
-     better clothes, standing tall, relaxed. Now the scene runs the other way. The person
+     in the same words, the same people, the same time of day. The hero looks different,
+     and it has to show at a glance because nobody says it: a tailored suit and a good
+     watch where there was a hoodie, standing tall, relaxed. Now the scene runs the other way. The person
      who brushed him off starts it, wanting something from him. The object or action from
      beat 1 comes back, done by the other person this time and on purpose. At least
      {{MIRROR_MIN}} lines from beat 1 are said again WORD FOR WORD, and now they mean the
@@ -168,6 +169,10 @@ HOW IT IS SHOT
   around a shoulder, walking off together).
 - A reaction with no line is its own short shot: his face falling, her eyebrows going
   up. Faces change DURING a shot (a smile that drops, a glare that turns into a smirk).
+- Give the two people talking a side each and keep it in every close shot of both scenes:
+  one is turned toward the right of the frame, the other toward the left, each looking at
+  the other just off camera. Say so in the image_prompt. Cut together, they then face each
+  other, and nobody seems to jump across the room.
 - Mark every shot of a scene after its first with "same_scene": true.
 
 TONE AND LOOK

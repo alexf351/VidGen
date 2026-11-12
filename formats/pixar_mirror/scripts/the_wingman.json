@@ -6,7 +6,7 @@
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a white ribbed tank top and light blue jeans, holding a red plastic cup, twisting round toward someone just off camera with a huge excited grin, eyes wide and sparkling, her free hand reaching out to grab their arm, mouth open mid-shout. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a white ribbed tank top and light blue jeans, holding a red plastic cup, twisting round toward someone just off camera with a huge excited grin, eyes wide and sparkling, her free hand reaching out to grab their arm, mouth open mid-shout. She is turned toward the right of the frame, where the person she is talking to stands just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Jess spins round, grabs an arm just off camera and her mouth moves as she shouts it over the music, bouncing on her toes. Quick push-in on her grin.",
       "vo_line": "Marcus! Be my wingman!",
       "speaker": "jess"
@@ -15,7 +15,7 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a baggy grey hoodie, holding two full red plastic cups, one in each hand, eyebrows shot up, eyes wide and confused, mouth open mid-word. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a baggy grey hoodie, holding two full red plastic cups, one in each hand, eyebrows shot up, eyes wide and confused, mouth open mid-word. He is turned toward the left of the frame, where the person he is talking to stands just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus blinks, looks from one cup to the other and back up, his mouth moving as he says it, lost. Small push-in on his confused face.",
       "vo_line": "Wait, what?",
       "speaker": "marcus",
@@ -25,7 +25,7 @@
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a white ribbed tank top and light blue jeans, holding a red plastic cup and pointing across the room past the camera with her whole arm, biting her lip, eyes locked on whoever she is pointing at, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a white ribbed tank top and light blue jeans, holding a red plastic cup and pointing off to the left of the frame with her whole arm, biting her lip, eyes locked on whoever she is pointing at, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Jess jabs her finger across the room twice and her mouth moves as she says it fast, eyes never leaving whoever she points at. Push-in on her face.",
       "vo_line": "Go tell Tyler I think he's hot.",
       "speaker": "jess",
@@ -35,7 +35,7 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a baggy grey hoodie, looking down at the two full red plastic cups in his hands, shoulders dropping, his hopeful smile gone, eyebrows pinched up in the middle, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a baggy grey hoodie, looking down at the two full red plastic cups in his hands, shoulders dropping, his hopeful smile gone, eyebrows pinched up in the middle, mouth open mid-sentence. He is turned toward the left of the frame, where the person he is talking to stands just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus looks down at the two cups, lifts one a little and his mouth moves as he says it in a small voice. Slow push-in.",
       "vo_line": "I thought we came together.",
       "speaker": "marcus",
@@ -45,7 +45,7 @@
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a white ribbed tank top and light blue jeans, holding a red plastic cup, head tilted with a sweet pitying smile, her free hand patting the air toward someone off camera, mouth open mid-word. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a white ribbed tank top and light blue jeans, holding a red plastic cup, head tilted with a sweet pitying smile, her free hand patting the air toward someone off camera, mouth open mid-word. She is turned toward the right of the frame, where the person she is talking to stands just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Jess coos the first words with a sweet smile, then her face drops flat and she flicks her hand toward the room, her mouth moving the whole time. Push-in.",
       "vo_line": "Aw, Marcus. That's cute. Just go.",
       "speaker": "jess",
@@ -155,7 +155,7 @@
         "marcus",
         "iro"
       ],
-      "image_prompt": "medium shot, centred, a glass-walled corner office high over a glittering city at golden hour, {marcus}, in a fitted black blazer over a black tee, facing the camera in the centre of the frame holding a phone in both hands with its back to us, golden light and the glow of it on his face, an easy wide grin, head tipped back a little, completely relaxed; {iro}, perched on his left shoulder with both flippers thrown up in the air, beak open in a cheer. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "medium shot, centred, a glass-walled corner office high over a glittering city at golden hour, {marcus}, in a tailored charcoal suit with a black open-collar shirt and a heavy gold watch, facing the camera in the centre of the frame holding a phone in both hands with its back to us, golden light and the glow of it on his face, an easy wide grin, head tipped back a little, completely relaxed; {iro}, perched on his left shoulder with both flippers thrown up in the air, beak open in a cheer. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus taps once, lowers the phone a little and breaks into an easy laugh; Iro throws both flippers up and bounces on his shoulder. Slow push-in with the city glowing behind them.",
       "stat": {
         "rank": "DIAMOND I",
@@ -170,14 +170,14 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "wide shot, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, walking in through the crowd toward the camera with his hands loose and his head up, a calm easy smile, guests turning their heads to look at him as he passes. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Marcus walks through the party toward the camera and nods at a guest who waves, heads turning as he passes. The camera pulls back ahead of him."
+      "image_prompt": "wide shot, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a tailored charcoal suit with a black open-collar shirt, a heavy gold watch on his wrist, a thin gold chain at his neck and a gold signet ring, walking in through the crowd toward the camera with his head up, straightening one shirt cuff so the gold watch catches the light, a calm easy smile, guests turning their heads to look at him as he passes. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus walks through the party toward the camera, straightens his cuff so the gold watch flashes and nods at a guest who waves, heads turning as he passes. The camera pulls back ahead of him."
     },
     {
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, holding a red plastic cup, leaning forward and squinting past the camera in disbelief, eyebrows up, a stunned smile starting, mouth open mid-question. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, holding a red plastic cup, leaning forward and squinting past the camera in disbelief, eyebrows up, a stunned smile starting, mouth open mid-question. She is turned toward the right of the frame, where the person she is talking to stands just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Jess squints, leans in and her mouth moves as she asks it, the stunned smile spreading. Fast push-in on her wide eyes.",
       "vo_line": "Marcus? Is that you?",
       "speaker": "jess",
@@ -187,7 +187,7 @@
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, holding a red plastic cup, eyes wide and admiring, a breathless smile, her free hand flat on her chest, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, holding a red plastic cup, eyes wide and admiring, a breathless smile, her free hand flat on her chest, mouth open mid-sentence. She is turned toward the right of the frame, where the person she is talking to stands just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Jess looks him up and down, presses a hand to her chest and her mouth moves as she says it, breathless. Small push-in.",
       "vo_line": "I heard about your AI company.",
       "speaker": "jess",
@@ -197,7 +197,7 @@
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, holding a red plastic cup, twirling a strand of her hair around one finger, head tilted, lashes lowered, a slow flirty smile, mouth open mid-question. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, holding a red plastic cup, twirling a strand of her hair around one finger, head tilted, lashes lowered, a slow flirty smile, mouth open mid-question. She is turned toward the right of the frame, where the person she is talking to stands just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Jess twirls her hair, sways a little and her mouth moves as she asks it softly, tilting her head. Small push-in.",
       "vo_line": "So... are you seeing anyone?",
       "speaker": "jess",
@@ -207,7 +207,7 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, glancing sideways past the camera at something across the room, a small smile growing, eyebrows lifting, mouth open on one word. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a tailored charcoal suit with a black open-collar shirt, a heavy gold watch on his wrist, a thin gold chain at his neck and a gold signet ring, glancing sideways past the camera at something across the room, a small smile growing, eyebrows lifting, mouth open on one word. He is turned toward the left of the frame, where the person he is talking to stands just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus's eyes slide away across the room and his mouth moves as he says the one word slowly, the smile growing. Slow push-in.",
       "vo_line": "Actually...",
       "speaker": "marcus",
@@ -225,7 +225,7 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, nodding toward someone across the room, eyes bright, a boyish grin, mouth open mid-question. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a tailored charcoal suit with a black open-collar shirt, a heavy gold watch on his wrist, a thin gold chain at his neck and a gold signet ring, nodding toward someone across the room, eyes bright, a boyish grin, mouth open mid-question. He is turned toward the left of the frame, where the person he is talking to stands just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus nods across the room and his mouth moves as he asks it lightly, grinning. Small push-in.",
       "vo_line": "Who's your friend?",
       "speaker": "marcus",
@@ -235,7 +235,7 @@
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, holding a red plastic cup, her flirty smile slipping, eyebrows pinched, glancing over her shoulder and back, mouth open mid-question. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, holding a red plastic cup, her flirty smile slipping, eyebrows pinched, glancing over her shoulder and back, mouth open mid-question. She is turned toward the right of the frame, where the person she is talking to stands just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Jess glances over her shoulder, then back, and her mouth moves as she asks it, the smile slipping. Push-in.",
       "vo_line": "Sofia? Why?",
       "speaker": "jess",
@@ -245,7 +245,7 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, leaning in a little with a warm easy grin and one eyebrow raised, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a tailored charcoal suit with a black open-collar shirt, a heavy gold watch on his wrist, a thin gold chain at his neck and a gold signet ring, leaning in a little with a warm easy grin and one eyebrow raised, mouth open mid-sentence. He is turned toward the left of the frame, where the person he is talking to stands just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus leans in and his mouth moves as he says it warmly, one eyebrow up. Small push-in on his grin.",
       "vo_line": "Be my wingman.",
       "speaker": "marcus",
@@ -255,7 +255,7 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a fitted black blazer over a black tee with a slim silver watch, looking past the camera across the room with a soft smile, chin lifted, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {marcus}, in a tailored charcoal suit with a black open-collar shirt, a heavy gold watch on his wrist, a thin gold chain at his neck and a gold signet ring, looking past the camera across the room with a soft smile, chin lifted, mouth open mid-sentence. He is turned toward the left of the frame, where the person he is talking to stands just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus looks across the room and his mouth moves as he says it softly, almost to himself, smiling. Slow push-in.",
       "vo_line": "Tell her I think she's cute.",
       "speaker": "marcus",
@@ -265,7 +265,7 @@
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, jaw dropped, eyes huge, eyebrows flown up, the red plastic cup frozen halfway to her mouth, mouth open mid-word. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, chest up, a crowded house party at night in an open-plan loft with warm string lights and pendant lamps, adult guests with red plastic cups blurred in the background, {jess}, in a soft pink short-sleeved top and white jeans, jaw dropped, eyes huge, eyebrows flown up, the red plastic cup frozen halfway to her mouth, mouth open mid-word. She is turned toward the right of the frame, where the person she is talking to stands just off camera. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Jess's jaw drops, the cup stops halfway to her mouth and her mouth moves as she gasps it. Fast push-in on her stunned face.",
       "vo_line": "Wait, what?",
       "speaker": "jess",
@@ -275,7 +275,7 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "medium shot, a small bakery doorway on a sunny street, {marcus}, in a fitted black blazer over a black tee, shaking hands with a beaming woman baker in her forties in a flour-dusted apron, a slim laptop under his other arm, both of them laughing. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "medium shot, a small bakery doorway on a sunny street, {marcus}, in a tailored charcoal suit with a black open-collar shirt and a heavy gold watch, shaking hands with a beaming woman baker in her forties in a flour-dusted apron, a slim laptop under his other arm, both of them laughing. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus and the baker shake hands hard and she claps him on the shoulder, laughing. Fast punch-in.",
       "montage": true
     },
@@ -283,7 +283,7 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "medium shot, a bright loft office with brick walls and big windows, {marcus}, in a fitted black blazer over a black tee, standing at the head of a long wooden table while a small team of adult coworkers in their thirties clap and cheer around him, both fists in the air, head thrown back laughing. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "medium shot, a bright loft office with brick walls and big windows, {marcus}, in a tailored charcoal suit with a black open-collar shirt and a heavy gold watch, standing at the head of a long wooden table while a small team of adult coworkers in their thirties clap and cheer around him, both fists in the air, head thrown back laughing. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "The team claps and whoops and Marcus punches both fists at the ceiling, laughing. Fast punch-in.",
       "montage": true
     },
@@ -291,7 +291,7 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "low angle medium shot, a hilltop road at sunset with the city below, {marcus}, in a fitted black tee and sunglasses, leaning back against the hood of a matte black sports car with his arms folded, chin up, a relaxed grin. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "low angle medium shot, a hilltop road at sunset with the city below, {marcus}, in a fitted black tee, sunglasses and a heavy gold watch, leaning back against the hood of a matte black sports car with his arms folded, chin up, a relaxed grin. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus pushes his sunglasses up into his hair and laughs at the view as the wind moves his shirt. Fast punch-in.",
       "montage": true
     },
@@ -300,7 +300,7 @@
         "marcus",
         "sofia"
       ],
-      "image_prompt": "close two shot, a candlelit rooftop dinner table at night with city lights behind and a small bunch of yellow tulips in a glass, {marcus}, in a black shirt with the collar open, laughing so hard his eyes are shut and one hand is on the table; {sofia}, in a fitted black dress with sheer black sleeves, leaning into his shoulder laughing with her hand over her mouth. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close two shot, a candlelit rooftop dinner table at night with city lights behind and a small bunch of yellow tulips in a glass, {marcus}, in a tailored charcoal suit jacket over a black open-collar shirt, a heavy gold watch on his wrist, laughing so hard his eyes are shut and one hand is on the table; {sofia}, in a fitted black dress with sheer black sleeves, leaning into his shoulder laughing with her hand over her mouth. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus and Sofia crack up at the same moment and she falls against his shoulder. Fast punch-in.",
       "montage": true
     },
@@ -317,7 +317,7 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "extreme close shot, a neon-lit street at night, {marcus}, in a fitted black blazer over a black tee, looking straight into the lens over the top of his sunglasses, one eyebrow raised, a slow lopsided smirk. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "extreme close shot, a neon-lit street at night, {marcus}, in a tailored charcoal suit with a black open-collar shirt and a heavy gold watch, looking straight into the lens over the top of his sunglasses, one eyebrow raised, a slow lopsided smirk. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus lowers his sunglasses with one finger and the smirk spreads across his face. Fast punch-in on his eyes.",
       "montage": true
     },
@@ -326,7 +326,7 @@
         "marcus",
         "iro"
       ],
-      "image_prompt": "medium close shot, a rooftop terrace over a glittering city at dusk, {marcus}, in a fitted black blazer over a black tee, holding a phone up beside his face with its BACK toward the camera, the glow from it lighting his cheek, grinning wide with his eyebrows up, leaning toward the lens; {iro}, perched on his shoulder pointing a flipper at the phone, beak open in a grin. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "medium close shot, a rooftop terrace over a glittering city at dusk, {marcus}, in a tailored charcoal suit with a black open-collar shirt and a heavy gold watch, holding a phone up beside his face with its BACK toward the camera, the glow from it lighting his cheek, grinning wide with his eyebrows up, leaning toward the lens; {iro}, perched on his shoulder pointing a flipper at the phone, beak open in a grin. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus lifts the phone higher with its back to us and taps the back of it twice with a finger, grinning; Iro points at it and bounces. Slow push-in.",
       "caption": "SEARCH IRO AI"
     }
