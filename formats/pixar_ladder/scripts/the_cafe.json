@@ -226,10 +226,21 @@
     },
     {
       "characters": [
+        "jess",
+        "tyler"
+      ],
+      "image_prompt": "medium two shot, the street outside the corner cafe, a row of small shops in warm afternoon light, a patchy half-painted wall beside the cafe door, {jess}, in a stained brown apron over a striped top, on the left of the frame, jabbing a finger at the patchy wall, eyes blazing, mouth open mid-shout; {tyler}, in a stained brown apron over a rumpled blue shirt, on the right of the frame, holding a dripping paint brush in one hand with his other hand thrown up, face red, glaring back at her. They face each other. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess jabs her finger at the patchy wall and her mouth moves as she yells the line; Tyler throws up his free hand and paint flicks off the brush. Small handheld shake.",
+      "vo_line": "You're ruining it!",
+      "speaker": "jess"
+    },
+    {
+      "characters": [
         "marcus"
       ],
       "image_prompt": "medium shot, the street outside the corner cafe, a row of small shops in warm afternoon light, a sleek silver sports car pulling up to the kerb, {marcus}, in a sharp tailored navy suit with no tie and a slim steel watch, at the wheel with the window down and one elbow on the door, relaxed, sunglasses pushed up in his hair, a friendly grin toward the pavement. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "The silver sports car glides up to the kerb and stops; Marcus leans an elbow out of the window and grins. The camera pans with the car as it stops."
+      "motion_prompt": "The silver sports car glides up to the kerb and stops; Marcus leans an elbow out of the window and grins. The camera pans with the car as it stops.",
+      "same_scene": true
     },
     {
       "characters": [
