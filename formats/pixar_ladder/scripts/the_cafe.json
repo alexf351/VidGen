@@ -194,8 +194,8 @@
       "characters": [
         "boss"
       ],
-      "image_prompt": "low angle medium shot, the kerb outside a small street-level studio with warm glowing windows at night, a long black car at the pavement, {boss}, in a long dark overcoat over a three-piece suit, stepping out of the back door of the car and straightening his coat, looking in through the studio window with a thin impressed smile, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "The boss steps out of the long black car, straightens his coat and his mouth moves as he says it slowly. The camera rises from the car door to his face.",
+      "image_prompt": "medium shot, inside a small street-level studio at night with warm glowing windows, the open front door, {boss}, in a long dark overcoat over a three-piece suit, standing in the open doorway with one hand on the door frame, a long black car parked at the kerb behind him, looking across the room at someone off camera with a thin impressed smile, mouth open mid-sentence. He is turned toward the left of the frame, looking at someone just off camera. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "The boss pushes the studio door open and steps into the doorway, straightens his coat and his mouth moves as he says it slowly. Slow push-in on his face.",
       "vo_line": "Heard you're the one everyone wants.",
       "speaker": "boss"
     },
@@ -204,7 +204,7 @@
         "marcus",
         "iro"
       ],
-      "image_prompt": "medium shot, inside a small street-level studio at night with warm glowing windows, {marcus}, in a sharp tailored navy suit with no tie and a slim steel watch, working at a wide curved desk under glowing translucent panels of soft abstract shapes and colour swatches, with no letters or numbers, eyes fixed on his work, completely calm, mouth open mid-word without looking up; {iro}, on the desk holding one flipper up toward the door like a stop sign. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "medium shot, inside a small street-level studio at night with warm glowing windows, the open front door at the right edge of the frame, {marcus}, in a sharp tailored navy suit with no tie and a slim steel watch, working at a wide curved desk under glowing translucent panels of soft abstract shapes and colour swatches, with no letters or numbers, eyes fixed on his work, completely calm, mouth open mid-word without looking up; {iro}, on the desk holding one flipper up toward the door like a stop sign. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Marcus keeps sliding panels into place without looking up and his mouth moves as he says it mildly; Iro holds up a flipper to keep the visitor waiting. Slow push-in.",
       "vo_line": "Just let me work.",
       "speaker": "marcus"
