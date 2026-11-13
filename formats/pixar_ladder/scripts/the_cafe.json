@@ -256,8 +256,8 @@
       "characters": [
         "jess"
       ],
-      "image_prompt": "close shot, chest up, the street outside the corner cafe, a row of small shops in warm afternoon light, {jess}, in a stained brown apron over a striped top, doubled over laughing with one hand on her knee and the other pointing sideways at someone off camera, eyes squeezed shut, tears flying. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess bursts out laughing, bends double and points sideways at Tyler, slapping her knee. Handheld shake as she rocks.",
+      "image_prompt": "medium shot, waist up, the street outside the corner cafe, a row of small shops in warm afternoon light, {jess}, in a stained brown apron over a striped top, head thrown back in a huge open-mouthed laugh, both hands pressed flat against her stomach, eyes squeezed shut, a tear at the corner of one eye. She has exactly two arms, both in front of her. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Jess throws her head back laughing, both hands staying on her stomach, shoulders shaking. Small handheld shake.",
       "same_scene": true
     },
     {
