@@ -173,8 +173,14 @@ def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False,
         # An earlier shot shows other people too (the scene's first shot has whoever opened the
         # scene), and the model would carry one of them into a shot meant for one person.
         names = " and ".join(shot.get("characters") or [])
-        parts.append(f"Only {names or 'the people described above'} {'is' if len(shot.get('characters') or []) == 1 else 'are'} "
-                     "in this picture: bring nobody else over from the earlier shots, not even in the background.")
+        if names:
+            parts.append(f"Only {names} {'is' if len(shot.get('characters') or []) == 1 else 'are'} "
+                         "in this picture: bring nobody else over from the earlier shots, not even in the background.")
+        else:
+            # A shot of a thing or a place. Told "only the people described above", the model kept
+            # whoever stood in the earlier shot: the cafe's owner in front of the sign being remade.
+            parts.append("There are no people in this picture: take only the place from the earlier shot and bring "
+                         "nobody over from it, not even in the background.")
     return "\n".join(parts) if len(parts) > 2 else prompt
 
 

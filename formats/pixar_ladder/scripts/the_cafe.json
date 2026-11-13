@@ -84,12 +84,6 @@
       "same_scene": true
     },
     {
-      "characters": [],
-      "image_prompt": "close shot looking up at the wall above the counter, a small corner cafe with empty chairs, bare grey walls and a crooked hand-painted sign of smeared shapes over the counter, cyan and gold glow, the crooked hand-painted sign of smeared shapes breaking apart into glowing particles in the middle of the frame while a clean, elegant glowing sign of simple abstract shapes assembles itself in its place, with no letters or numbers. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "The crooked old sign crumbles into glowing dust that swirls once and snaps together into a clean bright new sign, which flickers and then glows steadily. Slow push-in on the new sign.",
-      "same_scene": true
-    },
-    {
       "characters": [
         "marcus",
         "iro"
