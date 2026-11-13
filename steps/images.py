@@ -367,7 +367,15 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
         scene_ref = None
     wardrobe = list(wardrobe or []) if scene_ref is not None else []
     if wardrobe and limit and len(own) + 1 + len(wardrobe) > limit:
-        wardrobe = wardrobe[:max(0, limit - len(own) - 1)]
+        # Not all of them fit. An earlier shot of the scene that has someone of this shot shows
+        # the place as well as their clothes, so it stands in for the scene's first shot (which
+        # often shows only whoever opened the scene): one picture doing both jobs.
+        room = limit - len(own)
+        (ids, stand_in), wardrobe = wardrobe[0], wardrobe[1:room]
+        print(f"  shot {n}: {image_provider(config)} takes {limit} reference pictures, so the scene is taken from "
+              f"shot {stand_in.stem} (the place, and what {' and '.join(ids)} "
+              f"{'wear' if len(ids) > 1 else 'wears'})")
+        scene_ref = stand_in
     if scene_ref is not None:
         try:
             _generate_image(config, shot_prompt(shot, ref_ids, scene=True, wardrobe=[ids for ids, _ in wardrobe]),

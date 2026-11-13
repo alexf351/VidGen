@@ -317,7 +317,7 @@ def _apply_providers(cfg: dict) -> None:
                          ("image_cost", 0.039), ("video_model", "seedance-2-fast"),
                          ("video_seconds", 4), ("video_resolution", "480p"), ("video_audio", False),
                          ("video_cost_per_second", {"480p": 0.056246, "720p": 0.12096}),
-                         ("max_concurrent", 2), ("retry_window_seconds", 600),
+                         ("max_concurrent", 2), ("max_reference_images", 3), ("retry_window_seconds", 600),
                          ("retry_base_seconds", 5), ("job_timeout_seconds", 900)]:
         sume.setdefault(key, default)
     if int(sume["max_concurrent"]) < 1:

@@ -509,6 +509,7 @@ that was running or queued when the server stopped is marked failed on the next 
 | `GET /api/runs/{run_id}` | the script, per-shot image / clip / audio URLs and word timings, step status, cost rows |
 | `POST /api/runs/{run_id}/step` `{step, only, provider}` | reruns one step (`only`: shot numbers, for images / video / voice) |
 | `POST /api/runs/{run_id}/reroll` `{shot, provider}` | new image + clip for one shot |
+| `POST /api/runs/{run_id}/finish` `{provider}` | every step after the script that still has work, as one job: missing pictures, clips and lines, then the cut. What exists is kept (the "Finish the video" button) |
 | `GET /api/music` | your tracks, the levels' ranges and the music new videos start with |
 | `POST /api/music` `{title, filename, file}` | add a track (`file` is a data: URL of a sound file, or of a video whose sound is used) |
 | `DELETE /api/music/{name}` | remove a track |
@@ -769,7 +770,12 @@ the hand on a run made earlier, run its images step again, then assemble.
 conversation can come out with three different outfits and backgrounds. A shot marked
 `"same_scene": true` in `script.json` continues the previous shot's scene (same place, same
 moment); it is drawn with the scene's first shot as an extra reference image, so the place, the
-light and everyone's clothes carry over. The script step marks these shots itself; scene
+light and everyone's clothes carry over. A provider takes only so many reference pictures in
+one request (`sume.max_reference_images`, 3 for nano-banana on Sume; a request with more is
+refused). The character sheets come first. When the scene's first shot and the clothes pictures
+do not all fit in what is left, an earlier shot of the scene that has someone of this shot
+stands in for the scene's first shot: it shows the place and their clothes in one picture, and
+the log says which shot it was. The script step marks these shots itself; scene
 starters are drawn first, then the shots that continue them. An app screenshot in between does
 not break a scene; a time card or a montage shot does. In the UI the shot shows a "scene" badge,
 and "Picture and motion" in the script panel has a checkbox to turn it on or off for a shot
@@ -803,6 +809,16 @@ turns it on for every format.
 sent to the video model also says who is talking and what they say, so the character's mouth
 moves while the line is heard. This is not exact lip-sync (the voice is added at assembly); set
 `mouths_move: false` in `config.local.yaml` to send the motion prompt as written.
+
+**A clip the service turns down.** A video service sometimes makes a clip and then refuses its
+own result ("the output video may be related to copyright restrictions"). That clip is tried
+once more by itself; another take of the same shot usually passes. If it fails again, the step
+stops with the service's reason, but a video being made in one go does not lose the rest: the
+clips that were made are kept, their lines are still recorded, and the job ends saying which
+shot is left. Reroll that shot (a new picture gets a different clip), then press **Finish the
+video** on the run's page: whenever more than one step still has work, that is the page's
+bright button, and it makes whatever is missing and assembles the video as one job. The
+numbered step buttons next to it still run a single step.
 
 **Dropped downloads.** A provider can finish a clip and then drop the connection while the file
 is downloaded. Downloads are tried five times, and the file's address is kept next to where it

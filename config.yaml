@@ -129,6 +129,10 @@ sume:
   # Sume caps in-flight jobs per workspace (2 with no funds added in 28 days, more as you add
   # funds; images and videos share the cap). Requests over it are refused, not queued.
   max_concurrent: 2             # jobs VidGen runs at once
+  # nano-banana on Sume takes at most 3 reference pictures in one request ("This model accepts at
+  # most 3 reference images"). A shot's character sheets come first; what is left goes to the
+  # earlier shot of its scene that keeps the place and the clothes.
+  max_reference_images: 3
   retry_window_seconds: 600     # keep retrying over-limit / busy refusals for this long
   retry_base_seconds: 5         # first wait between retries, doubling up to 60s
   job_timeout_seconds: 900      # stop polling one job after this long

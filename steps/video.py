@@ -60,6 +60,15 @@ def _motion(config: dict, shot: dict, descriptions: dict[str, str] | None, sound
     return f"{clip_prompt(shot, descriptions)} {ONE_TAKE}"
 
 
+def _reason(error: Exception) -> str:
+    """The service's own words for why a job failed, without the wrapping around them."""
+    text = str(error).split(" {", 1)[0]
+    for lead in ("job_failed: ", "Job failed: ", "The request failed because "):
+        if lead in text:
+            text = text.split(lead, 1)[1]
+    return text.strip().rstrip(".")[:160]
+
+
 def _workers(config: dict) -> int:
     # fal runs one request at a time, as it always has; Sume runs up to its concurrency cap.
     return int(config["sume"]["max_concurrent"]) if video_provider(config) == "sume" else 1
@@ -227,7 +236,16 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
     def make(shot: dict) -> None:
         n = shot["n"]
         print(f"  shot {n}: generating...")
-        generate_clip(run_dir, config, shot, descriptions)
+        try:
+            generate_clip(run_dir, config, shot, descriptions)
+        except StepError as e:
+            # The service made the clip and then turned its own result down ("may be related to
+            # copyright restrictions", a moderation miss): another take of the same shot usually
+            # passes. Anything else (no key, no money, a bad request) would only fail again.
+            if "job_failed" not in str(e):
+                raise
+            print(f"  shot {n}: the video service turned this clip down ({_reason(e)}). Trying it once more...")
+            generate_clip(run_dir, config, shot, descriptions)
         if sound:
             from media import has_audio_stream
             if not has_audio_stream(video_path(run_dir, n)):

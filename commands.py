@@ -106,6 +106,38 @@ def create_new_run(premise: str, config: dict, log=print, engine: str | None = N
     return run_dir
 
 
+def run_rest(run_dir: Path, config: dict, names: list[str]) -> None:
+    """Run these steps in order. A clip that cannot be made does not throw the others away: the
+    clips that were made are kept (video.py), their lines are still read, and the error says
+    what is left. One refused clip out of 33 used to stop a video with no voices and no cut."""
+    for i, name in enumerate(names):
+        try:
+            run_step(name, run_dir, config)
+        except StepError as e:
+            if name != "video" or "voice" not in names[i + 1:]:
+                raise
+            print(f"error: {e}")
+            print("\nNot every clip could be made. The ones that were made are kept: recording the voices now, "
+                  "so the shots that failed are all that is left.")
+            run_step("voice", run_dir, config)
+            raise StepError(f"{e}\nEverything else is made. Reroll the shot that failed (its card on the "
+                            f"video's page), then press Finish the video.") from e
+
+
+def finish(run_id: str, config: dict) -> None:
+    """Every step after the script that still has work to do, as one job: the pictures, clips
+    and lines that are missing, then the cut. What exists is kept."""
+    run_dir = run_dir_for(run_id)
+    _image_pipeline_only(run_dir, "finishing the video")
+    if not (run_dir / "script.json").is_file():
+        raise StepError("this video has no script yet: write the script first")
+    rest = [n for n in STEP_ORDER if n != "script"]
+    print(f"\n=== finish the video ({run_dir.name}) ===")
+    progress.start(rest)
+    run_rest(run_dir, config, rest)
+    print(f"\nrun {run_dir.name} complete")
+
+
 def execute_new(run_dir: Path, config: dict, dry_run: bool = False) -> None:
     """Run every step of a new run in order, or only the script step for a dry run."""
     if run_engine(run_dir) == "claude_code":
@@ -129,8 +161,7 @@ def execute_new(run_dir: Path, config: dict, dry_run: bool = False) -> None:
             print("\nscript only: the ready-made script is in place; no images, video or voice were generated.")
             print(f"continue this run with:  python main.py step {run_dir.name} images  (then video, voice, assemble)")
             return
-        for name in rest:
-            run_step(name, run_dir, config)
+        run_rest(run_dir, config, rest)
         print(f"\nrun {run_dir.name} complete")
         return
     progress.start(STEP_ORDER[:1] if dry_run else list(STEP_ORDER))
@@ -141,8 +172,7 @@ def execute_new(run_dir: Path, config: dict, dry_run: bool = False) -> None:
         print(f"\ndry run: stopped after the script step; no images, video or voice were generated.")
         print(f"continue this run with:  python main.py step {run_dir.name} images  (then video, voice, assemble)")
         return
-    for name in STEP_ORDER:
-        run_step(name, run_dir, config)
+    run_rest(run_dir, config, list(STEP_ORDER))
     print(f"\nrun {run_dir.name} complete")
 
 

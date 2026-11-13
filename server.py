@@ -159,6 +159,10 @@ class StepRequest(BaseModel):
     provider: ProviderChoice = None
 
 
+class FinishRequest(BaseModel):
+    provider: ProviderChoice = None
+
+
 class RerollRequest(BaseModel):
     shot: int = Field(ge=1)
     provider: ProviderChoice = None
@@ -658,6 +662,16 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         params = {"step": body.step, "only": only, "provider": providers}
         return submit_run_job("step", run_dir, params,
                               lambda cfg: commands.step(run_id, body.step, cfg, only=only), providers)
+
+    @app.post("/api/runs/{run_id}/finish", status_code=202)
+    def finish_run(run_id: str, body: FinishRequest) -> dict:
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "finishing the video")
+        if run_status.load_script(run_dir) is None:
+            raise HTTPException(409, "this run has no script.json yet; run the script step first")
+        providers = _providers(body.provider)
+        return submit_run_job("finish", run_dir, {"provider": providers},
+                              lambda cfg: commands.finish(run_id, cfg), providers)
 
     @app.post("/api/runs/{run_id}/reroll", status_code=202)
     def reroll(run_id: str, body: RerollRequest) -> dict:

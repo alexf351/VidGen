@@ -349,6 +349,22 @@ async function runStep(run, step, only) {
     { step, only: only || null, provider: providerBody() }), `${step}`);
 }
 
+// Everything that is still missing, then the cut, as one job (commands.finish on the server).
+async function finishRun(run) {
+  const rows = []; let total = 0;
+  for (const step of ["images", "video", "voice"]) {
+    const est = estimateStep(run, step);
+    if (est && est.count) { rows.push(...est.rows); total += est.total || 0; }
+  }
+  rows.push(["Assemble the video", "free"]);
+  const ok = await confirmDialog({ title: "Finish this video?", rows, total, ok: "Finish the video",
+    text: "Makes what is still missing (pictures, clips, voices), then assembles the video. Everything already made is kept.",
+    note: run.clip_sound ? "With clips speaking for themselves the lines are read from the clips, so the voice row is an upper bound." : null });
+  if (!ok) return;
+  releaseMedia();        // a clip still open in the page cannot be replaced on Windows
+  await submit(api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/finish`, { provider: providerBody() }), "the rest of the video");
+}
+
 // "I listened to this clip and it says the line": take the shot's voice from its clip whatever
 // the word finder made of it (on = false takes that back and lets the word finder judge again).
 async function useClipVoice(run, n, on = true) {
@@ -1558,7 +1574,13 @@ function renderRun() {
       st.total > 1 ? h("span", { class: "count" }, `${st.done}/${st.total}`) : null));
   });
   const finalSrc = run.final_video ? bust(run.final_video, run.run_id) : null;
-  const cta = next
+  // More than one step left (a clip failed and stopped the job, or only the script was written):
+  // one button does the rest. The numbered step buttons still run a single step.
+  const left = STEPS.filter((s) => s !== "script" && !["done", "n/a"].includes(run.steps[s].status));
+  const cta = next && next !== "script" && run.script && left.length > 1
+    ? h("button", { class: "btn primary cta", disabled: busy, title: `Still to do: ${left.map((s) => STEP_NAME[s].toLowerCase()).join(", ")}`,
+      onclick: () => finishRun(run) }, h("span", {}, "Finish the video"), icon("arrow-right"))
+    : next
     ? h("button", { class: "btn primary cta", disabled: busy || (next !== "script" && !run.script), onclick: () => runStep(run, next) },
       h("span", {}, STEP_GO[next]), icon("arrow-right"))
     : finalSrc ? h("a", { class: "btn primary cta", href: finalSrc, download: `${run.run_id}.mp4` }, icon("download"), h("span", {}, "Download video")) : null;
@@ -1726,7 +1748,11 @@ function shotCard(run, s, busy) {
   const hasVoice = !!(s.audio && !run.song);
   // In the video, a line taken from its clip and a silent shot of a clip-sound video are heard
   // from the clip itself; any other line is the voice file laid over a silent clip.
-  const clipHasTheSound = !!(s.own_voice || (run.clip_sound && !spoken));
+  // A talking clip of a clip-sound video whose line has not been read from it yet (the job
+  // stopped before the voices) has its own voice in it and no voice file: play the clip's sound.
+  // It used to play muted, which looked as if the clips had been made without voices.
+  const unread = !!(run.clip_sound && spoken && s.clip && !s.audio && s.kind === "shot" && !shot.talk);
+  const clipHasTheSound = !!(s.own_voice || (run.clip_sound && !spoken) || unread);
   if (s.clip) {
     playBtn = h("button", { class: "play-audio", type: "button", title: hasVoice || clipHasTheSound ? "Play the clip with its sound" : "Play the clip",
       "aria-label": `Play shot ${s.n}'s clip with its sound`,
@@ -1776,6 +1802,7 @@ function shotCard(run, s, busy) {
       : s.kind === "texts"
       ? h("div", { class: "line-note" }, "The messages arrive one at a time, each with a soft pop. Edit them under Script and editing; it costs nothing.")
       : null,
+    unread ? h("div", { class: "line-note" }, "The clip has its own voice (press play). Its line is read from the clip when the voices are recorded.") : null,
     // The clip said the line, but tripped over it (clip_sound.stumble): show what it said.
     spoken && s.stumble ? h("div", { class: "line-note trip" },
       h("div", {}, `Not a clean take. The clip says “${s.stumble.said}”`),
@@ -2754,6 +2781,7 @@ function jobLabel(j) {
     : j.action === "assemble" ? (j.params.sound_only ? "Sound mix" : "Assemble")
     : j.action === "reroll" ? (j.params.shots ? `Reroll shots ${j.params.shots.join(", ")}` : `Reroll shot ${j.params.shot}`)
     : j.action === "new" ? (j.params.dry_run ? (j.params.engine === "claude_code" ? "New video (story only)" : "New video (dry run)") : "New video")
+    : j.action === "finish" ? "Finish the video"
     : j.action === "draw_character" ? `Draw ${j.params.character}` : j.action.charAt(0).toUpperCase() + j.action.slice(1);
   return what;
 }
