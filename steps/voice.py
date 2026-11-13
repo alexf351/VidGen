@@ -128,8 +128,8 @@ def voice_from_clip(run_dir: Path, config: dict, shot: dict, said_instead: dict 
     if shot.get("app_screen") or shot.get("talk") or shot.get("montage") or not clip.is_file():
         return False
     if not has_audio_stream(clip):
-        print(f"  shot {n}: its clip has no sound (it was made before clip sound was on). Using the "
-              f"ElevenLabs voice; redo its video to hear the clip's own.")
+        print(f"  shot {n}: its clip has no sound (it was made before clip sound was on, or the video "
+              f"service sent it back silent). Using the ElevenLabs voice; redo its video to hear the clip's own.")
         return False
     line = shot["vo_line"].strip()
     try:

@@ -915,7 +915,14 @@ and the mouth was animated without ever hearing the line, so lips and words do n
 the line with lips that match, a door slams when it shuts, feet are heard on the floor.
 
 Switch it on for one video in the **Sound** choice on the create screen or the Sound panel on
-its run page, or for every video in `config.local.yaml`:
+its run page. The create screen remembers what you chose last in this browser and starts the
+next video there, and the box that asks "Generate?" has a **Sound** row saying which of the two
+this video will be made with, before anything is paid for. The job log says it too: the clip
+step's first line ends "each with its own sound" or "without sound (voices are added after)".
+A video made the other way can be switched in its Sound panel: it then offers to redo only the
+clips someone talks in (about half of them, and their lines are read from the new clips by
+themselves) or all of them, which also gives the silent shots their own sound.
+For every video, in every browser, set it in `config.local.yaml`:
 
 ```yaml
 clip_sound:
@@ -928,8 +935,8 @@ What each step then does:
 
 | step     | with clip sound                                                                    |
 |----------|------------------------------------------------------------------------------------|
-| video    | every clip is requested with sound. The prompt says who speaks, that the line is said one time and then nobody talks (asked to keep "talking throughout" a clip longer than its line, the model says the line twice), and how the voice sounds (the character's `voice_style` in `format.yaml`, so it stays alike from shot to shot), and asks for the sound of the scene with no music. Nobody is named in it: characters are called by their look ("the man with slick blond hair"), because a model that makes sound says a name it reads |
-| voice    | for a spoken shot, the words in its clip are found with ElevenLabs Speech to Text (one short call per shot). If they are the line, that stretch of the clip becomes the shot's voice file and the captions follow those words. A stray word before or after the line ("Marcus? I could do it with AI.") is cut off and named in the log; a word in the middle of the line cannot be cut and counts against the match. The words are compared by ear, not by spelling: "Sophia" is "Sofia", "wing man" is "wingman". If the clip says something else, or nothing, the line is spoken by the ElevenLabs voice as before, and the log says so. Redoing the video of chosen shots, or rerolling one, reads their lines again by itself |
+| video    | every clip is requested with sound. The prompt says who speaks, that the line is said one time and then nobody talks (asked to keep "talking throughout" a clip longer than its line, the model says the line twice), and how the voice sounds (the character's `voice_style` in `format.yaml`, so it stays alike from shot to shot), and asks for the sound of the scene with no music. A clip that comes back with no sound in it although sound was asked for is named in the log when it arrives and again at the end of the step ("came back WITHOUT SOUND"), so it can be redone before the voices are read. Nobody is named in it: characters are called by their look ("the man with slick blond hair"), because a model that makes sound says a name it reads |
+| voice    | for a spoken shot, the words in its clip are found with ElevenLabs Speech to Text (one short call per shot). If they are the line, that stretch of the clip becomes the shot's voice file and the captions follow those words. A stray word before or after the line ("Marcus? I could do it with AI.") is cut off and named in the log; a word in the middle of the line cannot be cut and counts against the match. The words are compared by ear, not by spelling: "Sophia" is "Sofia", "wing man" is "wingman", "500?" is "Five hundred?!", "How did" is "How'd". If the clip says something else, or nothing, the line is spoken by the ElevenLabs voice as before, and the log says so. Redoing the video of chosen shots, or rerolling one, reads their lines again by itself |
 | assemble | a shot that speaks from its clip shows the same stretch of the clip, so sound and picture stay together. A shot where nobody speaks plays its clip's own sound under the cut |
 
 Things to know:

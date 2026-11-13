@@ -261,6 +261,62 @@ def _alike(a: str, b: str) -> bool:
     return min(len(a), len(b)) >= 4 and difflib.SequenceMatcher(None, a, b).ratio() >= 0.8
 
 
+_ONES = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
+         "sixteen seventeen eighteen nineteen").split()
+_TENS = "twenty thirty forty fifty sixty seventy eighty ninety".split()
+
+
+def _number_words(n: int) -> list[str]:
+    """500 -> five hundred, 42 -> forty two, 1200 -> one thousand two hundred."""
+    if n < 20:
+        return [_ONES[n]]
+    if n < 100:
+        return [_TENS[n // 10 - 2]] + ([_ONES[n % 10]] if n % 10 else [])
+    if n < 1000:
+        return [_ONES[n // 100], "hundred"] + (_number_words(n % 100) if n % 100 else [])
+    if n < 1_000_000:
+        return _number_words(n // 1000) + ["thousand"] + (_number_words(n % 1000) if n % 1000 else [])
+    return [str(n)]
+
+
+_SHORT = {"'d": ("did", "would", "had"), "'re": ("are",), "'ll": ("will",), "'ve": ("have",), "'m": ("am",),
+          "'s": ("is", "has", "us")}
+_NOT = {"don't": "do", "doesn't": "does", "didn't": "did", "can't": "can", "won't": "will", "isn't": "is",
+        "aren't": "are", "wasn't": "was", "weren't": "were", "couldn't": "could", "wouldn't": "would",
+        "shouldn't": "should", "haven't": "have", "hasn't": "has", "hadn't": "had"}
+
+
+def _long(word: str) -> list[tuple[str, str]]:
+    """The two-word ways of saying a shortened word: how'd -> how did, how would, how had."""
+    if word in _NOT:
+        return [(_NOT[word], "not")]
+    for end, seconds in _SHORT.items():
+        if word.endswith(end) and len(word) > len(end):
+            return [(word[: -len(end)], s) for s in seconds]
+    return []
+
+
+def _spelled_out(heard: list[dict], known: set[str]) -> list[dict]:
+    """The heard words, with one word that stands for several of the line's words taken apart,
+    its time shared between them: "500?" heard for "Five hundred?!", "How'd" for "How did"."""
+    out: list[dict] = []
+    for w in heard:
+        g = _norm(w["word"])
+        parts: list[str] = []
+        if g not in known:
+            if g.isdigit() and len(g) <= 6:
+                parts = _number_words(int(g))
+            else:
+                parts = next((list(pair) for pair in _long(g) if pair[0] in known and pair[1] in known), [])
+        if not parts or not any(p in known for p in parts):
+            out.append(w)
+            continue
+        step = (w["end"] - w["start"]) / len(parts)
+        out += [{"word": p, "start": round(w["start"] + k * step, 3), "end": round(w["start"] + (k + 1) * step, 3)}
+                for k, p in enumerate(parts)]
+    return out
+
+
 def _pair(line: str, heard: list[dict]) -> tuple[list[str], list[str], list[dict]]:
     """(the line's words, the heard words, the heard words with their times), ready to compare.
 
@@ -270,15 +326,35 @@ def _pair(line: str, heard: list[dict]) -> tuple[list[str], list[str], list[dict
       a heard word that is not in the line but sounds like one of its words becomes that word
           "Sophia? Why?" for "Sofia? Why?" used to count as half the line missing
       two heard words that together are one of the line's words become one
-          "Best wing man ever" for "Best wingman ever!"
+          "Best wing man ever" for "Best wingman ever!", "How did you" for "How'd you"
+      a number is the same number in digits or in words
+          "500?" for "Five hundred?!", "five hundred" for "500"
     """
     want = [_norm(w) for w in line_words(line)]
     known = set(want)
+    heard = _spelled_out(heard, known)
+    digits = {w: _number_words(int(w)) for w in known if w.isdigit() and len(w) <= 6}
     words: list[dict] = []
     got: list[str] = []
     j = 0
     while j < len(heard):
         g = _norm(heard[j]["word"])
+        number = next((w for w, parts in digits.items() if len(parts) > 1
+                       and [_norm(h["word"]) for h in heard[j:j + len(parts)]] == parts), None)
+        if number:                                     # the line says 500, the clip was heard as "five hundred"
+            run = heard[j:j + len(digits[number])]
+            words.append({"word": " ".join(h["word"] for h in run), "start": run[0]["start"], "end": run[-1]["end"]})
+            got.append(number)
+            j += len(run)
+            continue
+        if j + 1 < len(heard):
+            nxt = _norm(heard[j + 1]["word"])
+            short = next((w for w in want if (g, nxt) in _long(w)), None)
+            if short and not (g in known and nxt in known):   # "how did" said for the line's "how'd"
+                words.append({"word": f'{heard[j]["word"]} {heard[j + 1]["word"]}', "start": heard[j]["start"], "end": heard[j + 1]["end"]})
+                got.append(short)
+                j += 2
+                continue
         if g not in known and j + 1 < len(heard):
             both = g + _norm(heard[j + 1]["word"])
             whole = both if both in known else next((w for w in want if len(w) >= 6 and _alike(w, both)), None)

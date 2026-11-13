@@ -1063,6 +1063,7 @@ function soundPanel(run, busy) {
     const clips = run.shots.filter((s) => s.clip).map((s) => s.n);
     const spoken = run.shots.filter((s) => (s.shot.vo_line || "").trim() && s.kind === "shot");
     const own = spoken.filter((s) => s.own_voice).length;
+    const talking = spoken.filter((s) => s.clip).map((s) => s.n);      // the clips a line is said in
     const tripped = spoken.filter((s) => s.stumble).map((s) => s.n);
     const changed = S.soundChanged === run.run_id && clips.length;
     box.replaceChildren(...[
@@ -1075,8 +1076,10 @@ function soundPanel(run, busy) {
         h("button", { class: "btn small", disabled: busy, onclick: () => runStep(run, "video", tripped) },
           tripped.length === 1 ? "Redo its clip" : `Redo those ${tripped.length} clips`)) : null,
       changed ? h("div", { class: "notice" }, on
-        ? "The clips made so far have the sound they were made with. To hear them speak, redo the clips, then the voices, then assemble. "
+        ? `The clips made so far have the sound they were made with. To hear people speak, redo the ${talking.length} clips someone talks in (their lines are read from the new clips by themselves), then assemble. Redoing all ${clips.length} also gives the shots where nobody talks their footsteps and doors. `
         : "Lines taken from clips stay until the voices are redone. Redo the voices, then assemble. ",
+        on && talking.length && talking.length < clips.length
+          ? h("button", { class: "btn small", disabled: busy, onclick: () => { S.soundChanged = null; runStep(run, "video", talking); } }, `Redo the ${talking.length} talking clips`) : null,
         on ? h("button", { class: "btn small", disabled: busy, onclick: () => { S.soundChanged = null; runStep(run, "video", clips); } }, `Redo all ${clips.length} clips`)
            : h("button", { class: "btn small", disabled: busy, onclick: () => { S.soundChanged = null; runStep(run, "voice", spoken.map((s) => s.n)); } }, "Redo the voices")) : null,
       !changed ? h("div", { class: "field-note" }, on
@@ -1303,11 +1306,17 @@ function renderCreate(formatName) {
     h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Captions")),
     captionPicker(f.name, st.captions, (v) => { st.captions = v; }),
     h("div", { class: "field-note" }, "You can change this after the video is made, for free."));
-  if (st.clipSound === undefined) st.clipSound = !!(S.config && S.config.clip_sound);
+  // The form is built again every time you come back to this screen, so the Sound choice is
+  // kept in this browser: what you chose last is what the next video starts with.
+  if (st.clipSound === undefined) {
+    let last = null;
+    try { last = localStorage.getItem("vidgen.clipSound"); } catch { /* private mode */ }
+    st.clipSound = last === "1" ? true : last === "0" ? false : !!(S.config && S.config.clip_sound);
+  }
   const sndSec = h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Sound")),
     chips([[false, "Voices added after", "ElevenLabs voices you pick"], [true, "Clips speak for themselves", "lips match, real scene sound"]],
-      st.clipSound, (v) => { st.clipSound = v; }, "Sound"),
-    h("div", { class: "field-note" }, "With clips speaking for themselves the video model makes each clip with its own sound: people say their lines with matching lips, doors slam, feet walk. The voices are then the model's own. You can switch this per video later."));
+      st.clipSound, (v) => { st.clipSound = v; try { localStorage.setItem("vidgen.clipSound", v ? "1" : "0"); } catch { /* private mode */ } }, "Sound"),
+    h("div", { class: "field-note" }, "With clips speaking for themselves the video model makes each clip with its own sound: people say their lines with matching lips, doors slam, feet walk. The voices are then the model's own. Your choice is remembered for the next video, and you can switch it per video later."));
   const scrSec = screensSection(f, st);
   const readySec = readySection(f, st, () => { drawOutput(); update(); });
   S.onDoctor = update;
@@ -1326,6 +1335,8 @@ function renderCreate(formatName) {
     } else if (!st.dry) {
       const picked = ready ? (f.ready_scripts || []).find((e) => e.id === ready) : null;
       const est = picked ? estimateReady(f.name, st.provider, picked) : estimateNew(f.name, st.provider);
+      // Said before any money is spent: redoing every clip to change this costs as much as the clips did.
+      est.rows = [...est.rows, ["Sound", st.clipSound ? "clips speak for themselves" : "voices added after (ElevenLabs)"]];
       const ok = await confirmDialog({ title: picked ? `Generate "${picked.title}"?` : `Generate a ${formatTitle(f)} video?`, rows: est.rows, total: est.total,
         text: picked ? `${formatTitle(f)}, from the ready-made script. Runs images, video, voice and assemble.` : "Runs script, images, video, voice and assemble.", ok: "Generate",
         note: picked ? "Counted from the script's own shot list. Character sheets you already have are reused and cost nothing; shots you redo afterwards cost extra. Choose Script only to read it first for free."
@@ -2788,7 +2799,7 @@ function renderDrawer() {
 const STEP_SAYS = { script: "Writing the script", images: "Drawing the pictures", video: "Making the clips",
   voice: "Getting the voices", assemble: "Putting the video together", story: "Writing the story",
   scenes: "Drawing the scenes", render: "Rendering the video" };
-const LOG_WARN = /NOT A CLEAN TAKE|not the line|has no words|has no sound|not found|could not|cannot be|left out|failed|FAILED|skipping the|is missing|no longer/;
+const LOG_WARN = /NOT A CLEAN TAKE|WITHOUT SOUND|not the line|has no words|has no sound|not found|could not|cannot be|left out|failed|FAILED|skipping the|is missing|no longer/;
 const sayIt = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 const lastPart = (path) => { const parts = String(path).split("/").join("\\").split("\\"); return parts[parts.length - 1]; };
 let logTrace = false;                     // inside a Python traceback: its lines stay together

@@ -213,12 +213,13 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
     import clip_sound
     sound = clip_sound.on(config, run_dir)
     print(f"[video] {len(animated)} animated shot(s), {seconds}s each at {resolution}, "
-          f"${rate:.4f}/s{via}" + (", each with its own sound" if sound else ""))
+          f"${rate:.4f}/s{via}" + (", each with its own sound" if sound else ", without sound (voices are added after)"))
     if talking:
         print(f"[video] {len(talking)} talking shot(s), lip-synced on fal ({config['fal']['avatar_model']}), "
               f"${talk_rate:.4f}/s of speech")
 
     totals = {"cost": 0.0, "count": 0}
+    silent: list[int] = []                 # asked for with sound, came back without any
     lock = threading.Lock()
     progress.plan(sum(1 for s in [*animated, *talking]
                       if force or not video_path(run_dir, s["n"]).exists()), "clips")
@@ -227,6 +228,12 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         n = shot["n"]
         print(f"  shot {n}: generating...")
         generate_clip(run_dir, config, shot, descriptions)
+        if sound:
+            from media import has_audio_stream
+            if not has_audio_stream(video_path(run_dir, n)):
+                with lock:
+                    silent.append(n)
+                print(f"  shot {n}: THIS CLIP CAME BACK WITHOUT SOUND although it was asked for with sound")
         if sound and str(shot.get("vo_line") or "").strip() and not shot.get("app_screen"):
             # The new clip says the line itself, so whatever voice file the shot had (cut from
             # the old clip, or spoken by ElevenLabs before clip sound was on) is out of date.
@@ -274,6 +281,10 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
             continue
         make_talk(shot)
     print(f"[video] generated {totals['count']} clip(s), est. total ${totals['cost']:.2f}")
+    if silent:
+        print(f"[video] WARNING: {len(silent)} clip(s) came back WITHOUT SOUND although sound was asked for: "
+              f"shot(s) {sorted(silent)}. Their lines will be spoken by the ElevenLabs voice instead. "
+              f"Redo those shots' video for another try at the clip's own voice.")
 
 
 def run(run_dir: Path, config: dict, only: str | None = None) -> None:
