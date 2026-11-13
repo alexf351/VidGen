@@ -235,6 +235,19 @@ function estimateStep(run, step, only) {
     return { rows: [[`one song, ~${Math.round(secs)}s (ElevenLabs Music) + lyric timing`, songCost(secs)]],
       total: songCost(secs), count: 1, note: "A song is one piece: the whole song is made again. Music needs a paid ElevenLabs plan." };
   }
+  if (step === "voice" && run.clip_sound) {
+    // Clips speak for themselves: nothing is spoken here. Each line is found in its own clip
+    // (a short listen, a fraction of a cent) and that stretch of the clip becomes the line.
+    const own = shots.filter((s) => s.clip && s.kind === "shot" && !s.shot.talk);
+    const other = shots.filter((s) => !own.includes(s));
+    const otherChars = other.reduce((a, s) => a + s.shot.vo_line.length, 0);
+    const allChars = shots.reduce((a, s) => a + s.shot.vo_line.length, 0);
+    const rows = [];
+    if (own.length) rows.push([`${plural(own.length, "line")} read from ${own.length === 1 ? "its" : "their"} own clip (no voice is added)`, 0.01]);
+    if (other.length) rows.push([`${plural(other.length, "line")} with no clip to read, ${otherChars} characters (ElevenLabs)`, voiceCost(otherChars)]);
+    return { rows, total: (own.length ? 0.01 : 0) + voiceCost(otherChars), count: shots.length,
+      note: own.length ? `The voices are the clips' own. Only a line its clip does not say is spoken by the ElevenLabs voice instead (${usd(voiceCost(allChars))} if that were every line).` : null };
+  }
   if (step === "voice") {
     const chars = shots.reduce((a, s) => a + s.shot.vo_line.length, 0);
     return { rows: [[`${plural(shots.length, "line")}, ${chars} characters (ElevenLabs)`, voiceCost(chars)]],
@@ -351,15 +364,15 @@ async function runStep(run, step, only) {
 
 // Everything that is still missing, then the cut, as one job (commands.finish on the server).
 async function finishRun(run) {
-  const rows = []; let total = 0;
+  const rows = []; let total = 0; const notes = [];
   for (const step of ["images", "video", "voice"]) {
     const est = estimateStep(run, step);
-    if (est && est.count) { rows.push(...est.rows); total += est.total || 0; }
+    if (est && est.count) { rows.push(...est.rows); total += est.total || 0; if (est.note) notes.push(est.note); }
   }
   rows.push(["Assemble the video", "free"]);
   const ok = await confirmDialog({ title: "Finish this video?", rows, total, ok: "Finish the video",
     text: "Makes what is still missing (pictures, clips, voices), then assembles the video. Everything already made is kept.",
-    note: run.clip_sound ? "With clips speaking for themselves the lines are read from the clips, so the voice row is an upper bound." : null });
+    note: notes.join(" ") || null });
   if (!ok) return;
   releaseMedia();        // a clip still open in the page cannot be replaced on Windows
   await submit(api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/finish`, { provider: providerBody() }), "the rest of the video");
@@ -1547,6 +1560,9 @@ function castSection(f, st, onChange) {
 const STEP_NAME = { script: "Script", images: "Images", video: "Clips", voice: "Voices", assemble: "Final cut" };
 const STEP_GO = { script: "Write the script", images: "Make the images", video: "Make the clips", voice: "Record the voices",
   assemble: "Assemble the video" };
+// What a step's button says for this video. With clips speaking for themselves no voice is
+// recorded: the lines are read out of the clips.
+const stepGo = (run, step) => (step === "voice" && run.clip_sound && !run.song ? "Read the lines from the clips" : STEP_GO[step]);
 function renderRun() {
   if (S.run.engine === "claude_code") { renderCodeRun(); return; }
   const run = S.run;
@@ -1567,7 +1583,7 @@ function renderRun() {
     if (i) stepBtns.push(h("span", { class: `step-arrow${st.status === "done" ? " done" : ""}` }));
     stepBtns.push(h("button", { class: `step-btn ${st.status === "n/a" ? "na" : st.status}${step === next ? " next" : ""}`,
       disabled: busy || (step !== "script" && !run.script),
-      title: `${STEP_GO[step]}${st.status === "done" ? " again" : ""}`, onclick: () => runStep(run, step) },
+      title: `${stepGo(run, step)}${st.status === "done" ? " again" : ""}`, onclick: () => runStep(run, step) },
       h("span", { class: `dot ${st.status}` }),
       h("span", { class: "step-num" }, st.status === "done" ? icon("check", 12) : String(i + 1)),
       h("span", { class: "step-name" }, STEP_NAME[step]),
@@ -1582,7 +1598,7 @@ function renderRun() {
       onclick: () => finishRun(run) }, h("span", {}, "Finish the video"), icon("arrow-right"))
     : next
     ? h("button", { class: "btn primary cta", disabled: busy || (next !== "script" && !run.script), onclick: () => runStep(run, next) },
-      h("span", {}, STEP_GO[next]), icon("arrow-right"))
+      h("span", {}, stepGo(run, next)), icon("arrow-right"))
     : finalSrc ? h("a", { class: "btn primary cta", href: finalSrc, download: `${run.run_id}.mp4` }, icon("download"), h("span", {}, "Download video")) : null;
   const tab = S.runTab[run.run_id] || (run.script && !run.steps.images.done ? "script" : "shots");
   const unsaved = draftChanged().size;
