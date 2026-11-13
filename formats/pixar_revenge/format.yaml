@@ -30,10 +30,13 @@ beats:
   - the new life
   - time card
   - the reunion and one comeback line
-  - flex montage
-  - CTA
+  - flex montage (the last shot is the end)
 
 rules:
+  # The story ends on the montage's last shot, with no "search the app" shot after it: the app
+  # is shown at the turn. Set to true (or delete the line) for a closing shot captioned with
+  # cta_caption again.
+  closing_shot: false
   story_shots: [14, 22]          # shots, not counting the flashes and the montage
   vo_words: [20, 45]             # the pictures tell it; the words are few
   silent_run_max: 6
@@ -52,9 +55,19 @@ rules:
   labels: true                   # PREVIOUSLY on the flashback, OPENS IRO on the app
   label_max_words: 3
 
+# Captions: two or three words at a time, a little larger, as in Pixar Mirror. A video can
+# choose its own words at a time and size in its Captions panel.
+captions:
+  max_words: 3
+  size: 92
+
 timing:
   min_shot_seconds: 1.8          # silent shots carry an action, so they get time to play
   montage_seconds: 0.6
+  # A recording of the app plays this long at most when nothing is said over it (the default
+  # is 6). The story stops while the phone is up; on the first video made this way a third of
+  # the viewers still watching left during a 4.6 second app shot.
+  app_clip_max_seconds: 2.0
 
 prompt:
   app_screen_line: '    * "{{PATH}}": {{SHOWS}}'

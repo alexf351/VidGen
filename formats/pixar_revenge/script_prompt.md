@@ -119,10 +119,9 @@ shots come on top. Number every shot "n" from 1 upward with no gaps.
      with ONE light comeback of at most six words, said with a smile, never cruel
      ("Sorry, I'm fully booked."), and leaves. The scene ends on her face, or the
      rival's.
-  9. FLEX MONTAGE ({{MONTAGE_MIN}}-{{MONTAGE_MAX}} shots). See FLEX MONTAGE below.
- 10. CTA: the final shot. The hero holds up the phone with its BACK toward the camera, the
-     screen glow on his face, grinning, Iro on his shoulder. Caption exactly
-     "{{CTA_CAPTION}}". Silent.
+  9. FLEX MONTAGE ({{MONTAGE_MIN}}-{{MONTAGE_MAX}} shots). See FLEX MONTAGE below. Its last
+     shot is the last shot of the video. There is no call to action, no "search the app"
+     shot and no caption at the end: the app was shown at the turn, and that is the ad.
 
 Nobody explains how he did it. The viewer sees him open the app, sees the grind, and
 sees the result.
@@ -152,6 +151,17 @@ HOW IT IS SHOT
   for a physical action. A reaction with no line is its own short shot.
 - Things happen INSIDE a shot: a face changes, something drops, a car crosses the
   frame, a door opens. Never a held pose.
+- Give the people talking a side each and keep it in every close shot of a scene: one is
+  turned toward the right of the frame, the other toward the left, each looking at the
+  other just off camera. Say so in the image_prompt. Cut together, they then face each
+  other, and nobody seems to jump across the square.
+- Hands: in one shot a person holds at most one thing and does one thing with their
+  hands. Someone holding two cups cannot also point; the picture comes back with a third
+  arm. Say which hand does what ("one hand on the counter, the other holding the cup"),
+  and keep both hands inside the frame the shot describes (no hand on a knee in a
+  chest-up shot).
+- Clothes are part of who someone is in a scene: give each person the same clothes, in
+  the same words, in every shot of that scene. They change only when the story moves on.
 - Mark every shot of a scene after its first with "same_scene": true.
 
 TONE AND LOOK
@@ -173,7 +183,7 @@ DIALOGUE
 {{SHOT_RULES}}
 
 FLEX MONTAGE
-- Right before the final CTA shot, add {{MONTAGE_MIN}}-{{MONTAGE_MAX}} consecutive montage shots
+- As the last shots of the video, add {{MONTAGE_MIN}}-{{MONTAGE_MAX}} consecutive montage shots
   of the hero's new life, each a single striking image, under a second on screen:
   the car door lifting open, the watch, a private jet on the tarmac, a rooftop
   party turning to look at him, sofia laughing on his arm.

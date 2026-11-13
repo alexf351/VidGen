@@ -64,6 +64,10 @@ captions:
 timing:
   min_shot_seconds: 1.5          # the work shots need a moment to change on screen
   montage_seconds: 0.6
+  # A recording of the app plays this long at most when nothing is said over it (the default
+  # is 6). The story stops while the phone is up; on the first video made this way a third of
+  # the viewers still watching left during a 4.6 second app shot.
+  app_clip_max_seconds: 2.0
 
 prompt:
   app_screen_line: '    * "{{PATH}}": {{SHOWS}}'
