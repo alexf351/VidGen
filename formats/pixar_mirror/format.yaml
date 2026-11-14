@@ -80,6 +80,12 @@ labels:
 stat:
   eyebrow: "IRO RANK"            # the small heading over the rank
 
+# Colour: as the pictures come. Pixar Arc takes the colour down and tints it cool; the reels this
+# format follows are bright, warm and saturated, and next to them ours looked grey.
+grade:
+  saturation: 1.0
+  colorbalance: ""
+
 timing:
   montage_seconds: 0.8           # the flex shots sit a little longer here than in Pixar Arc
   # A recording of the app plays this long at most when nothing is said over it (the default

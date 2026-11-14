@@ -65,6 +65,7 @@ class NewRun(BaseModel):
     screens: list[str] = []           # app screenshots this video must show (library paths)
     ready: str | None = None          # a ready-made script of the format (ready_scripts.py)
     clip_sound: bool | None = None    # clips made with their own sound (clip_sound.py); None = the config's setting
+    quality: str | None = None        # "480p" or "720p" clips for this video (clip_quality.py); None = the config's
 
 
 class ScreenIn(BaseModel):
@@ -130,6 +131,10 @@ class ClipVoiceChoice(BaseModel):
 
 class ClipSoundChoice(BaseModel):
     on: bool | None = None            # None = follow the config again
+
+
+class ClipQualityChoice(BaseModel):
+    quality: str | None = None        # "480p" | "720p"; None = follow the config again
 
 
 class LibraryVoice(BaseModel):
@@ -266,10 +271,11 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
 
     def run_config(run_dir: Path, providers: dict | None = None) -> dict:
         """The config a job on this run uses: its format, plus its cast from your library."""
+        import clip_quality
         cast = run_cast(run_dir)
         if cast:
-            return load_config(format_name=run_format(run_dir), providers=providers, cast=cast)
-        return load_config(format_name=run_format(run_dir), providers=providers)
+            return clip_quality.apply(load_config(format_name=run_format(run_dir), providers=providers, cast=cast), run_dir)
+        return clip_quality.apply(load_config(format_name=run_format(run_dir), providers=providers), run_dir)
 
     def run_dir_of(run_id: str) -> Path:
         root = runs_dir().resolve()
@@ -569,6 +575,13 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             clip_sound.set_for_run(run_dir, body.clip_sound)
             if body.clip_sound:
                 preface.append("  clip sound: on (clips are made with their own sound; lines are taken from them)")
+        if body.quality is not None and body.engine != "claude_code":
+            import clip_quality
+            try:
+                clip_quality.set_for_run(run_dir, body.quality)
+            except StepError as e:
+                raise HTTPException(400, str(e)) from e
+            preface.append(f"  clip quality: {body.quality}")
         if captions and captions != caption_styles.FORMAT:
             preface.append(f"  captions: {caption_styles.title(captions)}")
         for line in lib.describe_cast(cfg):
@@ -624,6 +637,9 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             out["music"] = {**m["music"], "loud_shot": montage}
             # The sound can be mixed again on its own once a picture has been assembled.
             out["can_remix"] = (run_dir / "build" / "main_video.mp4").is_file()
+            # 480p or 720p: what this video's clips are made at from now on (clip_quality.py).
+            import clip_quality
+            out["clip_quality"] = clip_quality.of(cfg) if cfg else None
             # Made from a ready-made script that has been improved since: what an update would do.
             import ready_update
             out["script_update"] = ready_update.summary(run_dir, cfg)
@@ -917,6 +933,18 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         if run_status.load_script(run_dir) is None:
             raise HTTPException(409, "this run has no script.json yet; run the script step first")
         return submit_run_job("assemble", run_dir, {"sound_only": True}, lambda cfg: commands.remix(run_id, cfg), None)
+
+    @app.put("/api/runs/{run_id}/clip-quality")
+    def set_run_clip_quality(run_id: str, body: ClipQualityChoice) -> dict:
+        """480p or 720p clips for this video from now on. Clips already made stay as they are."""
+        import clip_quality
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "clip quality")
+        try:
+            clip_quality.set_for_run(run_dir, body.quality)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        return {"clip_quality": clip_quality.of(config_for_run(run_dir))}
 
     @app.put("/api/runs/{run_id}/clip-sound")
     def set_run_clip_sound(run_id: str, body: ClipSoundChoice) -> dict:

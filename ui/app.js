@@ -161,7 +161,10 @@ function providerFor(kind, choice) {
   if (c) return c;
   return (S.config && S.config.providers.default[kind]) || "sume";
 }
-function resolution() { return (S.config && S.config.video.resolution) || "480p"; }
+// The clip quality the page is pricing for: the video being looked at or made (S.quality),
+// else the config's.
+function resolution() { return S.quality || (S.config && S.config.video.resolution) || "480p"; }
+const QUALITY = [["480p", "Standard", "480p"], ["720p", "Sharp", "720p, about twice the clip cost"]];
 function clipSeconds(formatName) {
   const f = S.formats.find((x) => x.name === formatName);
   return (f && f.clip_seconds) || (S.config && S.config.video.clip_seconds) || 4;
@@ -1108,6 +1111,36 @@ function musicPanel(run, busy) {
 }
 
 // ------------------------------------------------------------ sound panel
+// Clip quality for this video: 480p or 720p clips from now on (clip_quality.py on the server).
+function qualityPanel(run, busy) {
+  const box = h("section", { class: "captions-panel quality-panel", "aria-label": "Clip quality" });
+  const draw = () => {
+    const now = run.clip_quality || "480p";
+    const set = async (v) => {
+      if (v === now) return;
+      try {
+        const r = await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/clip-quality`, { quality: v });
+        run.clip_quality = r.clip_quality; S.quality = r.clip_quality; S.qualityChanged = run.run_id;
+      } catch (e) { toast(e.message, "bad"); }
+      draw();
+    };
+    const clips = run.shots.filter((s) => s.clip).map((s) => s.n);
+    const changed = S.qualityChanged === run.run_id && clips.length;
+    box.replaceChildren(...[
+      h("div", { class: "panel-title" }, "Clip quality"),
+      chips(QUALITY.map(([v, t]) => [v, `${t} · ${v}`]), now, set, "Clip quality for this video"),
+      changed ? h("div", { class: "notice" },
+        `The ${clips.length} clips made so far stay as they are. New and redone clips are made at ${now}. `,
+        h("button", { class: "btn small", disabled: busy, onclick: () => { S.qualityChanged = null; runStep(run, "video", clips); } }, `Redo all ${clips.length} clips at ${now}`))
+        : h("div", { class: "field-note" }, now === "720p"
+          ? "Clips are made at 720p: sharper, a little over twice the cost of 480p."
+          : "Clips are made at 480p. Switch to Sharp for 720p clips: crisper faces and edges, a little over twice the cost per clip."),
+    ].filter(Boolean));
+  };
+  draw();
+  return box;
+}
+
 // Clip sound for this video: the clips speak their own lines (clip_sound.py on the server).
 function soundPanel(run, busy) {
   const box = h("section", { class: "captions-panel sound-panel", "aria-label": "Sound" });
@@ -1312,6 +1345,7 @@ function renderCreate(formatName) {
     provSec.classList.toggle("hidden", st.engine === "claude_code");
     capSec.classList.toggle("hidden", st.engine === "claude_code");
     sndSec.classList.toggle("hidden", st.engine === "claude_code");
+    qualSec.classList.toggle("hidden", st.engine === "claude_code");
     if (scrSec) scrSec.classList.toggle("hidden", st.engine === "claude_code" || !!readyOn);
     codeWarn.textContent = st.engine === "claude_code" ? codeEngineProblem() : "";
     if (st.engine === "claude_code") {
@@ -1368,6 +1402,16 @@ function renderCreate(formatName) {
     h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Captions")),
     captionPicker(f.name, st.captions, (v) => { st.captions = v; }),
     h("div", { class: "field-note" }, "You can change this after the video is made, for free."));
+  // Clip quality, remembered in this browser like the Sound choice below.
+  if (st.quality === undefined) {
+    let lastQ = null;
+    try { lastQ = localStorage.getItem("vidgen.clipQuality"); } catch { /* private mode */ }
+    st.quality = lastQ === "480p" || lastQ === "720p" ? lastQ : ((S.config && S.config.video.resolution) || "480p");
+  }
+  S.quality = st.quality;
+  const qualSec = h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Clip quality")),
+    chips(QUALITY, st.quality, (v) => { st.quality = v; S.quality = v; try { localStorage.setItem("vidgen.clipQuality", v); } catch { /* private mode */ } update(); }, "Clip quality"),
+    h("div", { class: "field-note" }, "How sharp each clip is made. The finished video is 1080 by 1920 either way; 480p clips are stretched further to fill it and look softer. Sharp costs a little over twice as much per clip. Your choice is remembered, and a video can be switched later."));
   // The form is built again every time you come back to this screen, so the Sound choice is
   // kept in this browser: what you chose last is what the next video starts with.
   if (st.clipSound === undefined) {
@@ -1398,7 +1442,8 @@ function renderCreate(formatName) {
       const picked = ready ? (f.ready_scripts || []).find((e) => e.id === ready) : null;
       const est = picked ? estimateReady(f.name, st.provider, picked) : estimateNew(f.name, st.provider);
       // Said before any money is spent: redoing every clip to change this costs as much as the clips did.
-      est.rows = [...est.rows, ["Sound", st.clipSound ? "clips speak for themselves" : "voices added after (ElevenLabs)"]];
+      est.rows = [...est.rows, ["Sound", st.clipSound ? "clips speak for themselves" : "voices added after (ElevenLabs)"],
+        ["Clip quality", st.quality === "720p" ? "sharp (720p)" : "standard (480p)"]];
       const ok = await confirmDialog({ title: picked ? `Generate "${picked.title}"?` : `Generate a ${formatTitle(f)} video?`, rows: est.rows, total: est.total,
         text: picked ? `${formatTitle(f)}, from the ready-made script. Runs images, video, voice and assemble.` : "Runs script, images, video, voice and assemble.", ok: "Generate",
         note: picked ? "Counted from the script's own shot list. Character sheets you already have are reused and cost nothing; shots you redo afterwards cost extra. Choose Script only to read it first for free."
@@ -1409,7 +1454,7 @@ function renderCreate(formatName) {
     const r = await submit(api("POST", "/api/runs", { premise: text, format: f.name, provider: st.engine === "ai" ? (st.provider || null) : null,
       dry_run: st.dry, engine: st.engine, cast: st.cast, captions: st.engine === "ai" ? st.captions : null,
       screens: st.engine === "ai" && !ready ? st.screens : [], ready,
-      clip_sound: st.engine === "ai" ? !!st.clipSound : null }),
+      clip_sound: st.engine === "ai" ? !!st.clipSound : null, quality: st.engine === "ai" ? st.quality : null }),
       st.dry ? (st.engine === "claude_code" ? "story" : "script") : `${formatTitle(f)} video`);
     go.disabled = false;
     if (r) { await refreshRuns(); location.hash = `#/run/${encodeURIComponent(r.run_id)}`; }
@@ -1425,6 +1470,7 @@ function renderCreate(formatName) {
     scrSec,
     provSec,
     sndSec,
+    qualSec,
     capSec,
     castSection(f, st, update),
     h("section", { class: "card-sec cost-card" }, h("div", {}, costLine, costSub), go));
@@ -1599,6 +1645,7 @@ const stepGo = (run, step) => (step === "voice" && run.clip_sound && !run.song ?
 function renderRun() {
   if (S.run.engine === "claude_code") { renderCodeRun(); return; }
   const run = S.run;
+  S.quality = run.clip_quality || null;       // cost estimates on this page are for this video's clip quality
   const busy = runBusy(run.run_id);
   const active = S.jobs.find((j) => j.run_id === run.run_id && ACTIVE.has(j.status));
   const d = S.config.providers.default;
@@ -1893,6 +1940,7 @@ function sideColumn(run, busy) {
   }
   col.append(final);
   if (run.script) col.append(soundPanel(run, busy));
+  if (run.script) col.append(qualityPanel(run, busy));
   if (run.script && run.music) col.append(musicPanel(run, busy));
   if (run.script && captionStyles().length) col.append(captionsPanel(run, busy));
   if (run.voices && run.voices.length) col.append(voicesPanel(run, busy));

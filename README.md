@@ -810,6 +810,17 @@ text-to-image. A running cost estimate is printed at the end.
 
 ## The video step
 
+**Clip quality: 480p or 720p.** Seedance makes a clip at 480p or 720p, and the finished video
+is 1080x1920 either way, so a 480p clip is stretched further and looks softer next to reels made
+at 720p. 720p costs a little over twice as much per second (Sume: $0.056 against $0.121). The
+config's `sume.video_resolution` / `fal.video_resolution` is what every video uses; a video can
+choose for itself under **Clip quality** on the create screen (Standard 480p, Sharp 720p;
+remembered in that browser, and shown in the box that asks "Generate?") or in the Clip quality
+panel on its page. The choice is kept in the video's `run.json` (`"video_resolution"`,
+`clip_quality.py`) and is read when a clip is made: clips already made stay as they are until
+they are redone, and the panel offers that. Over HTTP: `quality` on `POST /api/runs`,
+`PUT /api/runs/{run_id}/clip-quality` `{quality}`, and `clip_quality` on `GET /api/runs/{run_id}`.
+
 **Every shot is a clip (`animate_all`).** A format with `animate_all: true` (Pixar Arc) turns
 every drawn shot into a video clip, flex-montage shots included, so nothing in the video is a
 still picture with a slow zoom. Only time-jump cards and app screenshots are not clips. It is
@@ -1164,7 +1175,9 @@ template; pick whichever fits the premise.
 
 `pixar_mirror`, `pixar_ladder` and `pixar_revenge` end on the last shot of their montage, with no
 `SEARCH IRO AI` shot (`closing_shot: false`), and show captions two or three words at a time at
-size 92. A recording of the app with nothing said over it plays for 2 seconds at most in them
+size 92. Their colour is the pictures' own (`grade.saturation: 1.0`, no tint): Pixar Arc takes the
+colour down and tints it cool, and next to the bright, warm reels these formats follow that
+looked grey. A recording of the app with nothing said over it plays for 2 seconds at most in them
 (`timing.app_clip_max_seconds`; 6 elsewhere), so the story does not stop for the phone. Their
 script prompts also give the people talking a fixed side of the frame, keep each person's
 clothes the same through a scene, and allow one thing per hand in a shot (a picture asked for
