@@ -171,12 +171,17 @@ def animates(shot: dict) -> bool:
 def apply_animate_all(script: dict | None, config: dict | None) -> int:
     """When the format (or config) says every shot is a clip, mark every drawn shot
     "animate": true. Changes `script` in place; returns how many shots it changed. Scripts
-    written before the setting was on are brought up to date this way."""
+    written before the setting was on are brought up to date this way. The flashes are clips
+    too when the format says so (rules.flashes.animate)."""
     if not script or not (config or {}).get("animate_all"):
         return 0
+    rules = ((config or {}).get("format") or {}).get("rules") or {}
+    flashes_move = bool((rules.get("flashes") or {}).get("animate"))
     changed = 0
     for s in script.get("shots", []):
-        if animates(s) and s.get("animate") is not True:
+        moving_flash = (flashes_move and isinstance(s, dict) and s.get("flash")
+                        and bool(str(s.get("image_prompt") or "").strip()))
+        if (animates(s) or moving_flash) and s.get("animate") is not True:
             s["animate"] = True
             if not str(s.get("motion_prompt") or "").strip():
                 s["motion_prompt"] = "slow cinematic push in, subtle natural movement"
@@ -755,8 +760,11 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             if is_montage:
                 shot["caption"] = ""
             if shot.get("flash"):
-                # A flash is a still on screen for a third of a second: never a clip, never a caption.
-                shot.update({"caption": "", "animate": False})
+                # A flash is on screen for a fraction of a second and never has a caption. It is a
+                # still, unless the format makes its flashes clips (rules.flashes.animate) and
+                # every shot is a clip anyway (animate_all): with only the key shots animated,
+                # ten flashes would use up the whole allowance.
+                shot.update({"caption": "", "animate": bool(animate_all and flash_rule and flash_rule.get("animate"))})
                 shot.pop("talk", None)
                 shot.pop("stat", None)
         normalized_shots.append(shot)

@@ -310,7 +310,11 @@ A screen moves when a recording with the same name sits beside its picture (`str
 `streak.mp4`). The picture is its thumbnail and the fallback. An app screen shot with a
 recording lasts as long as the recording (up to `assemble.app_clip_max_seconds`, 6), and the
 recording plays inside the same phone, in the hand or in the plain frame; a recording shorter
-than the shot holds its last frame. The script writer is told which screens move.
+than the shot holds its last frame. The script writer is told which screens move. When a
+format shows less than the whole recording (Mirror, Ladder and Revenge show 2 seconds), it
+plays from the screen's `clip_from` in `assets/screens/library.yaml`: the second its best part
+starts. "Building your path" opens on Iro alone at 0%, so it plays from 2.9 s, where the whole
+web is lit and the count runs to 100. A screen with no `clip_from` plays from its start.
 
 - Show the still instead, for one shot: untick **Play the recording** on the app screen row
   in the script editor (`"app_still": true` on the shot).
@@ -676,6 +680,17 @@ The name is lower case letters, digits and underscores.
 The built script goes through the same check as one Claude wrote, so a script that breaks the
 format's rules (too few shots, too many words, a line that does not come back) is refused with
 the reason, and `python main.py ready` only lists files it can read.
+
+**When a ready-made script is improved later.** A video keeps its own copy of the script it was
+made from. If the script in `formats/<format>/scripts/` changes afterwards (a shot rewritten,
+one added, one taken out), the video's page says so and offers **Update this video**: the video
+gets the script as it is now, and every shot whose picture is described the same way keeps its
+picture, clip and line under its new number (`ready_update.py`). A shot with the same picture
+and a new movement or line keeps the picture and has its clip made again. Nothing is generated
+by the update; **Finish the video** then makes what is new and shows the cost first. Changes
+made to the video's script by hand are replaced by the script's own version. Over HTTP:
+`POST /api/runs/{run_id}/update-script`; `GET /api/runs/{run_id}` carries `script_update` (what
+an update would change) or null.
 
 ### Story formula
 
@@ -1181,11 +1196,21 @@ What a premise needs:
   script uses the three-part prompt from Iro's first lesson (a role, a goal, what good looks
   like). The steps never promise money.
 
-**Flash shots.** `pixar_revenge` shows the grind as 8-12 shots with `"flash": true`: stills a
-third of a second long (`timing.flash_seconds`), the hero in the centre of each while the room
-behind him grows. They get a picture but never a clip, so they cost an image each. They must be
+**Flash shots.** `pixar_revenge` shows the grind as 8-12 shots with `"flash": true`, half a
+second each (`timing.flash_seconds`), the hero in the centre of each while the room behind him
+grows. With `rules.flashes.animate: true` (Pixar Revenge) each flash is a clip, and the cut
+shows half a second from 1.2 s inside it (`timing.flash_clip_from`), where he is already
+moving: a clip opens on its still picture, so its first frames look frozen. As stills the run
+read as a slideshow. That is ten more clips per video; set `animate: false` there for stills
+that cost an image each (and they are stills anyway when `animate_all` is off). They must be
 consecutive and in the middle of the story (`rules.flashes`). On the sound track a swish starts
 the run, a riser builds through it and a hit lands on the shot after it.
+
+**Pixar Revenge, shot by shot.** It opens on both of them in one frame, him holding out the
+ring and her refusing, so the "no" has a question. A full-screen card ("6 MONTHS EARLIER")
+comes before the flashback and another ("2 YEARS LATER") before the reunion, so the format
+asks for exactly two cards. After his comeback line his new partner gets a silent shot of her
+own (a look at the ex, a wink) and the two of them leave in his car, as the ex left him.
 
 **A line over the app screen.** With `rules.app_screen_voice: true` (`pixar_steps`), an
 app-screen shot may carry a `vo_line` and a `speaker`. The shot then lasts as long as the line,

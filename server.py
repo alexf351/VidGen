@@ -331,6 +331,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                                    "montage": r["montage"]["count"] if r["montage"] else None,
                                    "cards": r["cards"]["count"] if r["cards"] else None,
                                    "flashes": r["flashes"]["count"] if r.get("flashes") else None,
+                                   "flashes_move": bool(r.get("flashes") and r["flashes"].get("animate")),
                                    "max_animated_shots": f["overlay"].get("max_animated_shots"),
                                    "animate_all": animate_all_for(f),
                                    "narrator": r["narrator"], "cta_caption": r["cta_caption"] if r.get("closing_shot", True) else "",
@@ -623,6 +624,9 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             out["music"] = {**m["music"], "loud_shot": montage}
             # The sound can be mixed again on its own once a picture has been assembled.
             out["can_remix"] = (run_dir / "build" / "main_video.mp4").is_file()
+            # Made from a ready-made script that has been improved since: what an update would do.
+            import ready_update
+            out["script_update"] = ready_update.summary(run_dir, cfg)
         job = runner.latest_for_run(run_id)
         out["job"] = job_out(job) if job else None
         out["active_job"] = job_out(runner.active_for_run(run_id)) if runner.active_for_run(run_id) else None
@@ -736,6 +740,20 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         if active:
             raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
                                      f"wait for it to finish")
+
+    @app.post("/api/runs/{run_id}/update-script")
+    def update_from_ready_script(run_id: str) -> dict:
+        """Bring a video made from a ready-made script up to date with that script as it is now,
+        keeping the pictures, clips and lines of the shots that did not change (ready_update.py).
+        Nothing is generated."""
+        import ready_update
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "updating the script")
+        idle_or_409(run_id)
+        try:
+            return ready_update.apply(run_dir, config_for_run(run_dir), free_leftovers=True)
+        except StepError as e:
+            raise HTTPException(422, str(e)) from e
 
     @app.post("/api/runs/{run_id}/shots")
     def add_shot(run_id: str, body: NewShot) -> dict:

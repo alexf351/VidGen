@@ -134,9 +134,23 @@ def builtin() -> list[dict]:
                             f"{', '.join(g for g in GROUP_IDS if g != 'mine')}, got {group!r}")
         if not (SCREENS_DIR / name).is_file():
             continue
+        try:
+            start = max(0.0, float(e.get("clip_from") or 0))
+        except (TypeError, ValueError):
+            raise StepError(f"{_rel(LIBRARY_FILE)}: screens[{i}] clip_from must be a number of seconds") from None
         out.append(_motion({"path": f"assets/screens/{name}", "title": str(e.get("title") or _title_from(name)),
-                            "shows": " ".join(str(e.get("shows") or "").split()), "group": group, "mine": False}))
+                            "shows": " ".join(str(e.get("shows") or "").split()), "group": group, "mine": False,
+                            "clip_from": start}))
     return out
+
+
+def clip_from(rel: str) -> float:
+    """Where the part of a screen's recording worth showing starts (library.yaml "clip_from"),
+    in seconds; 0 when it does not say. Used when the video shows less than the whole recording."""
+    for e in builtin():
+        if e["path"] == rel:
+            return float(e.get("clip_from") or 0.0)
+    return 0.0
 
 
 def _mine_index() -> dict:

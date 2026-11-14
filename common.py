@@ -234,7 +234,7 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
                          ("music_volume", 0.06), ("saturation", 0.85),
                          ("label_size", 50), ("label_y", 0.12), ("label_text", "#FFFFFF"),
                          ("label_box", "#1B1E2B"), ("label_colors", {}), ("label_wrap", ""),
-                         ("flash_seconds", 0.35), ("flash_zoom_end", 1.06),
+                         ("flash_seconds", 0.35), ("flash_zoom_end", 1.06), ("flash_clip_from", 1.2),
                          # Progress overlay on shots with "stat": a rank card top left and a big
                          # number lower left that ticks up once during the shot.
                          ("stat_seconds", 1.7), ("stat_font_file", "assets/fonts/Poppins-Black.ttf"),

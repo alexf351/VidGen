@@ -37,22 +37,23 @@ rules:
   # is shown at the turn. Set to true (or delete the line) for a closing shot captioned with
   # cta_caption again.
   closing_shot: false
-  story_shots: [14, 22]          # shots, not counting the flashes and the montage
+  story_shots: [14, 24]          # shots, not counting the flashes and the montage
   vo_words: [20, 45]             # the pictures tell it; the words are few
   silent_run_max: 6
-  cards:
-    count: [1, 1]
+  cards:                         # one before the flashback, one before the reunion
+    count: [2, 2]
     words: [2, 4]
-  flashes:                       # the grind: stills a third of a second long, hero in the centre
+  flashes:                       # the grind: half a second each, hero in the centre
     name: "GRIND"
     count: [8, 12]
+    animate: true                # each flash is a clip: he types, writes, turns. As stills they read as a slideshow
   montage:
     name: "FLEX MONTAGE"
     count: [4, 5]
   app_screens:
     max: 1
     hint: "exactly one, at the turn"
-  labels: true                   # PREVIOUSLY on the flashback, OPENS IRO on the app
+  labels: true                   # OPENS IRO on the app
   label_max_words: 3
 
 # Captions: two or three words at a time, a little larger, as in Pixar Mirror. A video can
@@ -64,6 +65,7 @@ captions:
 timing:
   min_shot_seconds: 1.8          # silent shots carry an action, so they get time to play
   montage_seconds: 0.6
+  flash_seconds: 0.5             # long enough to see him move
   # A recording of the app plays this long at most when nothing is said over it (the default
   # is 6). The story stops while the phone is up; on the first video made this way a third of
   # the viewers still watching left during a 4.6 second app shot.

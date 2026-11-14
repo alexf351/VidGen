@@ -129,9 +129,10 @@ def _fill_filter(w: int, h: int) -> str:
 
 
 def _push_in(src: Path, out: Path, frames: int, zoom_end: float, asm: dict, label: str,
-             ease_out: bool = False, video: bool = False) -> None:
-    """Centred zoom 1.00 -> zoom_end over `frames` frames, on a still or (video=True) on the
-    first `frames` frames of a clip. ease_out makes it a punch: fast at first, then settling."""
+             ease_out: bool = False, video: bool = False, start: float = 0.0) -> None:
+    """Centred zoom 1.00 -> zoom_end over `frames` frames, on a still or (video=True) on
+    `frames` frames of a clip, from `start` seconds in. ease_out makes it a punch: fast at
+    first, then settling."""
     w, h, fps = int(asm["width"]), int(asm["height"]), int(asm["fps"])
     if ease_out:
         p = f"min(on/{max(1, frames - 1)},1)"
@@ -144,7 +145,8 @@ def _push_in(src: Path, out: Path, frames: int, zoom_end: float, asm: dict, labe
     # Oversample first so zoompan's integer sampling does not jitter.
     vf = (f"{prep}{_fill_filter(w * 2, h * 2)},"
           f"zoompan=z='{z}':d={hold}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={w}x{h}:fps={fps},setsar=1")
-    run_ffmpeg(["-i", str(src), "-vf", vf, "-frames:v", str(frames), "-an",
+    seek = ["-ss", f"{start:.3f}"] if video and start > 0 else []
+    run_ffmpeg([*seek, "-i", str(src), "-vf", vf, "-frames:v", str(frames), "-an",
                 "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
                 str(out)], label)
 
@@ -345,10 +347,21 @@ def screen_window(compose, build: Path, n: int, size: tuple[int, int]):
     return path, (left, top, right - left, bottom - top)
 
 
+def app_clip_start(shot: dict, clip: Path, seconds: float) -> float:
+    """Where in the recording a shot of `seconds` starts. The whole recording when it fits; when
+    the shot is shorter, from the screen's "clip_from" (the part worth showing), moved back if
+    that would run off the end, so the shot never ends on a held frame it did not need."""
+    import app_assets
+    length = float(app_assets.clip_seconds(clip) or 0.0)
+    if length <= seconds + 0.05:
+        return 0.0
+    return round(max(0.0, min(app_assets.clip_from(str(shot["app_screen"]).strip()), length - seconds)), 3)
+
+
 def compose_app_clip(clip: Path, frame: Path, box: tuple[int, int, int, int], out: Path,
-                     frames: int, asm: dict, label: str) -> Path:
+                     frames: int, asm: dict, label: str, start: float = 0.0) -> Path:
     """The recording playing on the phone: scaled to cover the screen, under the phone picture.
-    A recording shorter than the shot holds its last frame."""
+    A recording shorter than the shot holds its last frame. `start`: seconds into the recording."""
     w, h, fps = int(asm["width"]), int(asm["height"]), int(asm["fps"])
     left, top, bw, bh = box
     seconds = frames / fps
@@ -357,7 +370,8 @@ def compose_app_clip(clip: Path, frame: Path, box: tuple[int, int, int, int], ou
              f"color=c=black:s={w}x{h}:r={fps}[bg];"
              f"[bg][scr]overlay={left}:{top}[on];"
              f"[on][1:v]overlay=0:0,format=yuv420p[out]")
-    run_ffmpeg(["-i", str(clip), "-loop", "1", "-framerate", str(fps), "-i", str(frame),
+    seek = ["-ss", f"{start:.3f}"] if start > 0 else []
+    run_ffmpeg([*seek, "-i", str(clip), "-loop", "1", "-framerate", str(fps), "-i", str(frame),
                 "-filter_complex", graph, "-map", "[out]", "-frames:v", str(frames), "-an",
                 "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p", str(out)], label)
     return out
@@ -396,10 +410,15 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
     if shot.get("montage") or shot.get("flash"):
         # Flex montage: a quick punch-in on the keyframe (or the clip, if one was made), no motion
         # beyond that; the concat joins montage shots with hard cuts. A flash is the same thing,
-        # shorter, and always the still.
+        # shorter. When a format makes its flashes clips, the flash shows a moment from inside
+        # the clip (flash_clip_from seconds in): a clip opens on its still picture, so its first
+        # half second looks like no motion at all.
         zoom = float(asm["flash_zoom_end"] if shot.get("flash") else asm["montage_zoom_end"])
-        if shot.get("animate") and clip.exists() and not shot.get("flash"):
-            _push_in(clip, out, frames, zoom, asm, label, ease_out=True, video=True)
+        if shot.get("animate") and clip.exists():
+            begin = 0.0
+            if shot.get("flash"):
+                begin = max(0.0, min(float(asm.get("flash_clip_from", 1.2)), probe_duration(clip) - duration - 0.1))
+            _push_in(clip, out, frames, zoom, asm, label, ease_out=True, video=True, start=begin)
             return out
         if not keyframe.exists():
             raise StepError(f"shot {n}: keyframe {keyframe} is missing; run the images step first")
@@ -425,7 +444,11 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
                 bg_png = last_frame(background, build / f"bg_{n:02d}.png", label) if background else None
                 found = screen_window(lambda pic, to: compose_phone_mockup(pic, bg_png, to, w, h), build, n, _video_size(recording))
             if found is not None:
-                raw = compose_app_clip(recording, found[0], found[1], build / f"app_{n:02d}_raw.mp4", frames, asm, label)
+                begin = app_clip_start(shot, recording, duration)
+                if begin:
+                    print(f"  shot {n}: the app recording plays from {begin:.1f}s (its best part), for {duration:.1f}s")
+                raw = compose_app_clip(recording, found[0], found[1], build / f"app_{n:02d}_raw.mp4", frames, asm, label,
+                                       start=begin)
                 _push_in(raw, out, frames, float(asm["app_screen_zoom_end"]), asm, label, video=True)
                 return out
             print(f"  shot {n}: could not place the recording on the phone; showing the still")

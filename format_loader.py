@@ -105,7 +105,9 @@ def _rules(raw, where: str) -> dict:
         if not isinstance(fl, dict):
             raise StepError(f"{where}: rules.flashes must be a mapping with count: [min, max]")
         r["flashes"] = {"name": str(fl.get("name") or "FLASHES"),
-                        "count": _pair(fl.get("count"), f"{where}: rules.flashes.count")}
+                        "count": _pair(fl.get("count"), f"{where}: rules.flashes.count"),
+                        # true: each flash is a clip and shows a moment of it; false: a still
+                        "animate": fl.get("animate") is True}
     if raw.get("stats"):
         st = raw["stats"]
         ranks = st.get("ranks") if isinstance(st, dict) else None

@@ -1250,3 +1250,8 @@ input[type=text], input[type=number], input[type=search], select, textarea { bor
   color: var(--on-media); background: rgba(5, 6, 10, .72); border: 1px solid rgba(255, 255, 255, .16); transition: background .15s, color .15s; }
 .shot .play-row .play-audio:hover, .shot .play-row .play-audio:focus-visible { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 @media (max-width: 760px) { .shot .play-row .play-audio { width: 36px; height: 36px; } }
+
+/* "this video's ready-made script has been improved": the words, then the button */
+.update-notice { display: flex; align-items: center; gap: 14px; justify-content: space-between; margin: 10px 0 2px; }
+.update-notice .btn { flex: none; }
+@media (max-width: 700px) { .update-notice { flex-direction: column; align-items: flex-start; } }

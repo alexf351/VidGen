@@ -10,6 +10,10 @@
 # streak.mp4): the video then plays the recording on the phone. No entry here is needed for
 # that; delete the .mp4 to go back to the still.
 #
+#   clip_from   seconds into the recording where its best part starts. A format that shows
+#               an app screen for 2 seconds plays the recording from here, not from its
+#               first frame. Leave it out to play from the start.
+#
 # Every format can use every screenshot here (see app_assets.py). To add your own without
 # editing this file, drop pictures in assets/screens/mine/ or use "App screens" in the UI.
 # These were captured from the app with scripts/i18n/intro-shots in the Iro repo.
@@ -20,6 +24,7 @@ screens:
     title: "Building your path"
     group: start
     shows: "the app building a personal plan: Iro the penguin typing at the centre of a web of skills and AI tools lighting up, a percent counting to 100"
+    clip_from: 2.9     # the first seconds are Iro alone at 0%; from here the whole web is lit and the count runs 60 to 100
   - file: first_rank.jpg
     title: "First rank"
     group: start

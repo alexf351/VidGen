@@ -19,8 +19,7 @@ OUTPUT SCHEMA
       "animate": false
     },
     {
-      "n": 8,
-      "label": "PREVIOUSLY",
+      "n": 9,
       "characters": ["marcus", "jess"],
       "image_prompt": "...",
       "motion_prompt": "...",
@@ -94,31 +93,38 @@ shots; the {{FLASH_MIN}}-{{FLASH_MAX}} flash shots and the {{MONTAGE_MIN}}-{{MON
 shots come on top. Number every shot "n" from 1 upward with no gaps.
 
   1. THE REJECTION (2-3 shots). The hero's biggest moment, in public, with people
-     watching: down on one knee, at the altar, on stage. Shot 1 is HER, close, giving
-     the answer, at most three words ("Hell no."). Then the thing he was holding hits
-     the floor in close-up (the ring, the flowers), and his face.
+     watching: down on one knee, at the altar, on stage. Shot 1 shows BOTH of them in
+     one frame, so the viewer sees what was asked and the answer at once: him holding
+     out the ring (or the flowers) with a hopeful face, her standing over him giving
+     the answer, at most three words ("Hell no."), the crowd filming behind. Never open
+     on her alone: a "no" with nobody asking makes no sense. Then the thing he was
+     holding hits the floor in close-up, and his face.
   2. SHE LEAVES WITH HIM (3-4 shots, 1-2 lines). She walks straight to the rival, who
      visibly has what the hero does not: the watch, the suit, the car. ONE line says
      why ("I told you I like winners."). She gets into his car and it pulls away across
      the frame. The crowd films it.
-  3. ALONE (2-3 shots, 1 line). The hero alone, holding the thing he dropped. Then ONE
-     flashback shot with "label": "PREVIOUSLY": a warm, hazy, golden memory of the two
-     of them, and her promise in one line ("I'll never leave you."). Back to him in the
-     cold present, no words: his face goes from broken to hard inside the shot.
+  3. ALONE (3-4 shots, 1 line). The hero alone, holding the thing he dropped. Then a
+     card shot that says the next shot is the past ("6 MONTHS EARLIER"), and ONE
+     flashback shot: a warm, hazy, golden memory of the two of them, and her promise in
+     one line ("I'll never leave you."). Back to him in the cold present, no words: his
+     face goes from broken to hard inside the shot.
   4. THE TURN (1-2 shots). Iro appears beside him. Then the app screen shot, with
      "label": "OPENS IRO". Iro may say one line of at most three words.
   5. THE GRIND ({{FLASH_MIN}}-{{FLASH_MAX}} flash shots). See THE FLASHES below.
   6. THE NEW LIFE (1-2 shots, silent). One strong image of what the work bought: he
      shoves open the doors of a glass apartment high over the city at night, in a
      black suit. A close-up of the watch on his wrist.
-  7. THE TIME CARD (exactly 1 shot): "2 YEARS LATER".
+  7. THE TIME CARD (exactly 1 shot): "2 YEARS LATER". With the card before the flashback
+     that makes two card shots in the script.
   8. THE REUNION (4-6 shots, 3-4 lines). She and the rival, somewhere expensive. The
      hero arrives in a way that outclasses what the rival had in beat 2 (a faster car
      pulling up beside his, the best table, the crowd turning). She sees him and says
      only his name, stunned ("Marcus?!"). She asks him back in one line. He answers
      with ONE light comeback of at most six words, said with a smile, never cruel
-     ("Sorry, I'm fully booked."), and leaves. The scene ends on her face, or the
-     rival's.
+     ("Sorry, I'm fully booked."). Then his new partner gets one silent shot of her own:
+     she looks straight at the ex and winks. The two of them leave the way the ex left
+     him in beat 2, only better (his car pulling away across the frame). The scene ends
+     on the ex's face, or the rival's.
   9. FLEX MONTAGE ({{MONTAGE_MIN}}-{{MONTAGE_MAX}} shots). See FLEX MONTAGE below. Its last
      shot is the last shot of the video. There is no call to action, no "search the app"
      shot and no caption at the end: the app was shown at the turn, and that is the ad.
@@ -194,7 +200,7 @@ FLEX MONTAGE
 
 THE TIME CARD
 - A card shot is a black screen with white text. Give it "card": a span of time in ALL
-  CAPS, 2-{{CARD_WORDS_MAX}} words ("2 YEARS LATER"), and "characters": [],
+  CAPS, 2-{{CARD_WORDS_MAX}} words ("6 MONTHS EARLIER", "2 YEARS LATER"), and "characters": [],
   "image_prompt": "", "motion_prompt": "", "vo_line": "", "speaker": "", "caption": "",
   "animate": false. It is never the first or the last shot.
 
