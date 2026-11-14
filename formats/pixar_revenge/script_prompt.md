@@ -168,6 +168,10 @@ HOW IT IS SHOT
   chest-up shot).
 - Clothes are part of who someone is in a scene: give each person the same clothes, in
   the same words, in every shot of that scene. They change only when the story moves on.
+- Things that stay in a scene stay in its pictures. When two cars are parked at the hotel,
+  every wide shot of that scene names both and says where each stands ("on the left the
+  dented red convertible, on the right the long black car"). A wide shot that names only
+  one of them is drawn with only one, and the cars seem to swap from shot to shot.
 - Mark every shot of a scene after its first with "same_scene": true.
 
 TONE AND LOOK
