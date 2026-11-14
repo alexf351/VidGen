@@ -306,6 +306,10 @@ and play on the phone for four or five seconds:
 In the UI they carry a play mark and play when you hover over them; `python main.py screens`
 marks them `[moves, 4s]`.
 
+A label on an app screen shot (`"label": "OPENS IRO"`) is drawn right under the phone at
+80 px (`assemble.label_app_size`), not at the top of the frame at 50 px like other labels,
+where it was too small to read on a phone; `assemble.label_under_phone: false` puts it back.
+
 A screen moves when a recording with the same name sits beside its picture (`streak.jpg` +
 `streak.mp4`). The picture is its thumbnail and the fallback. An app screen shot with a
 recording lasts as long as the recording (up to `assemble.app_clip_max_seconds`, 6), and the

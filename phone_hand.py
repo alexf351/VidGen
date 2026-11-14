@@ -133,6 +133,16 @@ def screen_shape(template: Path, w: int, h: int) -> tuple[int, int] | None:
     return box[2] - box[0], box[3] - box[1]
 
 
+def screen_bottom(template: Path, w: int, h: int) -> int | None:
+    """The y of the bottom edge of the phone's screen in the hand picture at w x h, or None
+    when it has no clean screen. A label that belongs to the phone goes just under it."""
+    try:
+        found = find_screen(_framed(template, w, h))
+    except (OSError, ValueError):
+        return None
+    return None if found is None else int(found[0][3])
+
+
 def compose(template: Path, screenshot: Path, out: Path, w: int, h: int) -> Path | None:
     """The screenshot on the phone in the hand picture, at w x h. None when the hand picture
     has no clean green screen (the caller then uses the plain phone frame)."""

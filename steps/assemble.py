@@ -347,6 +347,23 @@ def screen_window(compose, build: Path, n: int, size: tuple[int, int]):
     return path, (left, top, right - left, bottom - top)
 
 
+def app_label_place(run_dir: Path, asm: dict, w: int, h: int) -> tuple[int, int]:
+    """(y of its top edge, letter size) for the label of an app-screen shot: right under the
+    phone, in letters that can be read on a phone. Under the hand-held phone that is just below
+    its screen; with the plain phone frame, just below the frame. It never goes lower than the
+    strip at the foot of the picture that Instagram and TikTok cover with their own text."""
+    import phone_hand
+    size = int(asm.get("label_app_size", 80))
+    bottom = None
+    hand = phone_hand.run_path(run_dir)
+    if hand.is_file():
+        bottom = phone_hand.screen_bottom(hand, w, h)
+    if bottom is None:
+        bottom = int(h * 0.885)                       # the plain frame: the phone ends about here
+    box = int(size * 1.6)                              # the label's box, letters and padding
+    return min(bottom + int(h * 0.03), int(h * 0.93) - box), size
+
+
 def app_clip_start(shot: dict, clip: Path, seconds: float) -> float:
     """Where in the recording a shot of `seconds` starts. The whole recording when it fits; when
     the shot is shorter, from the screen's "clip_from" (the part worth showing), moved back if
@@ -900,8 +917,13 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
             colors = {str(k).upper(): v for k, v in (asm.get("label_colors") or {}).items()}
             box = f"\\3c{_ass_bgr(colors[tag])}" if tag in colors else ""
             ly = int(round(h * float(asm["label_y"])))
+            big = ""
+            if item["shot"].get("app_screen") and asm.get("label_under_phone", True) is not False:
+                # The label of an app screen belongs to the phone: under it, and large.
+                ly, size = app_label_place(run_dir, asm, w, h)
+                big = f"\\fs{size}\\bord{max(6, size // 4)}"
             lines.append(f"Dialogue: 1,{_ass_time(item['start'])},{_ass_time(item['start'] + item['duration'])},"
-                         f"Label,,0,0,0,,{{\\an8\\pos({w // 2},{ly}){box}}}{_ass_escape(wrap + tag + wrap)}")
+                         f"Label,,0,0,0,,{{\\an8\\pos({w // 2},{ly}){big}{box}}}{_ass_escape(wrap + tag + wrap)}")
         lines.extend(stat_events(item, asm, w, h))
         for start, end, text in shot_caption_events(run_dir, item, max_words, spoken=spoken):
             lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
