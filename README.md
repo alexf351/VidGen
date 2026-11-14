@@ -374,10 +374,10 @@ A Claude Code run keeps its work in `runs/<id>/code/` and has four steps:
 
 | step | what happens |
 |---|---|
-| `story` | Claude Code writes `story.json` (one line per beat, a style each) and `story.md` with `copywriter.md` |
+| `story` | Claude Code drafts three stories with `copywriter.md` in `story-drafts.md`, scores each against six tests (a first line that stops a scroll, stakes by line 3, one drawable result from the app, a twist that pays off the start, drawable lines, retellable after one listen), and writes the strongest as `story.json` (one line per beat, a style each) and `story.md` |
 | `scenes` | Claude Code rewrites each style file for the story and checks stills (`node render.cjs stills`) |
 | `voice` | VidGen reads the lines with ElevenLabs and times the beats to the voice (skipped without a key) |
-| `render` | VidGen runs `node render.cjs video` and copies `out/video.mp4` to `final.mp4` |
+| `render` | VidGen runs `node render.cjs video`, burns the captions onto `out/video.mp4` and saves `final.mp4` |
 
 "Story only" stops after the story so you can edit the lines in the UI before the scenes are
 coded. How Claude Code is run: headless (`claude -p`) in the run's `code/` folder, with the
@@ -389,6 +389,15 @@ is denied, never prompted. Settings live under `code_engine:` in `config.yaml` (
 limits, timeouts). It counts toward your Claude plan's usage limits; a run that hits one stops
 with a message saying so. On Windows and Linux the 3D styles render in software, so a 20 second
 video can take several minutes.
+
+**Captions.** The skill's template draws no subtitles, so the render step adds them: the spoken
+words, timed to the voice (`voice.json`; without a voice, each beat's line is spread over its
+seconds), in the same caption styles as the image pipeline. A caption stays up at most
+1.6 seconds when no word follows it. The video's page has the same Captions panel (style, size,
+words at a time), and the create screen the same picker. After a change, press **Render again**:
+when nothing the picture is drawn from has changed since the last render (the story, the voice,
+the style and lib files), the render is kept and only the captions are redone, in seconds. A
+video made before captions existed gets them the same way: press the Render step.
 
 ### Importing a Claude skill as a format
 

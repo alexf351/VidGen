@@ -1004,9 +1004,9 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
     @app.put("/api/runs/{run_id}/captions")
     def set_run_captions(run_id: str, body: CaptionChoice) -> dict:
         """Pick this run's caption style. The finished video keeps its old captions until the
-        assemble step runs again (no API calls, so it costs nothing)."""
+        assemble step runs again (no API calls, so it costs nothing); for a Claude Code video,
+        the render step, which only redoes the captions when the picture has not changed."""
         run_dir = run_dir_of(run_id)
-        image_pipeline_only(run_dir, "caption styles")
         active = runner.active_for_run(run_id)
         if active:
             raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
@@ -1022,7 +1022,6 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         """How big this video's captions are next to the format's own. Takes effect when the
         assemble step runs again."""
         run_dir = run_dir_of(run_id)
-        image_pipeline_only(run_dir, "caption styles")
         active = runner.active_for_run(run_id)
         if active:
             raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
@@ -1038,7 +1037,6 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         """How many words this video's captions show at a time. Like the style, it takes effect
         when the assemble step runs again."""
         run_dir = run_dir_of(run_id)
-        image_pipeline_only(run_dir, "caption styles")
         active = runner.active_for_run(run_id)
         if active:
             raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "

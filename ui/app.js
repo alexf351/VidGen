@@ -937,6 +937,7 @@ function captionPicker(formatName, value, onChange) {
 }
 
 function captionsPanel(run, busy) {
+  const code = run.engine === "claude_code";
   const box = h("section", { class: "captions-panel", "aria-label": "Captions" });
   const draw = () => {
     const current = run.caption_style || "format";
@@ -976,9 +977,11 @@ function captionsPanel(run, busy) {
         chips([[1, "1"], [2, "2"], [3, "3"]], run.caption_words || 1, setWords, "Words shown at a time"),
         h("div", { class: "field-note" }, "One word pops with the voice. Two or three read like a sentence, split evenly so no word is left on its own.")) : null,
       redo ? h("div", { class: "notice" }, `The finished video still has the old captions. `,
-        h("button", { class: "btn small", disabled: busy, onclick: () => { S.captionRedo = null; runStep(run, "assemble"); } }, "Assemble again"),
-        h("div", { class: "field-note" }, "Assembling makes no API calls, so it costs nothing.")) : null,
-      !redo ? h("div", { class: "field-note" }, "Change the look any time. Only the assemble step runs again, which is free.") : null,
+        h("button", { class: "btn small", disabled: busy, onclick: () => { S.captionRedo = null; code ? runCodeStep(run, "render") : runStep(run, "assemble"); } }, code ? "Render again" : "Assemble again"),
+        h("div", { class: "field-note" }, code ? "The picture is kept as it is and only the captions are redone, so it takes seconds and costs nothing."
+          : "Assembling makes no API calls, so it costs nothing.")) : null,
+      !redo ? h("div", { class: "field-note" }, code ? "Change the look any time. Only the captions are redone, which is free."
+        : "Change the look any time. Only the assemble step runs again, which is free.") : null,
     ].filter(Boolean));
   };
   draw();
@@ -1361,7 +1364,6 @@ function renderCreate(formatName) {
     const missing = [...kinds].filter((p) => !S.config.keys_present[p === "fal" ? "FAL_KEY" : "SUME_API_KEY"]);
     keyWarn.textContent = missing.length ? `No API key set for ${missing.join(", ")}.` : "";
     provSec.classList.toggle("hidden", st.engine === "claude_code");
-    capSec.classList.toggle("hidden", st.engine === "claude_code");
     sndSec.classList.toggle("hidden", st.engine === "claude_code");
     qualSec.classList.toggle("hidden", st.engine === "claude_code");
     if (scrSec) scrSec.classList.toggle("hidden", st.engine === "claude_code" || !!readyOn);
@@ -2800,6 +2802,7 @@ function renderCodeRun() {
   if (run.voice) final.append(h("audio", { class: "voice-player", controls: true, preload: "none", src: bust(run.voice, run.run_id) }));
   const side = h("aside", { class: "side-col" }, final);
   if (run.story) side.append(storyPanel(run, busy));
+  if (run.story && captionStyles().length) side.append(h("section", { class: "side-card" }, captionsPanel(run, busy)));
   if (run.cost.rows.length) {
     side.append(h("section", { class: "side-card", "aria-label": "Cost" }, h("div", { class: "panel-title" }, "Cost so far"),
       h("div", { class: "cost-rows" },
@@ -2817,7 +2820,7 @@ const CODE_STEP_HELP = {
   story: "Claude Code writes the story (one line per beat)",
   scenes: "Claude Code codes every scene for this story and checks stills",
   voice: "Read the lines with ElevenLabs and time the beats to the voice",
-  render: "Render the video on this computer (node render.cjs video)",
+  render: "Render the video on this computer (node render.cjs video) and add the captions. When only the captions changed, just the captions are redone.",
 };
 
 async function runCodeStep(run, step) {
@@ -2826,7 +2829,7 @@ async function runCodeStep(run, step) {
     story: ["Rewrite the story?", "Claude Code writes a new story.json (your Claude plan). The scenes, voice and render then need to run again."],
     scenes: ["Code the scenes?", "Claude Code rewrites each style file for this story and checks stills. It runs on your Claude plan and can take 10-30 minutes."],
     voice: ["Redo the voice?", `Reads every line with ElevenLabs (about ${usd(voiceCost(run.story ? run.story.beats.map((b) => b.line).join(" ").length : 300))}) and retimes the beats.`],
-    render: ["Render the video?", "Runs on this computer. The 3D styles render in software on Windows, so a 20 second video can take several minutes."],
+    render: ["Render the video?", "Runs on this computer and adds the captions. The 3D styles render in software on Windows, so a 20 second video can take several minutes. When only the captions changed since the last render, just the captions are redone, in seconds."],
   };
   const [title, text] = texts[step];
   if (!(await confirmDialog({ title, text, ok: "Run" }))) return;

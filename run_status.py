@@ -181,6 +181,8 @@ def code_detail(run_dir: Path, meta: dict, config: dict | None) -> dict:
             "styles": styles, "stills": stills, "voice": file_url(ws / "voice.mp3"),
             "script": None, "characters": [], "shots": [],
             "final_video": file_url(run_dir / "final.mp4"), "captions": None,
+            "caption_style": _caption_style(run_dir, config),
+            "caption_words": _caption_words(run_dir, config), "caption_size": _caption_size(run_dir),
             "cost": _code_cost(run_dir, story, config)}
 
 

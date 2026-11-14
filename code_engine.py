@@ -8,7 +8,10 @@ steps instead of the image pipeline's five:
     story    Claude Code writes story.json: one line per beat, a style for each (copywriter.md)
     scenes   Claude Code rewrites each style file for this story and checks stills as it goes
     voice    VidGen reads the lines with ElevenLabs and times the beats to the voice (optional)
-    render   VidGen runs `node render.cjs video` and copies out/video.mp4 to final.mp4
+    render   VidGen runs `node render.cjs video`, burns word-by-word captions timed to the
+             voice onto out/video.mp4 (the template draws none), and saves final.mp4. When
+             nothing the picture is drawn from has changed since the last render, only the
+             captions are made again (seconds, not minutes).
 
 Claude Code is started headless (`claude -p`) in the run's code folder. Its environment has no
 API keys: ANTHROPIC_API_KEY and friends are removed so it uses your subscription login, and the
@@ -489,6 +492,25 @@ def _brief(run_dir: Path, config: dict) -> str:
     return "\n".join(lines)
 
 
+# What a story has to do to hold a scroller. The story step scores three drafts against these
+# and keeps the strongest; one draft written straight through came back flat.
+STORY_TESTS = "\n".join(f"   - {t}" for t in (
+    "The first line stops a scroll on its own: a person, a problem and a moment, specific enough to "
+    "picture (\"Marcus froze when his boss said: just ask AI.\"). Never a scene-setter, a question to "
+    "the viewer, or the person's name and job.",
+    "By the third line the viewer knows what the hero stands to lose, and it is something a "
+    "stranger would mind losing (the job, the date, the money, being laughed at).",
+    "The app arrives at the turn and gives ONE result you could draw (the report done in two "
+    "minutes, the plan on one page, the reply that got the yes), never a feature or a promise.",
+    "The twist pays off something from the first three lines (the same boss, the same room, the "
+    "same coworker), so the ending changes what the start meant. No twist about how the video "
+    "was made, unless the premise asks for exactly that.",
+    "Every line is something that happens and can be drawn, and the story still makes sense with "
+    "the sound off.",
+    "A stranger could retell the whole story after hearing it once.",
+))
+
+
 HEADLESS = (
     "You are running unattended inside VidGen, a video tool. Nobody can answer questions or "
     "approve anything, so never ask: make the call yourself and keep going. The current folder "
@@ -505,15 +527,19 @@ def story_prompt(run_dir: Path, config: dict) -> str:
         "THE BRIEF\n" + _brief(run_dir, config),
         "THIS STEP: WRITE THE STORY ONLY\n"
         "1. Read skill/SKILL.md and skill/copywriter.md (and the part of styles.md for each style you use).\n"
-        "2. Write the story with copywriter.md: one line per beat, 3 to 9 words a line, 15 to 25 "
-        "seconds read aloud. Check it against copywriter.md's \"Before you show it\" list.\n"
+        "2. Draft THREE different stories with copywriter.md, each with its own first line and its own "
+        "twist: one line per beat, 3 to 9 words a line, 15 to 25 seconds read aloud. Write them in "
+        "story-drafts.md. Then give each draft one point for every test below it passes, write the "
+        "scores under it, and keep the draft with the most points:\n" + STORY_TESTS + "\n"
+        "   Fix the winner wherever it lost a point, then check it against copywriter.md's "
+        "\"Before you show it\" list.\n"
         "3. Write story.json: {\"format\": \"vertical\", \"beats\": [{\"style\": <style file name>, "
         "\"seconds\": <1.2 to 4>, \"line\": <the line>}]}. Seconds are a first guess; the voice "
         "retimes them later.\n"
         "4. Write story.md: the lines, each with its style and one sentence on what the picture "
         "shows (the subject, what it does, the camera).\n"
-        "Do NOT edit anything in styles/ or lib/ and do NOT render. Finish with the lines, one per "
-        "line, as your last message.",
+        "Do NOT edit anything in styles/ or lib/ and do NOT render. Finish with the winning "
+        "draft's scores and then its lines, one per line, as your last message.",
     ])
 
 
@@ -677,7 +703,8 @@ def run_voice(run_dir: Path, config: dict) -> None:
     for k, c in enumerate(list(ch) + [" "]):
         if c.isspace():
             if w0 is not None:
-                words.append({"w": "".join(ch[w0:k]).strip(".,!?").lower(), "t": round(st[w0], 3)})
+                said = "".join(ch[w0:k]).strip()
+                words.append({"w": said.strip(".,!?").lower(), "say": said, "t": round(st[w0], 3)})
             w0 = None
         elif w0 is None:
             w0 = k
@@ -688,28 +715,155 @@ def run_voice(run_dir: Path, config: dict) -> None:
 
 # ------------------------------------------------------------------- render ----
 
+# The files a render draws the picture from. A render newer than all of them, made with the
+# same voice choice, is still the picture they would make.
+PICTURE_FILES = ("story.json", "voice.mp3", "voice.json", "main.js", "index.html", "render.cjs")
+PICTURE_DIRS = ("styles", "lib")
+
+
+def _picture_changed_at(ws: Path) -> float:
+    times = [(ws / f).stat().st_mtime for f in PICTURE_FILES if (ws / f).is_file()]
+    for d in PICTURE_DIRS:
+        if (ws / d).is_dir():
+            times += [p.stat().st_mtime for p in (ws / d).rglob("*") if p.is_file()]
+    return max(times, default=0.0)
+
+
+def render_is_current(ws: Path, audio: bool) -> bool:
+    out, note = ws / "out" / "video.mp4", ws / "out" / "render.json"
+    if not out.is_file() or not note.is_file():
+        return False
+    try:
+        same_voice = read_json(note).get("audio") == audio
+    except (OSError, ValueError, AttributeError):
+        return False
+    return same_voice and out.stat().st_mtime >= _picture_changed_at(ws)
+
+
 def run_render(run_dir: Path, config: dict) -> None:
     if read_story(run_dir) is None:
         raise StepError("there is no story yet; run the story step first")
     if "scenes" not in read_status(run_dir):
         print("[render] note: the scenes step has not run, so this renders the template's scenes")
     ws = prepare_workspace(run_dir, config)
-    node = node_path(config)
-    if not node:
-        raise StepError("node was not found; install Node.js 20+ (Windows: winget install OpenJS.NodeJS.LTS)")
-    cmd = [node, "render.cjs", "video"]
-    if (ws / "voice.mp3").is_file() and read_status(run_dir).get("voice", {}).get("value") == "voiced":
-        cmd += ["--audio", "voice.mp3"]
-    print(f"[render] {' '.join(cmd[1:])}  (on Windows and Linux the 3D styles render in software; "
-          f"a 20 second video can take several minutes)")
+    audio = (ws / "voice.mp3").is_file() and read_status(run_dir).get("voice", {}).get("value") == "voiced"
     out = ws / "out" / "video.mp4"
-    out.unlink(missing_ok=True)
-    rc = _run_streamed(cmd, ws, tool_env(config), "render",
-                       float(settings(config)["render_timeout_minutes"]) * 60)
-    if rc != 0 or not out.is_file():
-        raise StepError(f"render.cjs failed (exit {rc}); see the log above")
-    shutil.copyfile(out, run_dir / "final.mp4")
+    if render_is_current(ws, audio):
+        print("[render] nothing the picture is drawn from has changed since the last render, so it is "
+              "kept and only the captions are made again")
+    else:
+        node = node_path(config)
+        if not node:
+            raise StepError("node was not found; install Node.js 20+ (Windows: winget install OpenJS.NodeJS.LTS)")
+        cmd = [node, "render.cjs", "video"] + (["--audio", "voice.mp3"] if audio else [])
+        print(f"[render] {' '.join(cmd[1:])}  (on Windows and Linux the 3D styles render in software; "
+              f"a 20 second video can take several minutes)")
+        out.unlink(missing_ok=True)
+        (ws / "out" / "render.json").unlink(missing_ok=True)
+        rc = _run_streamed(cmd, ws, tool_env(config), "render",
+                           float(settings(config)["render_timeout_minutes"]) * 60)
+        if rc != 0 or not out.is_file():
+            raise StepError(f"render.cjs failed (exit {rc}); see the log above")
+        write_json(ws / "out" / "render.json", {"audio": audio})
+    captioned = add_captions(run_dir, config, out)
+    shutil.copyfile(captioned or out, run_dir / "final.mp4")
     print(f"[render] saved {run_dir / 'final.mp4'}")
+
+
+# ----------------------------------------------------------------- captions ----
+
+CAPTION_HOLD_MAX = 1.6      # seconds a caption stays up when no word follows it (a pause, the end)
+
+
+def caption_words(run_dir: Path) -> list[dict]:
+    """[{"word": the word as written, "start": seconds}] for the whole video. Timed to the voice
+    when there is one; without a voice each beat's line is spread over its seconds."""
+    story = read_story(run_dir) or {"beats": []}
+    lines = [str(b.get("line") or "").strip() for b in story["beats"]]
+    ws = workspace(run_dir)
+    voiced = read_status(run_dir).get("voice", {}).get("value") == "voiced"
+    timed = []
+    if voiced and (ws / "voice.json").is_file():
+        try:
+            timed = [w for w in read_json(ws / "voice.json").get("words") or []
+                     if isinstance(w, dict) and isinstance(w.get("t"), (int, float))]
+        except (OSError, ValueError, AttributeError):
+            timed = []
+    if timed:
+        # Older voice.json files kept only lower-case words; the story's own words take their
+        # place when the two line up one to one.
+        written = " ".join(lines).split()
+        same = len(written) == len(timed)
+        return [{"word": str(w.get("say") or (written[i] if same else w.get("w") or "")), "start": float(w["t"])}
+                for i, w in enumerate(timed)]
+    words, at = [], 0.0
+    for b, line in zip(story["beats"], lines):
+        toks, length = line.split(), float(b.get("seconds") or 0)
+        for i, t in enumerate(toks):
+            words.append({"word": t, "start": round(at + i * length / max(1, len(toks)), 3)})
+        at += length
+    return words
+
+
+def caption_events(words: list[dict], max_words: int, total: float) -> list[tuple[float, float, str]]:
+    from steps.assemble import chunk_words
+    chunks = chunk_words(words, max_words)
+    events = []
+    for i, ch in enumerate(chunks):
+        start = min(float(ch["start"]), total)
+        nxt = float(chunks[i + 1]["start"]) if i + 1 < len(chunks) else total
+        end = min(nxt, start + CAPTION_HOLD_MAX, total)
+        if end > start + 0.04:
+            events.append((start, end, ch["text"]))
+    return events
+
+
+def add_captions(run_dir: Path, config: dict, video: Path) -> Path | None:
+    """build/captioned.mp4: `video` with the spoken words burned in, in the run's caption style
+    (the same captions as the image pipeline). None when there are none to add."""
+    import caption_styles
+    from media import probe_duration, require_ffmpeg, run_ffmpeg
+    from steps import assemble as A
+    style = caption_styles.for_run(run_dir, config)
+    asm = caption_styles.apply(config["assemble"], style)
+    asm = caption_styles.with_words(asm, caption_styles.words_for_run(run_dir, asm))
+    asm = caption_styles.with_size(asm, caption_styles.size_for_run(run_dir))
+    if asm.get("caption_style") == "off":
+        print("[render] captions are off for this video")
+        return None
+    words = caption_words(run_dir)
+    if not words:
+        print("[render] no lines to caption")
+        return None
+    require_ffmpeg()
+    build = run_dir / "build"
+    build.mkdir(parents=True, exist_ok=True)
+    try:
+        w, h = A._video_size(video)          # 1920x1080 for a "wide" story
+    except Exception:
+        w, h = int(asm["width"]), int(asm["height"])
+    if h != int(asm["height"]):                  # the caption sizes are for the format's height
+        k = h / int(asm["height"])
+        asm = {**asm, "caption_size": max(12, round(float(asm["caption_size"]) * k)),
+               "caption_outline": max(1, round(float(asm["caption_outline"]) * k))}
+    total = probe_duration(video)
+    font = A.pick_caption_font(asm, build)
+    cy, blur, pop = int(round(h * float(asm["caption_y"]))), int(asm["caption_blur"]), A.caption_pop(asm)
+    events = caption_events(words, int(asm["caption_max_words"]), total)
+    lines = A.ass_head(asm, font, w, h)
+    lines += [f"Dialogue: 0,{A._ass_time(s)},{A._ass_time(e)},Caption,,0,0,0,,"
+              f"{{\\an5\\pos({w // 2},{cy})\\blur{blur}{pop}}}{A._ass_escape(t)}" for s, e, t in events]
+    (build / "captions.ass").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # Paths relative to the build folder only, so no Windows drive letter reaches the filter.
+    shutil.copyfile(video, build / "rendered.mp4")
+    fonts = f":fontsdir={A.FONTS_SUBDIR}" if (build / A.FONTS_SUBDIR).is_dir() else ""
+    look = "" if style == caption_styles.FORMAT else f", {caption_styles.title(style)} style"
+    print(f"[render] burning {len(events)} captions{look}...")
+    run_ffmpeg(["-i", "rendered.mp4", "-vf", f"ass=captions.ass{fonts},format=yuv420p",
+                "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+                "-c:a", "copy", "captioned.mp4"], "captions", cwd=build)
+    (build / "rendered.mp4").unlink(missing_ok=True)
+    return build / "captioned.mp4"
 
 
 STEP_FUNCS = {"story": run_story, "scenes": run_scenes, "voice": run_voice, "render": run_render}
