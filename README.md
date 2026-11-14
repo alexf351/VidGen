@@ -399,6 +399,51 @@ when nothing the picture is drawn from has changed since the last render (the st
 the style and lib files), the render is kept and only the captions are redone, in seconds. A
 video made before captions existed gets them the same way: press the Render step.
 
+### Blender 3D
+
+The **Blender 3D** format runs on the same engine with Blender in place of the three.js
+template: Claude Code writes Python that Blender 5.2 runs headless, and every frame is a real 3D
+render. It follows the workflow in 0xAnni's "Claude can build stunning 3D models in Blender"
+(October 2026): four passes in the order a 3D artist works, each checked before the next.
+
+| pass | switched on | Claude Code judges |
+|---|---|---|
+| blockout | one clay material, no bevels, a fixed studio rig | silhouette, proportion, pose, framing |
+| bevel | bevels (clamped under half the part's thinnest side) and smooth shading | edge highlights, pinched faces |
+| material | the scene's own materials, roughness noise, coat | palette, anything that looks like plastic |
+| final | the scene's own lights, world, colour look, depth of field | light balance, exposure, framing at the start and end of each move |
+
+Each pass is its own Claude Code session. After every change it runs `python preview.py <beat>
+<pass>` (the one command it may run), which renders a small preview into `code/stills/` and
+prints a REPORT line with a **census**: defects a render can't show, counted on the meshes as
+they render (open, non-manifold or flipped edges, zero-area faces, loose vertices, inside-out
+solids), plus the objects outside the frame. The census must read zero before the picture is
+judged. A run stopped part way (a usage limit) starts the scenes step again at the pass it
+stopped in.
+
+Three looks, picked per beat in the story: **product** (a toy on a photo sweep, key / fill / rim,
+70 mm), **diorama** (a cut-away room from above through an orthographic camera, lit by its own
+lamps and screens) and **lowpoly** (a faceted world, triangulated and shaded flat, a sun and a
+gradient sky). Characters that appear in more than one beat are built once in `cast.py`. The
+run's `code/` folder holds `studio.py` (the toolkit), `beat.py` (builds and renders one beat),
+`preview.py`, `looks/`, `cast.py`, `scenes/beat_NN.py` and `examples/` (a worked example to read).
+
+The render step renders every frame of every beat with Cycles (1080 x 1920, 24 fps, 48 samples
+with the denoiser), joins them, adds the voice and burns the captions. **It wants a graphics
+card**: on an NVIDIA card a 20 second video takes roughly 20 to 60 minutes; on a CPU, hours. With
+`blender.mode: auto` a computer without a card renders one still per beat and moves it with a
+push-in instead. Frames already rendered are kept, so a render that stops picks up where it was,
+and a beat whose scene has not changed is not rendered again.
+
+Set up once: install **Blender 5.2 LTS** from blender.org (Windows: `winget install
+BlenderFoundation.Blender`). VidGen finds it on PATH or in the usual install folder, or set
+`blender.path` in `config.local.yaml`. `python main.py doctor` shows the Blender it found and the
+graphics card Cycles will use. Settings live under `blender:` in `config.yaml` (device, `cycles`
+or `eevee`, samples, frame rate, turn limits).
+
+The scene files are Python that Blender runs on your computer, the same as any Blender script.
+Claude Code writes them; it gets no API keys, and preview.py runs Blender with none either.
+
 ### Importing a Claude skill as a format
 
 ```bash

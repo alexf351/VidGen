@@ -150,6 +150,23 @@ code_engine:
   render_timeout_minutes: 90    # software rendering of the 3D styles is slow off a Mac
   voice: true                   # read the lines with ElevenLabs when ELEVENLABS_API_KEY is set
 
+# Blender 3D (formats with code_render.kind: blender). Claude Code writes the scenes in four passes;
+# Blender renders every frame on this computer. Install Blender 5.2 LTS from blender.org
+# (Windows: winget install BlenderFoundation.Blender).
+blender:
+  path: ""                      # empty: `blender` on PATH, then the usual install folders
+  device: auto                  # auto (the graphics card if Blender finds one) | GPU | CPU
+  engine: cycles                # cycles | eevee (much faster on a card, a different, flatter look)
+  mode: auto                    # auto: every frame on a card, one still per beat with a push-in without | animate | stills
+  fps: 24
+  final_res: "1080x1920"
+  final_samples: 48             # with the denoiser; 64-80 for a cleaner picture, slower
+  preview_res: "540x960"        # what Claude Code looks at while it builds
+  preview_samples: 24
+  blockout_max_turns: 150       # the first pass writes every scene
+  pass_max_turns: 90            # each of the other three passes
+  pass_timeout_minutes: 120
+
 # Talking shots (formats with rules.talking) and songs (rules.song). These extend the fal and
 # elevenlabs blocks above; defaults shown.
 # fal:

@@ -328,7 +328,9 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                                         "image": format_char_url(f["name"], c),
                                         "redraw": format_char_redraw(c)}
                                        for c in f["overlay"].get("locked_characters", [])],
-                        "engines": ["ai", "claude_code"] if f.get("code_render") else ["ai"],
+                        "engines": (["claude_code"] if (f.get("code_render") or {}).get("only")
+                                    else ["ai", "claude_code"] if f.get("code_render") else ["ai"]),
+                        "code_kind": (f.get("code_render") or {}).get("kind"),
                         "code_styles": (f.get("code_render") or {}).get("styles", []),
                         "ready_scripts": ready_scripts.listing(f),
                         "cover": media_url(f["name"], "cover", f["cover"]),

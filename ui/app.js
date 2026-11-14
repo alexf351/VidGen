@@ -1337,8 +1337,10 @@ function chips(options, value, onChange, label) {
 function renderCreate(formatName) {
   const f = S.formats.find((x) => x.name === formatName && !x.error);
   if (!f) { $("#main").replaceChildren(h("div", { class: "empty" }, `No format called "${formatName}". `, h("a", { href: "#/new", class: "muted" }, "Back to Studio"))); return; }
-  const st = { provider: "", dry: false, engine: "ai", cast: [], captions: S.config.caption_style || "format", screens: [], ready: null };
+  const codeOnly = (f.engines || []).length === 1 && f.engines[0] === "claude_code";
+  const st = { provider: "", dry: false, engine: codeOnly ? "claude_code" : "ai", cast: [], captions: S.config.caption_style || "format", screens: [], ready: null };
   const hasCode = (f.engines || []).includes("claude_code");
+  const blender = f.code_kind === "blender";
   const d = S.config.providers.default;
   const premise = h("textarea", { class: "premise-box", id: "f-premise", rows: "6", maxlength: String(PREMISE_MAX),
     placeholder: f.limits && f.limits.narrator ? "A baker's oven dies the day her cake goes viral…"
@@ -1367,7 +1369,7 @@ function renderCreate(formatName) {
     sndSec.classList.toggle("hidden", st.engine === "claude_code");
     qualSec.classList.toggle("hidden", st.engine === "claude_code");
     if (scrSec) scrSec.classList.toggle("hidden", st.engine === "claude_code" || !!readyOn);
-    codeWarn.textContent = st.engine === "claude_code" ? codeEngineProblem() : "";
+    codeWarn.textContent = st.engine === "claude_code" ? codeEngineProblem(blender) : "";
     if (st.engine === "claude_code") {
       const est = estimateCode(f.name);
       costLine.textContent = st.dry ? "free" : `about ${usd(est.total)}`;
@@ -1399,7 +1401,8 @@ function renderCreate(formatName) {
       f.duration_target ? [h("dt", {}, "Length"), h("dd", {}, f.duration_target)] : null,
       L.story_shots ? [h("dt", {}, "Shots"), h("dd", {}, `${L.story_shots[0]}-${L.story_shots[1]}${L.montage ? ` + ${L.montage[0]}-${L.montage[1]} montage` : ""}${L.flashes ? ` + ${L.flashes[0]}-${L.flashes[1]} flashes` : ""}`)] : null,
       L.vo_words ? [h("dt", {}, "Spoken words"), h("dd", {}, `${L.vo_words[0]}-${L.vo_words[1]}${L.narrator ? ", narrated" : ", dialogue only"}`)] : null,
-      h("dt", {}, "Clips"), h("dd", {}, L.animate_all ? `${L.flashes && !L.flashes_move ? "every shot but the flashes" : "every shot"} is a clip × ${f.clip_seconds || 4}s` : `up to ${L.max_animated_shots ?? "?"} × ${f.clip_seconds || 4}s`),
+      codeOnly ? [h("dt", {}, "Scenes"), h("dd", {}, blender ? "one Blender scene per line, every frame rendered" : "one coded scene per line")]
+      : h("dt", {}, "Clips"), codeOnly ? null : h("dd", {}, L.animate_all ? `${L.flashes && !L.flashes_move ? "every shot but the flashes" : "every shot"} is a clip × ${f.clip_seconds || 4}s` : `up to ${L.max_animated_shots ?? "?"} × ${f.clip_seconds || 4}s`),
       f.locked_cast.length ? [h("dt", {}, "Cast"), h("dd", {}, f.locked_cast.join(", "))] : null,
       L.cta_caption ? [h("dt", {}, "Ends on"), h("dd", {}, L.cta_caption)]
         : L.closing_shot === false ? [h("dt", {}, "Ends on"), h("dd", {}, "its last story shot, with no call to action")] : null),
@@ -1481,7 +1484,12 @@ function renderCreate(formatName) {
   } },
     readySec,
     h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Premise"), count), premise),
-    hasCode ? h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Engine")),
+    codeOnly ? h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Engine")),
+      h("div", { class: "field-note" }, blender
+        ? "Claude Code builds every scene in Blender, in four passes (shape, edges, materials, light), checking a preview after each. Blender renders every frame on this computer's graphics card. No image or video model, so no per-video charge besides the voice."
+        : "Claude Code codes every scene and renders it here, with no image or video model."),
+      codeWarn)
+    : hasCode ? h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Engine")),
       chips([["ai", "Image models", "fal / Sume"], ["claude_code", "Claude Code", "your Claude plan"]], st.engine,
         (v) => { st.engine = v; drawOutput(); update(); }, "Engine"),
       h("div", { class: "field-note" }, "Claude Code codes every scene in this style and renders it here, with no image or video model."),
@@ -1585,9 +1593,11 @@ async function loadDoctor() {
 
 // Why the Claude Code engine cannot run on this computer, from the setup check ("" if it can).
 const CODE_CHECKS = ["node", "npm", "claude (Claude Code)", "Claude Code login"];
-function codeEngineProblem() {
+function codeEngineProblem(blender) {
   if (!S.doctor || !S.doctor.checks) return "";
-  const bad = S.doctor.checks.filter((c) => CODE_CHECKS.includes(c.item) && c.status !== "PASS");
+  // A Blender format needs Blender instead of node; a missing graphics card is a note, not a problem.
+  const items = blender ? [...CODE_CHECKS.filter((x) => x !== "node" && x !== "npm"), "blender"] : CODE_CHECKS;
+  const bad = S.doctor.checks.filter((c) => items.includes(c.item) && c.status !== "PASS");
   return bad.length ? `Not ready on this computer: ${bad.map((c) => `${c.item}: ${c.detail}`).join(" · ")}` : "";
 }
 
@@ -2733,6 +2743,14 @@ function storyChanged() {
   return JSON.stringify(S.storyDraft.beats) !== JSON.stringify(S.run.story.beats);
 }
 
+// "t4.2.jpg" (a moment of the three.js render) -> "4.2s"; "b03_final_t0.4.jpg" (a Blender
+// preview) -> "beat 3 · final".
+function stillLabel(name) {
+  const m = /^b(\d+)_([a-z]+)/.exec(name);
+  if (m) return `beat ${Number(m[1])} · ${m[2]}`;
+  return `${Number(name.replace(/^t/, "").replace(/\.jpg$/, "")) || 0}s`;
+}
+
 function renderCodeRun() {
   const run = S.run;
   const busy = runBusy(run.run_id);
@@ -2780,7 +2798,7 @@ function renderCodeRun() {
   left.append(run.stills.length ? h("div", { class: "grid" }, run.stills.map((p) =>
     h("a", { class: "shot", href: bust(p.url, run.run_id), target: "_blank", rel: "noopener", title: p.name },
       h("div", { class: "thumb" }, h("img", { src: bust(p.url, run.run_id), alt: p.name, loading: "lazy" }),
-        h("div", { class: "badges" }, h("span", { class: "badge n" }, `${Number(p.name.replace(/^t/, "").replace(/\.jpg$/, "")) || 0}s`))))))
+        h("div", { class: "badges" }, h("span", { class: "badge n" }, stillLabel(p.name)))))))
     : h("div", { class: "player-empty wide" }, run.story ? "Claude Code saves stills here while it codes the scenes." : "Write the story first."));
   if (run.story_notes) {
     left.append(h("details", { class: "card-sec notes" }, h("summary", {}, h("span", { class: "sec-label" }, "Claude's notes (story.md)"), h("span", { class: "muted" }, "Show")),
@@ -2827,9 +2845,13 @@ async function runCodeStep(run, step) {
   if (storyChanged() && step !== "story") { toast("Save or discard your story edits first.", "bad"); return; }
   const texts = {
     story: ["Rewrite the story?", "Claude Code writes a new story.json (your Claude plan). The scenes, voice and render then need to run again."],
-    scenes: ["Code the scenes?", "Claude Code rewrites each style file for this story and checks stills. It runs on your Claude plan and can take 10-30 minutes."],
+    scenes: run.code_kind === "blender"
+      ? ["Build the scenes?", "Claude Code builds every beat in Blender in four passes (shape, edges, materials, light), previewing after each. It runs on your Claude plan and can take 30-90 minutes."]
+      : ["Code the scenes?", "Claude Code rewrites each style file for this story and checks stills. It runs on your Claude plan and can take 10-30 minutes."],
     voice: ["Redo the voice?", `Reads every line with ElevenLabs (about ${usd(voiceCost(run.story ? run.story.beats.map((b) => b.line).join(" ").length : 300))}) and retimes the beats.`],
-    render: ["Render the video?", "Runs on this computer and adds the captions. The 3D styles render in software on Windows, so a 20 second video can take several minutes. When only the captions changed since the last render, just the captions are redone, in seconds."],
+    render: run.code_kind === "blender"
+      ? ["Render the video?", "Blender renders every frame on this computer's graphics card (one still per beat with a push-in when there is none), then the voice and captions go on. A 20 second video takes roughly 20-60 minutes on a graphics card. When only the captions changed since the last render, just the captions are redone, in seconds."]
+      : ["Render the video?", "Runs on this computer and adds the captions. The 3D styles render in software on Windows, so a 20 second video can take several minutes. When only the captions changed since the last render, just the captions are redone, in seconds."],
   };
   const [title, text] = texts[step];
   if (!(await confirmDialog({ title, text, ok: "Run" }))) return;

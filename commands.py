@@ -67,7 +67,7 @@ def create_new_run(premise: str, config: dict, log=print, engine: str | None = N
     captions = caption_styles.check(captions) if captions else None
     script = None
     if ready:
-        if engine == "claude_code":
+        if engine == "claude_code" or (config["format"].get("code_render") or {}).get("only"):
             raise StepError("ready-made scripts are for the image pipeline, not the Claude Code engine")
         if screens:
             raise StepError("a ready-made script already says which app screens it shows; "
@@ -80,6 +80,8 @@ def create_new_run(premise: str, config: dict, log=print, engine: str | None = N
         raise StepError("app screens are for the image pipeline; the Claude Code engine does not show them")
     if engine not in (None, "ai", "claude_code"):
         raise StepError(f"engine must be ai or claude_code, got {engine!r}")
+    if (config["format"].get("code_render") or {}).get("only"):
+        engine = "claude_code"            # it has no image-pipeline version
     if engine == "claude_code":
         import code_engine
         if not code_engine.offered(config):

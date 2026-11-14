@@ -231,7 +231,10 @@ SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 
 
 def _code_render(raw, where: str) -> dict | None:
-    """code_render: {skill, styles, mix?} -> the Claude Code engine settings, or None."""
+    """code_render: {skill, styles, mix?, kind?, only?} -> the Claude Code engine settings, or None.
+    kind: "three" (the default: claude-animation-styles, styles are template/styles/<x>.js) or
+    "blender" (Blender scenes, styles are the looks in template/looks/<x>.py). only: true when
+    the format has no image-pipeline version and always runs on the Claude Code engine."""
     if raw in (None, {}, False):
         return None
     if not isinstance(raw, dict):
@@ -243,12 +246,16 @@ def _code_render(raw, where: str) -> dict | None:
     styles = raw.get("styles") or []
     if not isinstance(styles, list) or not styles or not all(isinstance(x, str) for x in styles):
         raise StepError(f"{where}: code_render.styles must be a list of style names")
+    kind = str(raw.get("kind") or "three").strip()
+    if kind not in ("three", "blender"):
+        raise StepError(f"{where}: code_render.kind must be three or blender, got {kind!r}")
+    folder, ext = ("looks", "py") if kind == "blender" else ("styles", "js")
     if template.is_dir():
-        missing = [x for x in styles if not (template / "styles" / f"{x}.js").is_file()]
+        missing = [x for x in styles if not (template / folder / f"{x}.{ext}").is_file()]
         if missing:
-            raise StepError(f"{where}: code_render.styles {missing} have no file in skills/{skill}/template/styles/")
-    return {"skill": skill, "dir": SKILLS_DIR / skill, "template": template,
-            "styles": [str(x) for x in styles], "mix": bool(raw.get("mix"))}
+            raise StepError(f"{where}: code_render.styles {missing} have no file in skills/{skill}/template/{folder}/")
+    return {"skill": skill, "dir": SKILLS_DIR / skill, "template": template, "kind": kind,
+            "styles": [str(x) for x in styles], "mix": bool(raw.get("mix")), "only": bool(raw.get("only"))}
 
 
 # Never taken from the format a format extends: these describe the format itself.

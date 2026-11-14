@@ -1,0 +1,30 @@
+# Blender 3D: a narrated story ad for Iro where every beat is a Blender scene.
+# Claude Code writes Python for Blender 5.2, in four passes (blockout, bevel, material, final),
+# checking a preview and a defect census after each. VidGen renders every frame headless, on the
+# graphics card when there is one (skills/blender-3d/, blender_engine.py).
+# It shares the Iro ad rules and cast with claymation; it runs only on the Claude Code engine.
+
+name: blender_3d
+title: Blender 3D
+description: 'Real 3D scenes built and lit in Blender by Claude Code: a toy on a studio sweep, a lit room
+  at night, a bright low-poly world.'
+extends: claymation
+duration_target: about 15-25 seconds
+beats:
+- someone wants something
+- they try
+- it takes off
+- it's working
+- it goes wrong
+- they open Iro
+- it pays off
+- the twist
+- Search Iro AI
+style: clean stylised 3D render, soft studio light, bevelled toy-like shapes, vertical 9:16
+
+code_render:
+  kind: blender
+  skill: blender-3d
+  styles: [product, diorama, lowpoly]
+  mix: true                      # a look per beat; usually one for the whole video
+  only: true                     # no image-pipeline version: always the Claude Code engine

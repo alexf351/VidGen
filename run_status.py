@@ -177,8 +177,9 @@ def code_detail(run_dir: Path, meta: dict, config: dict | None) -> dict:
             notes = None
     stills = [{"name": p.name, "url": file_url(p)} for p in sorted((ws / "stills").glob("*.jpg"))]
     styles = (((config or {}).get("format") or {}).get("code_render") or {}).get("styles") or []
+    code_kind = (((config or {}).get("format") or {}).get("code_render") or {}).get("kind") or "three"
     return {**meta, "steps": code_engine.step_states(run_dir), "story": story, "story_notes": notes,
-            "styles": styles, "stills": stills, "voice": file_url(ws / "voice.mp3"),
+            "styles": styles, "code_kind": code_kind, "stills": stills, "voice": file_url(ws / "voice.mp3"),
             "script": None, "characters": [], "shots": [],
             "final_video": file_url(run_dir / "final.mp4"), "captions": None,
             "caption_style": _caption_style(run_dir, config),

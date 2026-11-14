@@ -18,6 +18,10 @@ API keys: ANTHROPIC_API_KEY and friends are removed so it uses your subscription
 fal / Sume / ElevenLabs keys stay with VidGen. It may read and edit files in the code folder,
 read the skill and the format, and run exactly one command: `node render.cjs stills ...`.
 Anything else it tries is denied (permission mode dontAsk), never prompted.
+
+A format whose code_render.kind is "blender" (Blender 3D) works the same way with Blender in
+place of the three.js template: the scenes step is four passes and the render runs Blender on
+this computer. Its parts are in blender_engine.py; this module hands over where the two differ.
 """
 
 from __future__ import annotations
@@ -69,6 +73,11 @@ def settings(config: dict) -> dict:
 def offered(config: dict) -> dict | None:
     """The format's code_render block, if this format can use the Claude Code engine."""
     return (config.get("format") or {}).get("code_render")
+
+
+def kind(config: dict) -> str:
+    """"three" (the claude-animation-styles template) or "blender" (Blender 3D)."""
+    return ((offered(config) or {}).get("kind")) or "three"
 
 
 def workspace(run_dir: Path) -> Path:
@@ -222,6 +231,8 @@ def doctor_rows(config: dict) -> list[tuple[bool | None, str, str]]:
         else:
             rows.append((True, "Claude Code login", f"logged in ({method or 'subscription'}); VidGen removes "
                          f"ANTHROPIC_API_KEY so the engine uses this login"))
+    import blender_engine
+    rows += blender_engine.doctor_rows(config)
     return rows
 
 
@@ -313,6 +324,11 @@ def prepare_workspace(run_dir: Path, config: dict) -> Path:
     if not skill["template"].is_dir():
         raise StepError(f"skills/{skill['dir'].name}/template is missing")
     ws = workspace(run_dir)
+    if skill.get("kind") == "blender":
+        import blender_engine
+        blender_engine.prepare(ws, skill, config)
+        _copy_docs(ws, skill, config)
+        return ws
     if not (ws / "render.cjs").is_file():
         ws.mkdir(parents=True, exist_ok=True)
         for name in TEMPLATE_FILES:
@@ -321,6 +337,11 @@ def prepare_workspace(run_dir: Path, config: dict) -> Path:
             shutil.copytree(skill["template"] / name, ws / name, dirs_exist_ok=True)
         print(f"[code] copied the {skill['dir'].name} template to {ws}")
     _link_dir(ensure_node_modules(config, skill), ws / "node_modules")
+    _copy_docs(ws, skill, config)
+    return ws
+
+
+def _copy_docs(ws: Path, skill: dict, config: dict) -> None:
     # The instructions Claude Code reads, copied in so it never needs a folder outside this one.
     docs = ws / "skill"
     docs.mkdir(exist_ok=True)
@@ -328,9 +349,9 @@ def prepare_workspace(run_dir: Path, config: dict) -> Path:
         shutil.copyfile(md, docs / md.name)
     brief = ws / "format"
     brief.mkdir(exist_ok=True)
-    shutil.copyfile(config["format"]["dir"] / "script_prompt.md", brief / "script_prompt.md")
+    # The format's text as loaded: a format that extends another has no file of its own.
+    (brief / "script_prompt.md").write_text(config["format"]["script_prompt"], encoding="utf-8")
     _copy_cast_pictures(ws, config)
-    return ws
 
 
 def _copy_cast_pictures(ws: Path, config: dict) -> None:
@@ -411,7 +432,8 @@ class StreamPrinter:
 
 
 def run_claude(ws: Path, config: dict, prompt: str, allowed: list[str], max_turns: int,
-               label: str, resume: str | None = None) -> StreamPrinter:
+               label: str, resume: str | None = None, env: dict | None = None,
+               timeout_minutes: float | None = None) -> StreamPrinter:
     exe = claude_path(config)
     if not exe:
         raise StepError("Claude Code (the `claude` command) was not found. Install it and log in "
@@ -427,8 +449,8 @@ def run_claude(ws: Path, config: dict, prompt: str, allowed: list[str], max_turn
     print(f"[{label}] starting Claude Code in {ws} (your Claude login; up to {max_turns} turns)")
     printer = StreamPrinter(ws)
     t0 = time.time()
-    rc = _run_streamed(cmd, ws, claude_env(), f"Claude Code ({label})", float(ce["timeout_minutes"]) * 60,
-                       on_line=printer, stdin_text=prompt)
+    rc = _run_streamed(cmd, ws, env or claude_env(), f"Claude Code ({label})",
+                       float(timeout_minutes or ce["timeout_minutes"]) * 60, on_line=printer, stdin_text=prompt)
     res = printer.result or {}
     text = str(res.get("result") or "")
     secs = (res.get("duration_ms") or (time.time() - t0) * 1000) / 1000
@@ -457,7 +479,11 @@ def _brief(run_dir: Path, config: dict) -> str:
     fmt = config["format"]
     skill = offered(config)
     styles = skill["styles"]
-    if skill["mix"]:
+    if skill.get("kind") == "blender":
+        style_rule = (f"Each beat's style is one of these looks (looks/<look>.py; skill/copywriter.md "
+                      f"says which suits what): {', '.join(styles)}. Keep one look for the whole video "
+                      f"unless the story moves to another place.")
+    elif skill["mix"]:
         style_rule = (f"Switch style on hard cuts, using 3 to 6 of these style files, the ones that "
                       f"suit each beat (see the table in copywriter.md): {', '.join(styles)}. "
                       f"A style may repeat.")
@@ -486,6 +512,11 @@ def _brief(run_dir: Path, config: dict) -> str:
         lines.append(f"Story shape for this format: {' -> '.join(fmt['beats'])}.")
     if rules.get("cta_caption"):
         lines.append(f"The last beat is the call to action. Its line says: {rules['cta_caption'].capitalize()}.")
+    if skill.get("kind") == "blender":
+        import blender_engine
+        note = blender_engine.screens_note(workspace(run_dir), config)
+        if note:
+            lines.append(note)
     lines.append("Background on what this ad is for and its wording rules: format/script_prompt.md "
                  "(read it for the product, the cast rules and the banned wording; ignore its JSON "
                  "output format, it is for VidGen's other engine).")
@@ -522,24 +553,34 @@ HEADLESS = (
 
 
 def story_prompt(run_dir: Path, config: dict) -> str:
+    blender = kind(config) == "blender"
+    if blender:
+        import blender_engine
+        head = blender_engine.HEADLESS
+        read = "1. Read skill/SKILL.md and skill/copywriter.md.\n"
+        names = "<the look's name>"
+        tail = "Do NOT write scenes and do NOT run anything. Finish with the winning "
+    else:
+        head = HEADLESS
+        read = "1. Read skill/SKILL.md and skill/copywriter.md (and the part of styles.md for each style you use).\n"
+        names = "<style file name>"
+        tail = "Do NOT edit anything in styles/ or lib/ and do NOT render. Finish with the winning "
     return "\n\n".join([
-        HEADLESS,
+        head,
         "THE BRIEF\n" + _brief(run_dir, config),
-        "THIS STEP: WRITE THE STORY ONLY\n"
-        "1. Read skill/SKILL.md and skill/copywriter.md (and the part of styles.md for each style you use).\n"
+        "THIS STEP: WRITE THE STORY ONLY\n" + read +
         "2. Draft THREE different stories with copywriter.md, each with its own first line and its own "
         "twist: one line per beat, 3 to 9 words a line, 15 to 25 seconds read aloud. Write them in "
         "story-drafts.md. Then give each draft one point for every test below it passes, write the "
         "scores under it, and keep the draft with the most points:\n" + STORY_TESTS + "\n"
         "   Fix the winner wherever it lost a point, then check it against copywriter.md's "
         "\"Before you show it\" list.\n"
-        "3. Write story.json: {\"format\": \"vertical\", \"beats\": [{\"style\": <style file name>, "
+        "3. Write story.json: {\"format\": \"vertical\", \"beats\": [{\"style\": " + names + ", "
         "\"seconds\": <1.2 to 4>, \"line\": <the line>}]}. Seconds are a first guess; the voice "
         "retimes them later.\n"
         "4. Write story.md: the lines, each with its style and one sentence on what the picture "
-        "shows (the subject, what it does, the camera).\n"
-        "Do NOT edit anything in styles/ or lib/ and do NOT render. Finish with the winning "
-        "draft's scores and then its lines, one per line, as your last message.",
+        "shows (the subject, what it does, the camera).\n" +
+        tail + "draft's scores and then its lines, one per line, as your last message.",
     ])
 
 
@@ -649,6 +690,10 @@ def run_story(run_dir: Path, config: dict) -> None:
 def run_scenes(run_dir: Path, config: dict) -> None:
     if read_story(run_dir) is None:
         raise StepError("there is no story yet; run the story step first")
+    if kind(config) == "blender":
+        import blender_engine
+        blender_engine.run_scenes(run_dir, config)
+        return
     ws = prepare_workspace(run_dir, config)
     allowed = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(node render.cjs stills *)"]
     run_claude(ws, config, scenes_prompt(run_dir, config), allowed,
@@ -722,6 +767,9 @@ PICTURE_DIRS = ("styles", "lib")
 
 
 def _picture_changed_at(ws: Path) -> float:
+    if (ws / "beat.py").is_file():                       # a Blender project
+        import blender_engine
+        return blender_engine.picture_changed_at(ws)
     times = [(ws / f).stat().st_mtime for f in PICTURE_FILES if (ws / f).is_file()]
     for d in PICTURE_DIRS:
         if (ws / d).is_dir():
@@ -729,15 +777,20 @@ def _picture_changed_at(ws: Path) -> float:
     return max(times, default=0.0)
 
 
-def render_is_current(ws: Path, audio: bool) -> bool:
+def render_is_current(ws: Path, sig) -> bool:
+    """The last render is still the picture these files and settings make. `sig`: what the
+    render depended on besides the files ({"audio": bool} for the three.js template; a bool
+    means that)."""
+    if isinstance(sig, bool):
+        sig = {"audio": sig}
     out, note = ws / "out" / "video.mp4", ws / "out" / "render.json"
     if not out.is_file() or not note.is_file():
         return False
     try:
-        same_voice = read_json(note).get("audio") == audio
+        same = read_json(note) == sig
     except (OSError, ValueError, AttributeError):
         return False
-    return same_voice and out.stat().st_mtime >= _picture_changed_at(ws)
+    return same and out.stat().st_mtime >= _picture_changed_at(ws)
 
 
 def run_render(run_dir: Path, config: dict) -> None:
@@ -748,9 +801,20 @@ def run_render(run_dir: Path, config: dict) -> None:
     ws = prepare_workspace(run_dir, config)
     audio = (ws / "voice.mp3").is_file() and read_status(run_dir).get("voice", {}).get("value") == "voiced"
     out = ws / "out" / "video.mp4"
-    if render_is_current(ws, audio):
+    blender = kind(config) == "blender"
+    if blender:
+        import blender_engine
+        sig = blender_engine.signature(config, audio)
+    else:
+        sig = {"audio": audio}
+    if render_is_current(ws, sig):
         print("[render] nothing the picture is drawn from has changed since the last render, so it is "
               "kept and only the captions are made again")
+    elif blender:
+        out.unlink(missing_ok=True)
+        (ws / "out" / "render.json").unlink(missing_ok=True)
+        blender_engine.render(run_dir, config, ws, audio)
+        write_json(ws / "out" / "render.json", sig)
     else:
         node = node_path(config)
         if not node:
@@ -764,7 +828,7 @@ def run_render(run_dir: Path, config: dict) -> None:
                            float(settings(config)["render_timeout_minutes"]) * 60)
         if rc != 0 or not out.is_file():
             raise StepError(f"render.cjs failed (exit {rc}); see the log above")
-        write_json(ws / "out" / "render.json", {"audio": audio})
+        write_json(ws / "out" / "render.json", sig)
     captioned = add_captions(run_dir, config, out)
     shutil.copyfile(captioned or out, run_dir / "final.mp4")
     print(f"[render] saved {run_dir / 'final.mp4'}")
