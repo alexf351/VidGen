@@ -88,8 +88,8 @@
         "iro"
       ],
       "image_prompt": "medium two shot, a fountain square in front of a grand old hotel, cold blue dusk light, the square now empty, {iro}, standing on the fountain edge beside him with both flippers on its hips, glaring up at him, beak open mid-word, its orange core glowing on the wet stone; {marcus}, in a cheap grey suit that is slightly too big, with a crooked tie and the tie pulled loose, turning his head to look at it with his eyebrows raised, startled. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Iro hops up onto the fountain edge and its beak moves as it barks the two words; Marcus blinks, then slowly pushes himself up to his feet. The camera rises with him.",
-      "vo_line": "Get up.",
+      "motion_prompt": "Iro hops up onto the fountain edge and its beak moves as it barks the order and then the promise; Marcus blinks, then slowly pushes himself up to his feet. The camera rises with him.",
+      "vo_line": "Get up. I'll make you rich with AI.",
       "speaker": "iro",
       "same_scene": true
     },
