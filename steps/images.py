@@ -161,7 +161,8 @@ def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False,
             "lighting, and the clothes of the people in it (on those it wins over the description "
             "above). Anyone not in it is dressed as described above, never in another person's "
             "clothes. Faces and bodies come from each character's own sheet. New camera angle and "
-            "poses, as described above.")
+            "poses, as described above. Draw everything the description names, also what the "
+            "earlier shot does not show (a second car, someone arriving), where it puts it.")
     for ids in wardrobe:
         at += 1
         who = " and ".join(ids)
@@ -205,6 +206,64 @@ def _require_key(config: dict) -> None:
         sume_api.require_key()
     else:
         fal_api.require_key()
+
+
+# ---------------------------------------------------------- a shot's shape ----
+# A keyframe is asked for at 9:16. Now and then the picture model returns another shape (a
+# square, mostly), and every shot of the scene drawn from that picture copies it. The clip is
+# then made from a square, and the cut crops its sides to fill the screen: whatever stood at
+# the edges (a car, a second person) is gone. So a keyframe is measured as it arrives.
+TALL = (0.50, 0.63)                 # width / height that counts as 9:16 (which is 0.5625)
+SHAPE_RETRIES = 2                   # more tries for a keyframe that came back in another shape
+TALL_WORDS = ("The picture is PORTRAIT, 9:16: much taller than it is wide, like a phone screen held upright, "
+              "filled edge to edge. Not square, not landscape, no borders or bars.")
+_redrawn: list[str] = []            # labels of the extra pictures asked for (they cost the same)
+_redrawn_lock = threading.Lock()
+
+
+def picture_size(path: Path) -> tuple[int, int] | None:
+    """(width, height) of a picture, or None when it cannot be read."""
+    try:
+        from PIL import Image
+        with Image.open(path) as im:
+            return im.size
+    except Exception:
+        return None
+
+
+def is_tall(path: Path) -> bool:
+    """False only for a picture that can be read and is not 9:16."""
+    size = picture_size(path)
+    return size is None or not size[1] or TALL[0] <= size[0] / size[1] <= TALL[1]
+
+
+def shape_name(size: tuple[int, int]) -> str:
+    r = size[0] / size[1]
+    return "square" if 0.9 <= r <= 1.1 else "wider than tall" if r > 1.1 else "too narrow" if r < TALL[0] else "not tall enough"
+
+
+def _draw_shot(config: dict, prompt: str, refs: list[Path], label: str, dest: Path) -> None:
+    """A keyframe at 9:16: drawn again, with the shape spelled out, when it arrives in another one."""
+    _generate_image(config, prompt, SHOT_ASPECT, refs, label, dest)
+    tmp = dest.with_name(dest.stem + ".try" + dest.suffix)
+    for left in range(SHAPE_RETRIES, 0, -1):
+        if is_tall(dest):
+            return
+        w, h = picture_size(dest)
+        print(f"  {label}: the picture came back {w}x{h} ({shape_name((w, h))}), not 9:16. Drawing it again...")
+        with _redrawn_lock:
+            _redrawn.append(label)
+        try:
+            _generate_image(config, prompt + "\n" + TALL_WORDS, SHOT_ASPECT, refs, label, tmp)
+        except StepError as e:
+            tmp.unlink(missing_ok=True)
+            print(f"  {label}: the new try failed ({e}); keeping the {shape_name((w, h))} picture")
+            break
+        tmp.replace(dest)
+    if not is_tall(dest):
+        w, h = picture_size(dest)
+        print(f"  WARNING {label}: the picture is still {w}x{h} ({shape_name((w, h))}), not 9:16. The video crops its "
+              f"sides to fill the screen, so what stands at the edges is lost. Reroll this shot.")
 
 
 def _generate_image(config: dict, prompt: str, aspect: str, refs: list[Path], label: str,
@@ -382,10 +441,15 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
               f"shot {stand_in.stem} (the place, and what {' and '.join(ids)} "
               f"{'wear' if len(ids) > 1 else 'wears'})")
         scene_ref = stand_in
+    if scene_ref is not None and not is_tall(scene_ref):
+        w, h = picture_size(scene_ref)
+        print(f"  shot {n}: shot {scene_ref.stem}, the picture this one takes its scene from, is {w}x{h} "
+              f"({shape_name((w, h))}), not 9:16, and pictures drawn from it tend to copy its shape. "
+              f"Reroll shot {scene_ref.stem} first, then this one.")
     if scene_ref is not None:
         try:
-            _generate_image(config, shot_prompt(shot, ref_ids, scene=True, wardrobe=[ids for ids, _ in wardrobe]),
-                            SHOT_ASPECT, own + [scene_ref] + [p for _, p in wardrobe], f"shot {n}", dest)
+            _draw_shot(config, shot_prompt(shot, ref_ids, scene=True, wardrobe=[ids for ids, _ in wardrobe]),
+                       own + [scene_ref] + [p for _, p in wardrobe], f"shot {n}", dest)
         except StepError as e:
             # A refused request costs nothing. Draw the shot the way it was drawn before scene
             # references existed, rather than failing the step.
@@ -394,7 +458,7 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
             print(f"  shot {n}: the scene picture was refused ({e}); drawing this shot without it")
             scene_ref = None
     if scene_ref is None:
-        _generate_image(config, shot_prompt(shot, ref_ids), SHOT_ASPECT, own, f"shot {n}", dest)
+        _draw_shot(config, shot_prompt(shot, ref_ids), own, f"shot {n}", dest)
 
     video = dest.with_suffix(".mp4")
     if (shot.get("animate") or shot.get("talk")) and video.exists():
@@ -421,6 +485,8 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
         ensure_hand(run_dir, config, script)
 
     print(f"[images] keyframes ({len(shots)} shots)")
+    with _redrawn_lock:
+        _redrawn.clear()
     done = []
     lock = threading.Lock()
 
@@ -503,8 +569,10 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
             print(f"  shot {start} starts a scene that shot(s) {', '.join(map(str, rest))} continue; if its "
                   f"place or clothes changed, redo them too: images --only {','.join(map(str, rest))}")
     generated = len(done)
-    cost = generated * image_cost(config)
-    print(f"[images] generated {generated} keyframe(s), est. ${cost:.2f} -> {shots_dir(run_dir)}")
+    again = len(_redrawn)
+    cost = (generated + again) * image_cost(config)
+    extra = f" ({again} drawn again for their shape)" if again else ""
+    print(f"[images] generated {generated} keyframe(s){extra}, est. ${cost:.2f} -> {shots_dir(run_dir)}")
 
 
 def run(run_dir: Path, config: dict, only: str | None = None) -> None:

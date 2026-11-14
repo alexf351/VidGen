@@ -398,6 +398,24 @@ function scriptUpdateNotice(run, busy) {
     h("button", { class: "btn small primary", type: "button", disabled: busy, onclick: go }, "Update this video"));
 }
 
+// Keyframes that came back in another shape than 9:16 (run_status.off_shape on the server).
+function shapeNotice(run, busy) {
+  const off = run.shots.filter((s) => s.shape);
+  if (!off.length) return null;
+  const ns = off.map((s) => s.n);
+  // Shots with no picture yet go along: a scene's first shot has to be there before the shots
+  // drawn from it, and the job draws them in that order.
+  const missing = run.shots.filter((s) => drawsImage(s) && !s.image).map((s) => s.n);
+  const all = [...ns, ...missing].sort((a, b) => a - b);
+  return h("div", { class: "notice update-notice", role: "status" },
+    h("div", {}, h("b", {}, `${ns.length === 1 ? `Shot ${ns[0]}'s picture is` : `${ns.length} pictures are`} not 9:16. `),
+      `${ns.length === 1 ? "It" : `Shots ${ns.join(", ")}`} came back ${off[0].shape}${off.some((s) => s.shape !== off[0].shape) ? " or another wrong shape" : ""} from the picture service. `
+      + "The video crops the sides of such a picture to fill the screen, so what stands at the edges is cut off."
+      + (missing.length ? ` ${missing.length === 1 ? `Shot ${missing[0]} has` : `Shots ${missing.join(", ")} have`} no picture yet and ${missing.length === 1 ? "is" : "are"} drawn in the same go.` : "")),
+    h("button", { class: "btn small primary", type: "button", disabled: busy, onclick: () => rerollMany(run, all) },
+      all.length === 1 ? "Reroll it" : missing.length ? `Redo these ${all.length}` : `Reroll these ${all.length}`));
+}
+
 // Everything that is still missing, then the cut, as one job (commands.finish on the server).
 async function finishRun(run) {
   const rows = []; let total = 0; const notes = [];
@@ -1699,6 +1717,7 @@ function renderRun() {
         `${active.action}${active.params.step ? ` ${active.params.step}` : ""} ${active.status}…`) : null),
     progressSlot(run.run_id, "full"),
     scriptUpdateNotice(run, busy),
+    shapeNotice(run, busy),
     h("div", { class: "steps" }, stepBtns,
       h("span", { style: "flex:1" }),
       h("button", { class: "btn small ghost", disabled: busy || !run.script, onclick: () => recast(run),
@@ -1827,6 +1846,7 @@ function shotCard(run, s, busy) {
     shot.animate ? h("span", { class: "badge anim", title: s.clip ? "Animated clip (hover to play)" : "Animated: no clip yet" }, s.clip ? "▶ clip" : "▶ —") : null,
     shot.label ? h("span", { class: "badge kind", title: "On-screen label for this shot" }, shot.label) : null,
     shot.stat ? h("span", { class: "badge stat", title: "Progress overlay: the rank and the number drawn over this shot" }, `${shot.stat.rank} · ${Number(shot.stat.value).toLocaleString("en-US")} ${shot.stat.unit}`) : null,
+    s.shape ? h("span", { class: "badge stat", title: `This picture came back ${s.shape}, not 9:16. The video crops its sides to fill the screen. Reroll the shot for a new one.` }, "not 9:16") : null,
     shot.same_scene ? h("span", { class: "badge scene", title: "Same scene as the shot before: drawn with that scene's first shot as a reference, so the place and clothes match" }, "↳ scene") : null,
     shot.talk ? h("span", { class: "badge anim", title: s.clip ? "Lip-synced talking clip (hover to play)" : "Talking shot: no clip yet (video step)" }, s.clip ? "talk" : "talk —") : null));
   if (drawable) {

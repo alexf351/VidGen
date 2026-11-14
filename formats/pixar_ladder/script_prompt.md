@@ -134,6 +134,13 @@ HOW IT IS SHOT
 - Clothes are part of who someone is in a scene: give each person the same clothes, in
   the same words, in every shot of that scene. They change only when the story moves on
   (the hero's get better with every job).
+- Every later picture of a scene is drawn from the scene's FIRST picture, and the picture
+  model copies it closely. So the scene's first shot shows every thing that stays in the
+  scene (a car, a desk, a sign), also one that matters only later. A thing that first
+  appears in a later wide shot is usually not drawn at all.
+- The picture is the FIRST FRAME of its clip, and the movement starts from what the
+  picture shows. When the picture has someone already through the door, the movement
+  is what they do next, never them arriving.
 - Mark every shot of a scene after its first with "same_scene": true.
 
 TONE AND LOOK

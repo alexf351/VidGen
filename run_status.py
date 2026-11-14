@@ -7,7 +7,7 @@ from pathlib import Path
 
 from common import read_json, runs_dir
 from steps.assemble import cost_report
-from steps.images import needs_keyframe, sheet_path, shot_path
+from steps.images import is_tall, needs_keyframe, picture_size, shape_name, sheet_path, shot_path
 from steps.video import video_path
 from steps.voice import audio_path, timing_path
 
@@ -226,6 +226,24 @@ def _caption_size(run_dir: Path) -> float:
         return 1.0
 
 
+_shapes: dict[str, tuple[float, str | None]] = {}       # keyframe path -> (its mtime, its shape if not 9:16)
+
+
+def off_shape(path: Path) -> str | None:
+    """"square", "wider than tall"... for a keyframe that is not 9:16 (the picture model returns
+    one now and then, and the cut then crops its sides); None for one that is, or is not there."""
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return None
+    seen = _shapes.get(str(path))
+    if seen is None or seen[0] != mtime:
+        size = picture_size(path)
+        seen = (mtime, None if size is None or is_tall(path) else shape_name(size))
+        _shapes[str(path)] = seen
+    return seen[1]
+
+
 def _clip_sound_on(run_dir: Path, config: dict | None) -> bool:
     try:
         import clip_sound
@@ -274,6 +292,7 @@ def detail(run_dir: Path, config: dict | None) -> dict:
         shots.append({"n": n, "kind": kind, "shot": s, "own_voice": own_voice, "stumble": stumble, "clip_said": clip_said, "trusted": trusted,
                       "image": file_url(preview) if preview else file_url(shot_path(run_dir, n)),
                       "clip": file_url(video_path(run_dir, n)),
+                      "shape": None if preview or kind == "card" else off_shape(shot_path(run_dir, n)),
                       "audio": file_url(audio_path(run_dir, n)),
                       "words": timing})
     characters = []

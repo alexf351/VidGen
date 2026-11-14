@@ -147,8 +147,9 @@ THE FLASHES
   "same_scene". Write image_prompt and motion_prompt as for any other shot.
 
 THE HOOK (SHOT 1)
-- Shot 1 is the rejection itself: her face, mid-word, with the crowd behind her. Never
-  an establishing shot, and never the question that came before it.
+- Shot 1 is the rejection itself, with both of them in the frame: him holding out the
+  ring, her answering mid-word, the crowd behind them. Never an establishing shot, and
+  never her alone.
 
 HOW IT IS SHOT
 - Dialogue is shot close: ONE person in the frame, chest up, talking to someone just
@@ -168,10 +169,21 @@ HOW IT IS SHOT
   chest-up shot).
 - Clothes are part of who someone is in a scene: give each person the same clothes, in
   the same words, in every shot of that scene. They change only when the story moves on.
-- Things that stay in a scene stay in its pictures. When two cars are parked at the hotel,
-  every wide shot of that scene names both and says where each stands ("on the left the
-  dented red convertible, on the right the long black car"). A wide shot that names only
-  one of them is drawn with only one, and the cars seem to swap from shot to shot.
+- Every later picture of a scene is drawn from the scene's FIRST picture, and the picture
+  model copies it closely. So the scene's first shot shows every thing that stays in the
+  scene, also one that matters only later: when the hero's car pulls up beside the
+  rival's, the first shot of that scene already has both cars in it, the hero's with dark
+  windows and nobody out of it yet. A car, a table or a stage that first appears in a
+  later wide shot is usually not drawn at all, and he ends up stepping out of the
+  rival's car.
+- Things that stay in a scene stay in its pictures. Every wide shot of that scene names
+  both cars and says where each stands, in the same words each time. The frame is tall,
+  so place them one behind the other, not side by side ("nearest the camera the dented
+  red convertible; behind it, at the foot of the red carpet, the long black car").
+- The picture is the FIRST FRAME of its clip, and the movement starts from what the
+  picture shows. When the picture has him stepping out of the car, the movement is him
+  stepping out and shutting the door, never the car arriving; when the picture has her
+  in the passenger seat, the movement is the car pulling away, never her getting in.
 - Mark every shot of a scene after its first with "same_scene": true.
 
 TONE AND LOOK

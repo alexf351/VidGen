@@ -218,15 +218,15 @@
         "tyler",
         "jess"
       ],
-      "image_prompt": "wide shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, {tyler}, in the same white dinner jacket, now creased, with the chunky gold watch, arguing with a valet beside the red convertible, now dull and dented with steam rising from its hood, waving his arms, face red; {jess}, in a glittering silver dress, standing apart with her arms crossed, tapping her foot, eyes rolled to the sky, bored and annoyed. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Tyler waves his arms at the steaming red convertible while the valet shrugs; Jess checks her nails and sighs. Slow push-in on the two of them."
+      "image_prompt": "wide shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, two cars in front of the red carpet: nearest the camera, low in the frame, the dull dented red convertible with its hood up and steam rising from it; behind it, at the foot of the red carpet, a long gleaming black sports car that has just pulled up, its headlights on and its windows dark, {tyler}, in the same white dinner jacket, now creased, with the chunky gold watch, standing at the red convertible arguing with a valet, waving his arms, face red; {jess}, in a glittering silver dress, standing apart on the red carpet with her arms crossed, tapping her foot, eyes rolled to the sky, bored and annoyed. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Tyler waves his arms at the steaming red convertible while the valet shrugs; behind them the black car's headlights switch off and its door starts to open, and Jess turns her head to look. Slow push-in."
     },
     {
       "characters": [
         "marcus"
       ],
-      "image_prompt": "wide shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, two cars side by side in front of the red carpet: on the left of the frame the dull dented red convertible with steam rising from its hood, on the right of the frame a long gleaming black sports car that has just pulled up beside it, {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, stepping out of the driver's door of the black car with one hand on its roof, relaxed, a small polite smile, glancing toward the brass doors as if waiting for someone. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "The long black car glides in from the right and stops beside the steaming red convertible; Marcus steps out of it, buttons his jacket with one hand and glances at the hotel doors as heads turn. The camera holds on both cars.",
+      "image_prompt": "medium wide shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, the long gleaming black sports car stopped at the foot of the red carpet with its driver's door open; in the near corner of the frame the steaming raised hood of the dull dented red convertible parked in front of it, {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, stepping out of the driver's door of the black car with one hand on its roof, relaxed, a small polite smile, glancing toward the brass doors as if waiting for someone. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus steps out of the black car, pushes its door shut with one hand, buttons his jacket and glances at the hotel doors as heads turn; steam keeps rising from the red convertible in front. Slow push-in on him.",
       "same_scene": true
     },
     {
@@ -274,8 +274,8 @@
         "marcus",
         "sofia"
       ],
-      "image_prompt": "wide shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, the long black sports car pulling away across the frame, past the dull dented red convertible still parked at the kerb with steam rising from its hood, {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, at the wheel with one hand on it, laughing; {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, in the passenger seat, looking ahead with a slow proud smile, her hair lifting in the wind; the doorman and the guests on the red carpet turning to watch the car go. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Sofia slides into the passenger seat and the long black car pulls away from right to left, past the red convertible that stays parked and steaming, as the guests turn to watch. The camera pans with the car.",
+      "image_prompt": "wide shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, the long gleaming black sports car rolling away from the foot of the red carpet toward the left of the frame, its windows down, {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, at the wheel with one hand on it, laughing; {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, in the passenger seat beside him, looking ahead with a slow proud smile, her hair lifting in the wind; nearest the camera, low in the frame, the dull dented red convertible with its hood up and steam rising from it, still parked; the doorman and the guests on the red carpet turning to watch the black car go. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "The black car pulls away to the left and out of the frame while the red convertible stays parked and steaming; the guests on the carpet turn to watch it go. The camera pans a little with the car.",
       "vo_line": "",
       "speaker": "",
       "same_scene": true
@@ -285,7 +285,7 @@
         "jess",
         "tyler"
       ],
-      "image_prompt": "close shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, {jess}, in a glittering silver dress, staring after them with her mouth hanging open and her eyes glassy, one hand half raised and forgotten in the air; {tyler}, in the same white dinner jacket, now creased, with the chunky gold watch, small and blurred behind her, kicking the tyre of the steaming red convertible. Vertical composition, no text anywhere in the image.",
+      "image_prompt": "close shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, {jess}, in a glittering silver dress, staring after them with her mouth hanging open and her eyes glassy, one hand half raised and forgotten in the air; {tyler}, in the same white dinner jacket, now creased, with the chunky gold watch, small and blurred behind her, kicking the tyre of the steaming red convertible, the only car left in front of the hotel. Vertical composition, no text anywhere in the image.",
       "motion_prompt": "Jess's raised hand slowly sinks and her lip starts to wobble; behind her Tyler kicks the tyre and hops on one foot. Slow push-in on her stunned face.",
       "same_scene": true
     },

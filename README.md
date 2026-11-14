@@ -801,6 +801,21 @@ and "Picture and motion" in the script panel has a checkbox to turn it on or off
 (then redo that shot's image and video). Redoing a scene's first shot prints which shots follow
 it, in case they need redoing too.
 
+The picture model copies the scene's first shot closely. A thing that first appears in a later
+wide shot of the scene (a second car pulling up) is usually not drawn, so write the scene's
+first shot with everything that stays in the scene already in it. And a picture is the first
+frame of its clip: the movement starts from what the picture shows (he steps out of the car;
+the car does not arrive again). The three Pixar reel formats tell the script writer both.
+
+**The shape is checked.** A keyframe is asked for at 9:16, but now and then the picture service
+returns a square or a landscape picture, and every shot of the scene drawn from it copies that
+shape. The clip made from it is not 9:16 either, and the cut crops its sides to fill the screen,
+so whatever stood at the edges is gone. Each keyframe is measured as it arrives. One that is not
+9:16 is drawn again (up to two more times, with the shape spelled out; each try costs one
+picture and the step's cost line counts them). One that is still wrong is kept, with a WARNING
+in the log. In the UI such a shot carries a "not 9:16" mark, and the video's page shows a notice
+with a button that rerolls all of them, a scene's first shot before the shots that follow it.
+
 New sheets for locked characters are copied into `characters_cache/` for later runs, with a
 note (`<id>.txt`) of the look they were drawn from. Change a locked character's description or
 `outfit` and their cached sheet is redrawn the next time it is needed (the Cast list in the UI
