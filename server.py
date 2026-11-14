@@ -631,6 +631,10 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         out["cast"] = [{"id": c["id"], "name": c.get("name", c["id"]), "role": c.get("role", ""),
                         "replaced": c.get("replaced"), "image": char_url(c["id"])}
                        for c in (cfg or {}).get("locked_characters", []) if c.get("library")]
+        if out.get("engine") == "claude_code" and out.get("code_kind") == "hyperframes":
+            # A HyperFrames video plays its track too: the render mounts it and cuts to its beats.
+            out["music"] = {**music_out(run_dir, cfg)["music"], "loud_shot": None}
+            out["can_remix"] = False
         if out.get("engine") != "claude_code":
             # The track and levels of this video, and the shot the music comes up on (music.py).
             m = music_out(run_dir, cfg)
@@ -916,7 +920,8 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         mixed again (POST .../remix: no API calls, so it costs nothing)."""
         import music
         run_dir = run_dir_of(run_id)
-        image_pipeline_only(run_dir, "music")
+        if run_engine(run_dir) == "claude_code" and code_engine.kind(config_for_run(run_dir)) != "hyperframes":
+            image_pipeline_only(run_dir, "music")
         active = runner.active_for_run(run_id)
         if active:
             raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "

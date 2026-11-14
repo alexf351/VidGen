@@ -230,11 +230,25 @@ def _overlay(f: dict, where: str) -> dict:
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 
 
+def _code_docs(raw, where: str) -> list[str]:
+    """code_render.docs: more folders under skills/ that Claude Code reads (copied into skill/)."""
+    docs = raw or []
+    if not isinstance(docs, list) or not all(isinstance(d, str) and re.fullmatch(r"[A-Za-z0-9_-]+", d) for d in docs):
+        raise StepError(f"{where}: code_render.docs must be a list of folder names under skills/")
+    missing = [d for d in docs if not (SKILLS_DIR / d).is_dir()]
+    if missing:
+        raise StepError(f"{where}: code_render.docs {missing} are not folders under skills/")
+    return list(docs)
+
+
 def _code_render(raw, where: str) -> dict | None:
     """code_render: {skill, styles, mix?, kind?, only?} -> the Claude Code engine settings, or None.
-    kind: "three" (the default: claude-animation-styles, styles are template/styles/<x>.js) or
-    "blender" (Blender scenes, styles are the looks in template/looks/<x>.py). only: true when
-    the format has no image-pipeline version and always runs on the Claude Code engine."""
+    kind: "three" (the default: claude-animation-styles, styles are template/styles/<x>.js),
+    "blender" (Blender scenes, styles are the looks in template/looks/<x>.py) or "hyperframes"
+    (HTML scenes, styles are the looks in template/looks/<x>.md). only: true when the format has
+    no image-pipeline version and always runs on the Claude Code engine. story_tests: false when
+    the story is not a narrative (a launch film), so the three drafts are scored on the format's
+    own rules instead of the story tests."""
     if raw in (None, {}, False):
         return None
     if not isinstance(raw, dict):
@@ -247,15 +261,18 @@ def _code_render(raw, where: str) -> dict | None:
     if not isinstance(styles, list) or not styles or not all(isinstance(x, str) for x in styles):
         raise StepError(f"{where}: code_render.styles must be a list of style names")
     kind = str(raw.get("kind") or "three").strip()
-    if kind not in ("three", "blender"):
-        raise StepError(f"{where}: code_render.kind must be three or blender, got {kind!r}")
-    folder, ext = ("looks", "py") if kind == "blender" else ("styles", "js")
+    if kind not in ("three", "blender", "hyperframes"):
+        raise StepError(f"{where}: code_render.kind must be three, blender or hyperframes, got {kind!r}")
+    folder, ext = {"blender": ("looks", "py"), "hyperframes": ("looks", "md")}.get(kind, ("styles", "js"))
     if template.is_dir():
         missing = [x for x in styles if not (template / folder / f"{x}.{ext}").is_file()]
         if missing:
             raise StepError(f"{where}: code_render.styles {missing} have no file in skills/{skill}/template/{folder}/")
     return {"skill": skill, "dir": SKILLS_DIR / skill, "template": template, "kind": kind,
-            "styles": [str(x) for x in styles], "mix": bool(raw.get("mix")), "only": bool(raw.get("only"))}
+            "styles": [str(x) for x in styles], "mix": bool(raw.get("mix")), "only": bool(raw.get("only")),
+            "story_tests": raw.get("story_tests", True) is not False,
+            "snap_to_beats": bool(raw.get("snap_to_beats")),
+            "docs": _code_docs(raw.get("docs"), where)}
 
 
 # Never taken from the format a format extends: these describe the format itself.

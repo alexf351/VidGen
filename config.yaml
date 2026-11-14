@@ -167,6 +167,15 @@ blender:
   pass_max_turns: 90            # each of the other three passes
   pass_timeout_minutes: 120
 
+# HyperFrames (formats with code_render.kind: hyperframes): Claude Code writes HTML scenes; HyperFrames
+# (HeyGen, Apache-2.0) records them to MP4 in headless Chrome. Needs Node.js 22+. The first video
+# installs a pinned version into cache/code_engine/hyperframes. Its telemetry is always off.
+hyperframes:
+  quality: looks                # draft | looks | delivery
+  scenes_max_turns: 160
+  scenes_timeout_minutes: 120
+  render_timeout_minutes: 30
+
 # Talking shots (formats with rules.talking) and songs (rules.song). These extend the fal and
 # elevenlabs blocks above; defaults shown.
 # fal:

@@ -99,6 +99,9 @@ The stage switches things on, so a scene file is the same in every pass:
 
 ## Motion: every beat moves
 
+`skill/motion-rules/README.md` holds the motion rules every video follows (easing, timing,
+holds, one focal point); in Blender, BEZIER keys are the eased curves and LINEAR the steady ones.
+
 A beat is `ctx.seconds` long (the voice sets it). Something happens inside every beat, keyed in
 seconds with `S.key(obj, t, location=..., rotation=..., scale=...)`:
 

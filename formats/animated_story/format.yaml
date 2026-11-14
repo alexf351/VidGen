@@ -1,0 +1,31 @@
+# Animated Story: a narrated story ad for Iro, told by flat 2D cartoon people in a painted 3D town
+# with ink outlines. Claude Code writes every scene in code (assets/lib/toon.js, three.js), so no
+# image or video model is called. The look follows the cartoon-3d-short skill from
+# claude-animated-shorts (mromidev, MIT); HyperFrames (HeyGen, Apache-2.0) records it on this computer.
+
+name: animated_story
+title: Animated Story
+description: 'Flat cartoon people in a colourful 3D town drawn with black ink, told by a narrator. Drawn in
+  code: no image credits.'
+extends: claymation
+duration_target: about 20-30 seconds
+beats:
+- someone wants something
+- they try
+- it goes wrong
+- they open Iro
+- it pays off
+- the twist
+- Search Iro AI
+style: 2D cartoon characters in a painted 3D town with ink outlines, saturated blue sky
+
+rules:
+  story_shots: [7, 11]
+  vo_words: [35, 80]
+  narrator: true
+
+code_render:
+  kind: hyperframes
+  skill: hyperframes-video
+  styles: [toon]
+  only: true

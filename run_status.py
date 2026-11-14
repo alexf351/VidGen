@@ -159,7 +159,7 @@ def _code_cost(run_dir: Path, story: dict | None, config: dict | None) -> dict:
 def code_summary(run_dir: Path, meta: dict, config: dict | None) -> dict:
     import code_engine
     story = code_engine.read_story(run_dir)
-    return {**meta, "steps": code_engine.step_states(run_dir),
+    return {**meta, "steps": code_engine.step_states(run_dir, code_engine.steps_for(config)),
             "shots": len(story["beats"]) if story else 0,
             "final_video": file_url(run_dir / "final.mp4"),
             "est_cost": _code_cost(run_dir, story, config)["total"]}
@@ -178,7 +178,7 @@ def code_detail(run_dir: Path, meta: dict, config: dict | None) -> dict:
     stills = [{"name": p.name, "url": file_url(p)} for p in sorted((ws / "stills").glob("*.jpg"))]
     styles = (((config or {}).get("format") or {}).get("code_render") or {}).get("styles") or []
     code_kind = (((config or {}).get("format") or {}).get("code_render") or {}).get("kind") or "three"
-    return {**meta, "steps": code_engine.step_states(run_dir), "story": story, "story_notes": notes,
+    return {**meta, "steps": code_engine.step_states(run_dir, code_engine.steps_for(config)), "story": story, "story_notes": notes,
             "styles": styles, "code_kind": code_kind, "stills": stills, "voice": file_url(ws / "voice.mp3"),
             "script": None, "characters": [], "shots": [],
             "final_video": file_url(run_dir / "final.mp4"), "captions": None,

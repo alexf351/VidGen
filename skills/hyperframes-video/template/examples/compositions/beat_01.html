@@ -1,0 +1,35 @@
+<!-- An example scene: a hook line slams in, a phone with a real Iro screen rises under it,
+     and the screen pushes in on the cursor's click. Read it; write your own. -->
+<template>
+  <style>
+    #root { position: absolute; inset: 0; background: var(--ground); overflow: hidden; }
+    #beat_01-glow { position: absolute; left: 140px; top: 520px; width: 800px; height: 800px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(62, 240, 255, 0.28), rgba(62, 240, 255, 0) 68%); }
+    #beat_01-hook { position: absolute; left: 80px; right: 80px; top: 230px; text-align: center;
+      font: 900 118px/1.0 var(--font-display); color: var(--ink); letter-spacing: -0.02em; }
+    #beat_01-hook span { color: var(--accent); }
+    #beat_01-phone { position: absolute; left: 290px; top: 560px; width: 500px; height: 1000px; border-radius: 64px;
+      background: #05090c; padding: 18px; box-shadow: 0 40px 120px rgba(0, 0, 0, 0.55); }
+    #beat_01-screen { width: 100%; height: 100%; border-radius: 48px; object-fit: cover; display: block; }
+    #beat_01-cursor { position: absolute; left: 640px; top: 1180px; width: 70px; height: 70px; border-radius: 50%;
+      background: rgba(255, 255, 255, 0.92); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); }
+  </style>
+  <div id="root" data-composition-id="beat_01" data-width="1080" data-height="1920">
+    <div id="beat_01-glow" class="clip" data-start="0" data-duration="2.8"></div>
+    <h1 id="beat_01-hook" class="clip" data-start="0" data-duration="2.8">Learn AI in <span>5 minutes</span> a day</h1>
+    <div id="beat_01-phone" class="clip" data-start="0" data-duration="2.8">
+      <img id="beat_01-screen" src="assets/screens/learn.jpg" alt="" />
+    </div>
+    <div id="beat_01-cursor" class="clip" data-start="1.2" data-duration="1.6"></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#beat_01-hook", { scale: 1.25, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: "power4.out" }, 0);
+    tl.fromTo("#beat_01-phone", { y: 700 }, { y: 0, duration: 0.7, ease: "power3.out" }, 0.15);
+    tl.fromTo("#beat_01-glow", { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.9, ease: "power2.out" }, 0.2);
+    tl.fromTo("#beat_01-cursor", { x: 260, y: 220, opacity: 0 }, { x: 0, y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 1.2);
+    tl.fromTo("#beat_01-cursor", { scale: 1 }, { scale: 0.8, duration: 0.08, yoyo: true, repeat: 1, ease: "power1.inOut" }, 1.75);
+    tl.fromTo("#beat_01-phone", { scale: 1 }, { scale: 1.12, duration: 0.6, ease: "power3.inOut" }, 1.9);
+    window.__timelines["beat_01"] = tl;
+  </script>
+</template>

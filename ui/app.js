@@ -1096,8 +1096,8 @@ function musicPanel(run, busy) {
       picked && m.own ? h("div", { class: "field-note" }, Math.abs(m.speed - 1) > 0.001 || m.start > 0
         ? `Plays as the video will: at ${Math.round(m.speed * 100)}% speed${m.start > 0 ? `, from ${clock(m.start)} in` : ""}. Change the speed while it plays to compare.`
         : "Press play, then try the speeds below: the track changes as you pick.") : null,
-      hasMusic ? slider("level", "Music under the talking") : null,
-      hasMusic ? slider("loud", "Music in the montage",
+      hasMusic ? slider(run.engine === "claude_code" ? "loud" : "level", run.engine === "claude_code" ? "Music" : "Music under the talking") : null,
+      hasMusic && run.engine !== "claude_code" ? slider("loud", "Music in the montage",
         m.loud_shot ? `Comes up at shot ${m.loud_shot}, where the montage starts, and stays up to the end.` : "This script has no montage, so the music stays at the first level all the way.") : null,
       slider("voices", "Voices and clip sound"),
       hasMusic && m.own ? h("div", { class: "mix-row" }, h("label", {}, "Speed"),
@@ -1106,7 +1106,10 @@ function musicPanel(run, busy) {
       hasMusic && m.own ? h("div", { class: "mix-row start" }, h("label", { for: "mix-start" }, "Start the track at"),
         h("input", { id: "mix-start", type: "number", min: "0", step: "1", value: String(m.start), disabled: busy, inputmode: "numeric",
           onchange: (e) => save({ start: Math.max(0, Number(e.target.value) || 0) }) }), h("span", { class: "dim" }, "seconds in")) : null,
-      redo ? h("div", { class: "notice" }, "The finished video still has the old sound. ",
+      redo && run.engine === "claude_code" ? h("div", { class: "notice" }, "The finished video still has the old sound. ",
+        h("button", { class: "btn small", disabled: busy, onclick: () => { S.musicRedo = null; runCodeStep(run, "render"); } }, "Render again"),
+        h("div", { class: "field-note" }, "HyperFrames renders the video again with the new music, on this computer. It takes a minute or two and costs nothing.")) : null,
+      redo && run.engine !== "claude_code" ? h("div", { class: "notice" }, "The finished video still has the old sound. ",
         run.can_remix
           ? h("button", { class: "btn small", disabled: busy, onclick: () => { S.musicRedo = null; releaseMedia(); submit(api("POST", `/api/runs/${rid}/remix`, {}), "sound mix"); } }, "Mix the sound again")
           : h("button", { class: "btn small", disabled: busy, onclick: () => { S.musicRedo = null; runStep(run, "assemble"); } }, "Assemble again"),
@@ -1341,6 +1344,7 @@ function renderCreate(formatName) {
   const st = { provider: "", dry: false, engine: codeOnly ? "claude_code" : "ai", cast: [], captions: S.config.caption_style || "format", screens: [], ready: null };
   const hasCode = (f.engines || []).includes("claude_code");
   const blender = f.code_kind === "blender";
+  const hyper = f.code_kind === "hyperframes";
   const d = S.config.providers.default;
   const premise = h("textarea", { class: "premise-box", id: "f-premise", rows: "6", maxlength: String(PREMISE_MAX),
     placeholder: f.limits && f.limits.narrator ? "A baker's oven dies the day her cake goes viral…"
@@ -1369,7 +1373,7 @@ function renderCreate(formatName) {
     sndSec.classList.toggle("hidden", st.engine === "claude_code");
     qualSec.classList.toggle("hidden", st.engine === "claude_code");
     if (scrSec) scrSec.classList.toggle("hidden", st.engine === "claude_code" || !!readyOn);
-    codeWarn.textContent = st.engine === "claude_code" ? codeEngineProblem(blender) : "";
+    codeWarn.textContent = st.engine === "claude_code" ? codeEngineProblem(f.code_kind) : "";
     if (st.engine === "claude_code") {
       const est = estimateCode(f.name);
       costLine.textContent = st.dry ? "free" : `about ${usd(est.total)}`;
@@ -1401,7 +1405,7 @@ function renderCreate(formatName) {
       f.duration_target ? [h("dt", {}, "Length"), h("dd", {}, f.duration_target)] : null,
       L.story_shots ? [h("dt", {}, "Shots"), h("dd", {}, `${L.story_shots[0]}-${L.story_shots[1]}${L.montage ? ` + ${L.montage[0]}-${L.montage[1]} montage` : ""}${L.flashes ? ` + ${L.flashes[0]}-${L.flashes[1]} flashes` : ""}`)] : null,
       L.vo_words ? [h("dt", {}, "Spoken words"), h("dd", {}, `${L.vo_words[0]}-${L.vo_words[1]}${L.narrator ? ", narrated" : ", dialogue only"}`)] : null,
-      codeOnly ? [h("dt", {}, "Scenes"), h("dd", {}, blender ? "one Blender scene per line, every frame rendered" : "one coded scene per line")]
+      codeOnly ? [h("dt", {}, "Scenes"), h("dd", {}, blender ? "one Blender scene per line, every frame rendered" : hyper ? "one animated HTML scene per beat, cut to the music" : "one coded scene per line")]
       : h("dt", {}, "Clips"), codeOnly ? null : h("dd", {}, L.animate_all ? `${L.flashes && !L.flashes_move ? "every shot but the flashes" : "every shot"} is a clip × ${f.clip_seconds || 4}s` : `up to ${L.max_animated_shots ?? "?"} × ${f.clip_seconds || 4}s`),
       f.locked_cast.length ? [h("dt", {}, "Cast"), h("dd", {}, f.locked_cast.join(", "))] : null,
       L.cta_caption ? [h("dt", {}, "Ends on"), h("dd", {}, L.cta_caption)]
@@ -1485,7 +1489,9 @@ function renderCreate(formatName) {
     readySec,
     h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Premise"), count), premise),
     codeOnly ? h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Engine")),
-      h("div", { class: "field-note" }, blender
+      h("div", { class: "field-note" }, hyper
+        ? "Claude Code writes every beat as an animated HTML scene, timed to the voice and cut to the music, and HyperFrames records it on this computer. No image or video model, so no per-video charge besides the voice."
+        : blender
         ? "Claude Code builds every scene in Blender, in four passes (shape, edges, materials, light), checking a preview after each. Blender renders every frame on this computer's graphics card. No image or video model, so no per-video charge besides the voice."
         : "Claude Code codes every scene and renders it here, with no image or video model."),
       codeWarn)
@@ -1593,10 +1599,12 @@ async function loadDoctor() {
 
 // Why the Claude Code engine cannot run on this computer, from the setup check ("" if it can).
 const CODE_CHECKS = ["node", "npm", "claude (Claude Code)", "Claude Code login"];
-function codeEngineProblem(blender) {
+function codeEngineProblem(kind) {
   if (!S.doctor || !S.doctor.checks) return "";
   // A Blender format needs Blender instead of node; a missing graphics card is a note, not a problem.
-  const items = blender ? [...CODE_CHECKS.filter((x) => x !== "node" && x !== "npm"), "blender"] : CODE_CHECKS;
+  // A HyperFrames format needs Node 22; the CLI itself installs on the first video.
+  const items = kind === "blender" ? [...CODE_CHECKS.filter((x) => x !== "node" && x !== "npm"), "blender"]
+    : kind === "hyperframes" ? [...CODE_CHECKS, "node for HyperFrames"] : CODE_CHECKS;
   const bad = S.doctor.checks.filter((c) => items.includes(c.item) && c.status !== "PASS");
   return bad.length ? `Not ready on this computer: ${bad.map((c) => `${c.item}: ${c.detail}`).join(" · ")}` : "";
 }
@@ -2756,9 +2764,10 @@ function renderCodeRun() {
   const busy = runBusy(run.run_id);
   const active = S.jobs.find((j) => j.run_id === run.run_id && ACTIVE.has(j.status));
   const has = (k) => run.steps[k].status === "done";
-  const next = !run.story ? "story" : !has("scenes") ? "scenes" : !has("voice") ? "voice" : !has("render") ? "render" : null;
+  const order = Object.keys(run.steps);              // HyperFrames runs the voice before the scenes
+  const next = !run.story ? "story" : order.find((k) => k !== "story" && !has(k)) || null;
   const stepBtns = [];
-  CODE_STEPS.forEach((step, i) => {
+  order.forEach((step, i) => {
     const st = run.steps[step];
     if (i) stepBtns.push(h("span", { class: `step-arrow${st.status === "done" ? " done" : ""}` }));
     stepBtns.push(h("button", { class: `step-btn ${st.status}${step === next ? " next" : ""}`,
@@ -2772,7 +2781,7 @@ function renderCodeRun() {
   const cta = !run.story
     ? h("button", { class: "btn primary cta", disabled: busy, onclick: () => runCodeStep(run, "story") }, h("span", {}, "Write the story"), icon("arrow-right"))
     : next ? h("button", { class: "btn primary cta", disabled: busy, onclick: () => runCodeRest(run, next) },
-      h("span", {}, next === "scenes" ? "Code the scenes and render" : `Continue from ${CODE_STEP_NAME[next].toLowerCase()}`), icon("arrow-right"))
+      h("span", {}, next === order[1] ? (next === "voice" ? "Voice, scenes and render" : "Code the scenes and render") : `Continue from ${CODE_STEP_NAME[next].toLowerCase()}`), icon("arrow-right"))
     : finalSrc ? h("a", { class: "btn primary cta", href: finalSrc, download: `${run.run_id}.mp4` }, icon("download"), h("span", {}, "Download video")) : null;
   const head = h("header", { class: "run-head" },
     h("div", { class: "run-top" },
@@ -2821,6 +2830,7 @@ function renderCodeRun() {
   const side = h("aside", { class: "side-col" }, final);
   if (run.story) side.append(storyPanel(run, busy));
   if (run.story && captionStyles().length) side.append(h("section", { class: "side-card" }, captionsPanel(run, busy)));
+  if (run.story && run.music) side.append(h("section", { class: "side-card" }, musicPanel(run, busy)));
   if (run.cost.rows.length) {
     side.append(h("section", { class: "side-card", "aria-label": "Cost" }, h("div", { class: "panel-title" }, "Cost so far"),
       h("div", { class: "cost-rows" },
@@ -2845,11 +2855,15 @@ async function runCodeStep(run, step) {
   if (storyChanged() && step !== "story") { toast("Save or discard your story edits first.", "bad"); return; }
   const texts = {
     story: ["Rewrite the story?", "Claude Code writes a new story.json (your Claude plan). The scenes, voice and render then need to run again."],
-    scenes: run.code_kind === "blender"
+    scenes: run.code_kind === "hyperframes"
+      ? ["Write the scenes?", "Claude Code writes every beat as an HTML scene timed to the voice and the music, and checks snapshots as it goes. It runs on your Claude plan and can take 15-45 minutes."]
+      : run.code_kind === "blender"
       ? ["Build the scenes?", "Claude Code builds every beat in Blender in four passes (shape, edges, materials, light), previewing after each. It runs on your Claude plan and can take 30-90 minutes."]
       : ["Code the scenes?", "Claude Code rewrites each style file for this story and checks stills. It runs on your Claude plan and can take 10-30 minutes."],
     voice: ["Redo the voice?", `Reads every line with ElevenLabs (about ${usd(voiceCost(run.story ? run.story.beats.map((b) => b.line).join(" ").length : 300))}) and retimes the beats.`],
-    render: run.code_kind === "blender"
+    render: run.code_kind === "hyperframes"
+      ? ["Render the video?", "HyperFrames renders the scenes with the voice and the music on this computer (a minute or two for a 20 second video), then the captions go on. When only the captions changed, just the captions are redone."]
+      : run.code_kind === "blender"
       ? ["Render the video?", "Blender renders every frame on this computer's graphics card (one still per beat with a push-in when there is none), then the voice and captions go on. A 20 second video takes roughly 20-60 minutes on a graphics card. When only the captions changed since the last render, just the captions are redone, in seconds."]
       : ["Render the video?", "Runs on this computer and adds the captions. The 3D styles render in software on Windows, so a 20 second video can take several minutes. When only the captions changed since the last render, just the captions are redone, in seconds."],
   };
@@ -2860,7 +2874,8 @@ async function runCodeStep(run, step) {
 
 async function runCodeRest(run, from) {
   if (storyChanged()) { toast("Save or discard your story edits first.", "bad"); return; }
-  const steps = CODE_STEPS.slice(CODE_STEPS.indexOf(from));
+  const order = Object.keys(run.steps);
+  const steps = order.slice(order.indexOf(from));
   const ok = await confirmDialog({ title: `Run ${steps.join(", ")}?`, ok: "Run",
     text: "Claude Code codes the scenes on your Claude plan, VidGen adds the voice (ElevenLabs) and renders on this computer. Each step is a job in the queue." });
   if (!ok) return;

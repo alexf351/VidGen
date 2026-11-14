@@ -1,0 +1,11 @@
+/* The film's palette and type, shared by every scene. Change these, not each scene. */
+:root {
+  --ground: #0d1820;          /* the background */
+  --surface: #13212b;         /* cards and panels */
+  --ink: #ffffff;             /* text */
+  --muted: #8fa3b3;           /* secondary text */
+  --accent: #3ef0ff;          /* Iro's cyan: one thing at a time */
+  --accent-2: #ffb547;        /* a warm second accent, sparingly */
+  --font-display: "Montserrat", sans-serif;
+  --font-body: "Inter", sans-serif;
+}

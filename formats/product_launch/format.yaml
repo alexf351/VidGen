@@ -1,0 +1,40 @@
+# Product Launch: a 15-25 second launch film for the Iro app, made of animated HTML scenes over
+# the app's real screens and recordings, cut to your music. Claude Code writes the scenes;
+# HyperFrames (HeyGen, Apache-2.0) records them on this computer (hyperframes_engine.py).
+# Direction after product-launch-motion (AbubakrChan, MIT); shot menu from video-shotcraft
+# (Vincentwei1021, Apache-2.0), in skills/launch-shots/. Shares Iro's cast and screens with claymation.
+
+name: product_launch
+title: Product Launch
+description: 'A slick launch film for the Iro app: its real screens morph, a cursor drives every change, and
+  it cuts to your music. Words on screen, no narrator.'
+extends: claymation
+duration_target: about 15-25 seconds
+beats:
+- the hook, already on screen at frame 0
+- the problem in one line
+- the app in hand
+- proof 1
+- proof 2
+- proof 3
+- the payoff
+- the end card, Search Iro AI
+style: premium product launch film, real app UI, motion graphics
+
+rules:
+  story_shots: [6, 10]
+  vo_words: [12, 45]
+  narrator: false              # music-first: words on screen, no voice
+  cta_caption: SEARCH IRO AI
+
+captions:
+  style: "off"                 # the words are part of the scenes
+
+code_render:
+  kind: hyperframes
+  skill: hyperframes-video
+  styles: [launch]
+  only: true
+  story_tests: false           # not a narrative: the drafts are scored on this format's rules
+  snap_to_beats: true          # every beat ends on a beat of the music
+  docs: [launch-shots]         # the 124-recipe shot menu

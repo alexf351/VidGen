@@ -92,7 +92,8 @@ def create_new_run(premise: str, config: dict, log=print, engine: str | None = N
     if script is not None:
         from common import write_json
         write_json(run_dir / "script.json", script)
-    if engine != "claude_code":
+    hf = (config["format"].get("code_render") or {}).get("kind") == "hyperframes"
+    if engine != "claude_code" or hf:
         import music
         start_with = music.default()                   # "use for new videos" in the Music panel
         if start_with is not None:
@@ -144,7 +145,8 @@ def execute_new(run_dir: Path, config: dict, dry_run: bool = False) -> None:
     """Run every step of a new run in order, or only the script step for a dry run."""
     if run_engine(run_dir) == "claude_code":
         import code_engine
-        progress.start(code_engine.CODE_STEPS[:1] if dry_run else list(code_engine.CODE_STEPS))
+        steps = code_engine.steps_for(config)
+        progress.start(steps[:1] if dry_run else steps)
         code_engine.execute(run_dir, config, dry_run)
         return
     from common import run_ready_script

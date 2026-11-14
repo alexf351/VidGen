@@ -1,0 +1,68 @@
+<template>
+  <!-- A worked example of one "toon" beat: Maya walks up the street looking at her phone, stops,
+       and Iro hops in beside her. Copy the wiring at the bottom as it is; write your own build(). -->
+  <style>
+    #root { position: absolute; inset: 0; background: #b8d0ec; overflow: hidden; }
+    #toon_beat-c { position: absolute; inset: 0; width: 1080px; height: 1920px; display: block; }
+  </style>
+  <div id="root" data-composition-id="toon_beat" data-width="1080" data-height="1920">
+    <canvas id="toon_beat-c" width="1080" height="1920"></canvas>
+  </div>
+  <script>
+    (function () {
+      const ID = "toon_beat";        // this composition's id: beat_NN
+      const DUR = 3.0;               // this beat's seconds, from timing.json
+
+      // ---- the scene: built once, then draw(t) for t = 0 .. DUR seconds into the beat ----
+      async function build(T, canvas) {
+        const S = T.stage(canvas, { light: "day", fov: 36 });
+        T.ground(S);
+        T.street(S, { length: 90 });
+        T.clouds(S, { seed: 3 });
+        const walls = ["brick", "cream", "ochre", "terracotta", "sage", "rose"];
+        for (let i = 0; i < 6; i++) {
+          T.house(S, { x: -8.2, z: 2 - i * 8.4, rotY: 90, w: 7.6, seed: i, wall: walls[i % 6] });
+          T.house(S, { x: 8.2, z: -2 - i * 8.4, rotY: -90, w: 7.6, seed: 40 + i, wall: walls[(i + 3) % 6] });
+        }
+        T.tree(S, { x: -4.6, z: -5, seed: 1 });
+        T.tree(S, { x: 4.8, z: -13, seed: 2 });
+        T.lamp(S, { x: 4.2, z: -1.5 });
+
+        const maya = T.person(S, { name: "maya", skin: "tan", hair: "bun", hairColor: "#3b2416", shirt: "#e4573d", pants: "#2d3550" });
+        const iro = T.iro(S, { x: 0.9, z: -1 });
+        const cam = T.cameraPath([
+          { t: 0, pos: [0.4, 1.05, 4.8], look: [0.1, 1.5, -1], fov: 40 },
+          { t: DUR, pos: [0.25, 1.0, 3.7], look: [0.2, 1.4, -1], fov: 40, roll: -2 },
+        ]);
+        cam.shake(1.55, 0.05);                                 // Iro lands
+
+        return (t) => {
+          const z = T.lerp(-3.5, -1, T.glide(t, 0, 1.3));        // she walks up, then stops
+          maya.pose(t, { x: -0.5, z, walk: t < 1.3 ? 1.1 : 0, arms: ["down", "phone"],
+                         mood: t < 1.6 ? "neutral" : "shock", look: 1 });
+          const k = T.pop(t, 1.25, 0.4);                         // Iro drops in and settles
+          iro.group.visible = t >= 1.25;
+          iro.pose(t, { x: 0.9, z: -1, hop: (1 - k) * 1.2, mood: "happy", wave: t > 1.9 });
+          cam.apply(S, t);
+          S.render();
+        };
+      }
+
+      // ---- the wiring: copy as it is (sets the clock from the timeline and from hf-seek) ----
+      const tl = gsap.timeline({ paused: true });
+      const clock = { t: 0 };
+      let draw = null;
+      const mount = document.querySelector('[data-composition-id="' + ID + '"][data-start]');
+      const start = mount ? parseFloat(mount.getAttribute("data-start")) || 0 : 0;
+      const show = (t) => { clock.t = Math.min(DUR, Math.max(0, t)); if (draw) draw(clock.t); };
+      window.__hf = window.__hf || {};
+      window.__hf.buildReady = window.__hf.buildReady || {};
+      window.__hf.buildReady[ID] = import("./assets/lib/toon.js")
+        .then(({ default: T }) => build(T, document.getElementById(ID + "-c")))
+        .then((fn) => { draw = fn; draw(clock.t); });
+      window.addEventListener("hf-seek", (e) => show(e.detail.time - start));
+      tl.to(clock, { t: DUR, duration: DUR, ease: "none", onUpdate: () => draw && draw(clock.t) }, 0);
+      window.__timelines[ID] = tl;
+    })();
+  </script>
+</template>

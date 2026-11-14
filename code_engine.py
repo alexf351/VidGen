@@ -22,6 +22,10 @@ Anything else it tries is denied (permission mode dontAsk), never prompted.
 A format whose code_render.kind is "blender" (Blender 3D) works the same way with Blender in
 place of the three.js template: the scenes step is four passes and the render runs Blender on
 this computer. Its parts are in blender_engine.py; this module hands over where the two differ.
+"hyperframes" works the same way with HyperFrames (HTML + GSAP to MP4), in hyperframes_engine.py;
+its steps run story, voice, scenes, render (the scenes are timed in HTML, so the voice comes first).
+
+Every code project gets skill/motion-rules/ (skills/motion-rules): the motion rules all of them follow.
 """
 
 from __future__ import annotations
@@ -76,8 +80,16 @@ def offered(config: dict) -> dict | None:
 
 
 def kind(config: dict) -> str:
-    """"three" (the claude-animation-styles template) or "blender" (Blender 3D)."""
+    """"three" (the claude-animation-styles template), "blender" (Blender 3D) or "hyperframes"."""
     return ((offered(config) or {}).get("kind")) or "three"
+
+
+def steps_for(config: dict | None) -> list[str]:
+    """The steps in the order they run. HyperFrames writes the voice before the scenes."""
+    if config and kind(config) == "hyperframes":
+        import hyperframes_engine
+        return list(hyperframes_engine.STEPS)
+    return list(CODE_STEPS)
 
 
 def workspace(run_dir: Path) -> Path:
@@ -110,7 +122,7 @@ def _mark(run_dir: Path, step: str, value=True, clear: tuple[str, ...] = ()) -> 
     write_json(_status_path(run_dir), data)
 
 
-def step_states(run_dir: Path) -> dict:
+def step_states(run_dir: Path, steps: list[str] | None = None) -> dict:
     st = read_status(run_dir)
     final = (run_dir / "final.mp4").is_file()
 
@@ -119,7 +131,7 @@ def step_states(run_dir: Path) -> dict:
         note = st.get(name, {}).get("value") if isinstance(st.get(name), dict) else None
         return {"status": "done" if done else "pending", "done": int(done), "total": 1,
                 "note": note if isinstance(note, str) else None}
-    return {name: one(name) for name in CODE_STEPS}
+    return {name: one(name) for name in (steps or CODE_STEPS)}
 
 
 # --------------------------------------------------------------------- tools ----
@@ -233,6 +245,8 @@ def doctor_rows(config: dict) -> list[tuple[bool | None, str, str]]:
                          f"ANTHROPIC_API_KEY so the engine uses this login"))
     import blender_engine
     rows += blender_engine.doctor_rows(config)
+    import hyperframes_engine
+    rows += hyperframes_engine.doctor_rows(config)
     return rows
 
 
@@ -329,6 +343,12 @@ def prepare_workspace(run_dir: Path, config: dict) -> Path:
         blender_engine.prepare(ws, skill, config)
         _copy_docs(ws, skill, config)
         return ws
+    if skill.get("kind") == "hyperframes":
+        import hyperframes_engine
+        ws.mkdir(parents=True, exist_ok=True)
+        _copy_docs(ws, skill, config)                 # first: prepare copies refs/ into assets/cast
+        hyperframes_engine.prepare(ws, skill, config, run_dir)
+        return ws
     if not (ws / "render.cjs").is_file():
         ws.mkdir(parents=True, exist_ok=True)
         for name in TEMPLATE_FILES:
@@ -347,6 +367,16 @@ def _copy_docs(ws: Path, skill: dict, config: dict) -> None:
     docs.mkdir(exist_ok=True)
     for md in sorted(skill["dir"].glob("*.md")):
         shutil.copyfile(md, docs / md.name)
+    rules = ROOT / "skills" / "motion-rules"
+    if rules.is_dir():                       # the motion rules every code format follows
+        shutil.copytree(rules, docs / "motion-rules", dirs_exist_ok=True)
+    copy = ROOT / "skills" / "claude-animation-styles" / "copywriter.md"
+    if not (docs / "copywriter.md").is_file() and copy.is_file():   # how to write the lines, for every kind
+        shutil.copyfile(copy, docs / "copywriter.md")
+    for extra in skill.get("docs") or []:    # more reading a format asks for (code_render.docs)
+        src = ROOT / "skills" / extra
+        if src.is_dir():
+            shutil.copytree(src, docs / extra, dirs_exist_ok=True)
     brief = ws / "format"
     brief.mkdir(exist_ok=True)
     # The format's text as loaded: a format that extends another has no file of its own.
@@ -449,7 +479,12 @@ def run_claude(ws: Path, config: dict, prompt: str, allowed: list[str], max_turn
     print(f"[{label}] starting Claude Code in {ws} (your Claude login; up to {max_turns} turns)")
     printer = StreamPrinter(ws)
     t0 = time.time()
-    rc = _run_streamed(cmd, ws, env or claude_env(), f"Claude Code ({label})",
+    if env is None:
+        env = claude_env()
+        if kind(config) == "hyperframes":           # its CLI's telemetry stays off in every session
+            import hyperframes_engine
+            env.update(hyperframes_engine.QUIET_ENV)
+    rc = _run_streamed(cmd, ws, env, f"Claude Code ({label})",
                        float(timeout_minutes or ce["timeout_minutes"]) * 60, on_line=printer, stdin_text=prompt)
     res = printer.result or {}
     text = str(res.get("result") or "")
@@ -479,7 +514,10 @@ def _brief(run_dir: Path, config: dict) -> str:
     fmt = config["format"]
     skill = offered(config)
     styles = skill["styles"]
-    if skill.get("kind") == "blender":
+    if skill.get("kind") == "hyperframes":
+        style_rule = (f"Each beat's style is one of these looks (looks/<look>.md says what it means): "
+                      f"{', '.join(styles)}." + (" Keep one look for the whole video." if len(styles) > 1 else ""))
+    elif skill.get("kind") == "blender":
         style_rule = (f"Each beat's style is one of these looks (looks/<look>.py; skill/copywriter.md "
                       f"says which suits what): {', '.join(styles)}. Keep one look for the whole video "
                       f"unless the story moves to another place.")
@@ -517,6 +555,17 @@ def _brief(run_dir: Path, config: dict) -> str:
         note = blender_engine.screens_note(workspace(run_dir), config)
         if note:
             lines.append(note)
+    if skill.get("kind") == "hyperframes":
+        import hyperframes_engine
+        note = hyperframes_engine.screens_note(workspace(run_dir), config)
+        if note:
+            lines.append(note)
+        if skill.get("only"):
+            lines.append("This format's own rules (the story, the words, the look): format/script_prompt.md. Read it.")
+        else:
+            lines.append("Background on what this ad is for and its wording rules: format/script_prompt.md "
+                         "(ignore its JSON output format, it is for VidGen's other engine).")
+        return "\n".join(lines)
     lines.append("Background on what this ad is for and its wording rules: format/script_prompt.md "
                  "(read it for the product, the cast rules and the banned wording; ignore its JSON "
                  "output format, it is for VidGen's other engine).")
@@ -554,7 +603,16 @@ HEADLESS = (
 
 def story_prompt(run_dir: Path, config: dict) -> str:
     blender = kind(config) == "blender"
-    if blender:
+    hf = kind(config) == "hyperframes"
+    tests = STORY_TESTS if (offered(config) or {}).get("story_tests", True) else ""
+    if hf:
+        import hyperframes_engine
+        head = hyperframes_engine.HEADLESS
+        read = ("1. Read format/script_prompt.md (this format's story rules) and skill/SKILL.md" +
+                (", and skill/copywriter.md (how to write the lines).\n" if tests else ".\n"))
+        names = "<the look's name>"
+        tail = "Do NOT write scenes and do NOT run anything. Finish with the winning "
+    elif blender:
         import blender_engine
         head = blender_engine.HEADLESS
         read = "1. Read skill/SKILL.md and skill/copywriter.md.\n"
@@ -572,9 +630,10 @@ def story_prompt(run_dir: Path, config: dict) -> str:
         "2. Draft THREE different stories with copywriter.md, each with its own first line and its own "
         "twist: one line per beat, 3 to 9 words a line, 15 to 25 seconds read aloud. Write them in "
         "story-drafts.md. Then give each draft one point for every test below it passes, write the "
-        "scores under it, and keep the draft with the most points:\n" + STORY_TESTS + "\n"
-        "   Fix the winner wherever it lost a point, then check it against copywriter.md's "
-        "\"Before you show it\" list.\n"
+        "scores under it, and keep the draft with the most points:\n" + (tests or
+        "   - every test in the format's rules (format/script_prompt.md)") + "\n"
+        "   Fix the winner wherever it lost a point, then check it against " +
+        ("the format's rules.\n" if hf else "copywriter.md's \"Before you show it\" list.\n") +
         "3. Write story.json: {\"format\": \"vertical\", \"beats\": [{\"style\": " + names + ", "
         "\"seconds\": <1.2 to 4>, \"line\": <the line>}]}. Seconds are a first guess; the voice "
         "retimes them later.\n"
@@ -591,6 +650,8 @@ def scenes_prompt(run_dir: Path, config: dict) -> str:
         "THIS STEP: CODE THE SCENES\n"
         "story.json and story.md are final; the user may have edited them, so read them now. Do "
         "not change the lines, the styles or the order of the beats.\n"
+        "Read skill/motion-rules/README.md (the motion rules every video follows) and check your stills "
+        "against its list.\n"
         "Follow SKILL.md steps 5 and 6 and \"Changing the subject\": for each style file the story "
         "uses, keep the look and replace the subject with this story's. Read the part of styles.md "
         "for each style first (skill/styles.md). Build the subject once per family (a drawX for the 2D styles in "
@@ -607,7 +668,8 @@ def scenes_prompt(run_dir: Path, config: dict) -> str:
 
 # -------------------------------------------------------------------- story ----
 
-def check_story(data, styles: list[str]) -> list[str]:
+def check_story(data, styles: list[str], words_optional: bool = False) -> list[str]:
+    """words_optional: a format with no narrator (the words are on screen) may leave a beat's line empty."""
     errors = []
     if not isinstance(data, dict):
         return ["story.json must be an object"]
@@ -626,9 +688,13 @@ def check_story(data, styles: list[str]) -> list[str]:
         s = b.get("seconds")
         if not isinstance(s, (int, float)) or isinstance(s, bool) or not (0.5 <= s <= 12):
             errors.append(f"{where}: seconds must be a number from 0.5 to 12, got {s!r}")
-        if not isinstance(b.get("line"), str) or not b["line"].strip():
+        if not isinstance(b.get("line"), str) or not (b["line"].strip() or words_optional):
             errors.append(f"{where}: line must be a non-empty sentence")
     return errors
+
+
+def _words_optional(config: dict) -> bool:
+    return config["format"]["rules"].get("narrator", True) is False
 
 
 def read_story(run_dir: Path) -> dict | None:
@@ -648,7 +714,7 @@ def save_story(run_dir: Path, config: dict, story: dict) -> dict:
               "line": " ".join(str(b.get("line") or "").split())}
              for b in (story.get("beats") or []) if isinstance(b, dict)]
     clean = {"format": story.get("format") or "vertical", "beats": beats}
-    errors = check_story(clean, styles)
+    errors = check_story(clean, styles, _words_optional(config))
     if errors:
         raise ValueError("\n".join(f"- {e}" for e in errors))
     write_json(workspace(run_dir) / "story.json", clean)
@@ -664,7 +730,7 @@ def run_story(run_dir: Path, config: dict) -> None:
                          settings(config)["story_max_turns"], "story")
     try:
         data = read_json(ws / "story.json")
-        errors = check_story(data, skill["styles"])
+        errors = check_story(data, skill["styles"], _words_optional(config))
     except (OSError, ValueError) as e:
         errors = [f"story.json could not be read: {e}"]
     if errors and printer.session_id:
@@ -674,7 +740,7 @@ def run_story(run_dir: Path, config: dict) -> None:
         run_claude(ws, config, fix, allowed, 8, "story", resume=printer.session_id)
         try:
             data = read_json(ws / "story.json")
-            errors = check_story(data, skill["styles"])
+            errors = check_story(data, skill["styles"], _words_optional(config))
         except (OSError, ValueError) as e:
             errors = [f"story.json could not be read: {e}"]
     if errors:
@@ -693,6 +759,10 @@ def run_scenes(run_dir: Path, config: dict) -> None:
     if kind(config) == "blender":
         import blender_engine
         blender_engine.run_scenes(run_dir, config)
+        return
+    if kind(config) == "hyperframes":
+        import hyperframes_engine
+        hyperframes_engine.run_scenes(run_dir, config)
         return
     ws = prepare_workspace(run_dir, config)
     allowed = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(node render.cjs stills *)"]
@@ -770,6 +840,9 @@ def _picture_changed_at(ws: Path) -> float:
     if (ws / "beat.py").is_file():                       # a Blender project
         import blender_engine
         return blender_engine.picture_changed_at(ws)
+    if (ws / "hyperframes.json").is_file():              # a HyperFrames project
+        import hyperframes_engine
+        return hyperframes_engine.picture_changed_at(ws)
     times = [(ws / f).stat().st_mtime for f in PICTURE_FILES if (ws / f).is_file()]
     for d in PICTURE_DIRS:
         if (ws / d).is_dir():
@@ -802,18 +875,23 @@ def run_render(run_dir: Path, config: dict) -> None:
     audio = (ws / "voice.mp3").is_file() and read_status(run_dir).get("voice", {}).get("value") == "voiced"
     out = ws / "out" / "video.mp4"
     blender = kind(config) == "blender"
+    hf = kind(config) == "hyperframes"
     if blender:
         import blender_engine
         sig = blender_engine.signature(config, audio)
+    elif hf:
+        import hyperframes_engine
+        hyperframes_engine.write_project(run_dir, ws, config)
+        sig = hyperframes_engine.signature(config, audio, run_dir)
     else:
         sig = {"audio": audio}
     if render_is_current(ws, sig):
         print("[render] nothing the picture is drawn from has changed since the last render, so it is "
               "kept and only the captions are made again")
-    elif blender:
+    elif blender or hf:
         out.unlink(missing_ok=True)
         (ws / "out" / "render.json").unlink(missing_ok=True)
-        blender_engine.render(run_dir, config, ws, audio)
+        (blender_engine if blender else hyperframes_engine).render(run_dir, config, ws, audio)
         write_json(ws / "out" / "render.json", sig)
     else:
         node = node_path(config)
@@ -935,7 +1013,7 @@ STEP_FUNCS = {"story": run_story, "scenes": run_scenes, "voice": run_voice, "ren
 
 def run_step(name: str, run_dir: Path, config: dict) -> None:
     if name not in STEP_FUNCS:
-        raise StepError(f"the Claude Code engine's steps are {', '.join(CODE_STEPS)}, not '{name}'")
+        raise StepError(f"the Claude Code engine's steps are {', '.join(steps_for(config))}, not '{name}'")
     print(f"\n=== step: {name} ({run_dir.name}, Claude Code engine) ===")
     import progress
     progress.step(name)
@@ -945,9 +1023,10 @@ def run_step(name: str, run_dir: Path, config: dict) -> None:
 def execute(run_dir: Path, config: dict, dry_run: bool = False) -> None:
     if dry_run:
         run_step("story", run_dir, config)
-        print("\nstory only: read it, edit it if you like, then run the scenes, voice and render "
-              "steps (or: python main.py step <run> scenes)")
+        rest = steps_for(config)[1:]
+        print(f"\nstory only: read it, edit it if you like, then run the {', '.join(rest[:-1])} and {rest[-1]} "
+              f"steps (or: python main.py step <run> {rest[0]})")
         return
-    for name in CODE_STEPS:
+    for name in steps_for(config):
         run_step(name, run_dir, config)
     print(f"\nrun {run_dir.name} complete")

@@ -256,7 +256,8 @@ def pass_prompt(run_dir: Path, config: dict, stage: str, brief: str) -> str:
     steps = []
     if stage == "blockout":
         steps.append(
-            "story.json and story.md are final; read them, then look at refs/ (the cast's pictures). "
+            "story.json and story.md are final; read them and skill/motion-rules/README.md (the motion "
+            "rules every video follows), then look at refs/ (the cast's pictures). "
             "Write cast.py (every character or prop that appears in more than one beat) and "
             "scenes/beat_NN.py for EVERY beat in story.json (beat_01.py, beat_02.py, ...), using the "
             "beat's look (its style). Before writing a scene, list its parts with their sizes in cm "

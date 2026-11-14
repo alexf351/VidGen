@@ -154,6 +154,8 @@ prompt bytes, validation, captions, grade and timing. To make a new format, copy
 | `pixar_steps` | the same look and cast | a 90-110 s film plus tutorial: the rejection, the method shown working, then the hero gives it in numbered steps, one of them Iro |
 
 Every format above except the five `pixar_*` ones can also use the Claude Code engine (below).
+Three formats run only on it: `blender_3d` (Blender 3D), `product_launch` (a HyperFrames launch film)
+and `animated_story` (cartoon people in a 3D town, drawn in code).
 
 Six more, from the formats ad buyers rank highest right now:
 
@@ -443,6 +445,58 @@ or `eevee`, samples, frame rate, turn limits).
 
 The scene files are Python that Blender runs on your computer, the same as any Blender script.
 Claude Code writes them; it gets no API keys, and preview.py runs Blender with none either.
+
+### Product launch (HyperFrames)
+
+The **Product launch** format is a third kind on the Claude Code engine: a 15 to 25 second launch
+film for Reels, TikTok and X in the style of an Apple keynote cut, made with **HyperFrames**
+(HeyGen, Apache-2.0), which renders HTML and GSAP animation to video. No narrator: music carries
+it, the words are part of the picture, and the proof moments are your real app screens and
+recordings (`app_screens` in `config.local.yaml`), never an invented screen.
+
+| step | what happens |
+|---|---|
+| `story` | Claude Code drafts three launch stories (6 to 10 beats, at most 5 words on screen per beat, about 30 words in all, the last beat "Search Iro AI"), scores them on the format's six tests and keeps the best |
+| `voice` | there is no voice; VidGen picks the music (your default track, or the one on the video's page), finds its beats and moves every beat's end onto the nearest one |
+| `scenes` | Claude Code writes one HTML composition per beat (`compositions/beat_NN.html`), picking a shot for each from the launch-shots menu, and checks its work with `npx hyperframes check` and `snapshot` until there are no errors |
+| `render` | VidGen runs `hyperframes render` (30 fps, quality "looks") and saves `final.mp4`; a render whose compositions, assets, story and timing have not changed is kept |
+
+VidGen writes the root `index.html` itself from the story, the beat times and the music, so a
+beat can never drift off the music. The run's `code/` folder holds `assets/screens/` (your
+screenshots and recordings), `assets/brand/app_icon.png`, `assets/cast/` (Iro), `looks/launch.md`,
+`examples/`, the HyperFrames docs (`hf-docs/`) and the two reference packs below. Claude Code may
+run only `npx hyperframes check | lint | snapshot | timeline | catalog | add`.
+
+Set up once: Node.js 22+. The first run installs HyperFrames (pinned to 0.8.225) and its browser
+into `cache/code_engine/hyperframes/`. `python main.py doctor` checks both. HyperFrames' telemetry
+is always switched off. A 17 second film renders in under a minute; settings live under
+`hyperframes:` in `config.yaml`.
+
+**Reference packs.** `skills/motion-rules/` (copied into every Claude Code run) holds the motion
+rules every code format follows (easing, timing, holds, one focal point), adapted from
+LottieFiles' motion-design skill (MIT) and claude-motion. `skills/launch-shots/` (product launch runs) is the
+shot menu for launch films: shot recipes, sequences, aesthetic rules and music-beat sync, from
+video-shotcraft (Apache-2.0; its LICENSE and attribution notes are kept in the folder). They are
+techniques, rebuilt in GSAP: never anyone's footage, characters, logo or wording.
+
+### Animated Story (cartoon town)
+
+The **Animated Story** format runs on the same HyperFrames kind: a 20 to 30 second narrated Iro
+story ad told by flat cartoon people (bean heads, stick limbs, plum ink outlines) in a colourful
+3D town drawn with black ink lines, after the cartoon-3d-short skill from claude-animated-shorts
+(mromidev, MIT). Every frame is drawn in code, so no image or video model is called. Steps:
+`story` (three drafts scored on the six story tests, written with copywriter.md), `voice`
+(ElevenLabs; the beats take the voice's lengths), `scenes` (Claude Code writes each beat as a
+canvas scene) and `render` (HyperFrames, then VidGen's captions).
+
+Each scene uses `assets/lib/toon.js` (in `skills/hyperframes-video/template/lib/`), a small toolkit
+on three.js (pinned to 0.187.0, installed with HyperFrames): `stage` (sky, fog, a day, golden or
+night light), `house`, `street`, `tree`, `lamp`, `clouds`, `screen` (a phone showing a real app
+screen), `person` (moods, talking, walking, arm poses, blinks, a boiling line), `iro` (the robot
+penguin) and `cameraPath` (glides, cuts, a creeping push-in, impact shakes). Everything is drawn
+from the beat's time alone, so any frame renders on its own. The look's rules are in
+`looks/toon.md`, a worked scene in `examples/compositions/toon_beat.html`. Rendering in software
+takes a few minutes for a 20 second video; a graphics card is much faster.
 
 ### Importing a Claude skill as a format
 
