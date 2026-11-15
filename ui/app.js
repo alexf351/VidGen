@@ -337,7 +337,22 @@ async function submit(promise, label) {
 
 function providerBody() { return S.provider || null; }
 
+// Every job reads the SAVED script. With unsaved edits, save them first (or stop), so a reroll or a
+// redo never makes the shot from the old text. Returns the run to use, or null to stop.
+async function saveFirst(run) {
+  if (!(S.draft && S.draftFor === run.run_id && draftChanged().size)) return run;
+  const n = draftChanged().size;
+  const ok = await confirmDialog({ title: "Save your script changes first?", ok: "Save and continue",
+    text: `You have unsaved changes to ${plural(n, "shot")}. Rerolls and redos use the saved script, so they would still use the old text. Save now, then this runs.` });
+  if (!ok) return null;
+  await saveScript(run);
+  if (S.saveErrors) { toast("The script has errors; fix them in Script and editing, then try again.", "bad"); return null; }
+  return S.run && S.run.run_id === run.run_id ? S.run : run;
+}
+
 async function runStep(run, step, only) {
+  run = await saveFirst(run);
+  if (!run) return;
   if (only) {
     const applies = targetShots(run, step, only).map((s) => s.n);
     const skipped = only.filter((n) => !applies.includes(n));
@@ -448,6 +463,9 @@ async function useClipVoice(run, n, on = true) {
 }
 
 async function reroll(run, shot) {
+  run = await saveFirst(run);
+  if (!run) return;
+  shot = run.shots.find((x) => x.n === shot.n) || shot;
   const est = estimateReroll(run, shot);
   const ok = await confirmDialog({ title: `Reroll shot ${shot.n}?`, rows: est.rows, total: est.total,
     text: shot.shot.talk ? "A new keyframe and a new talking clip." : shot.shot.animate ? "A new keyframe and a new clip." : "A new keyframe." });
@@ -459,6 +477,8 @@ async function reroll(run, shot) {
 
 // Reroll every selected shot as one job: new pictures (drawn side by side), then new clips.
 async function rerollMany(run, shots) {
+  run = await saveFirst(run);
+  if (!run) return;
   const picked = run.shots.filter((s) => shots.includes(s.n) && drawsImage(s));
   if (!picked.length) { toast("None of the selected shots has a picture to redo.", "bad"); return; }
   const ns = picked.map((s) => s.n);
