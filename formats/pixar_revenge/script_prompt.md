@@ -184,6 +184,9 @@ HOW IT IS SHOT
   picture shows. When the picture has him stepping out of the car, the movement is him
   stepping out and shutting the door, never the car arriving; when the picture has her
   in the passenger seat, the movement is the car pulling away, never her getting in.
+- A character never climbs or hops up onto something in the movement. Put them where they
+  end up in the picture (on the ledge, on the car roof), or keep them on the ground: the clip
+  model builds a pillar or a step out of nothing to stand them on.
 - Mark every shot of a scene after its first with "same_scene": true.
 
 TONE AND LOOK

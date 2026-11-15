@@ -457,6 +457,14 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
                 raise
             print(f"  shot {n}: the scene picture was refused ({e}); drawing this shot without it")
             scene_ref = None
+        if scene_ref is not None and not is_tall(dest):
+            # Still not 9:16 after its tries. Pictures drawn from a scene picture tend to keep
+            # whatever shape the model settled on for it; drawn from the people alone, the shot
+            # nearly always comes back tall. One more picture beats a cropped one.
+            print(f"  shot {n}: still not 9:16 with the scene picture; drawing it once more from the people only")
+            with _redrawn_lock:
+                _redrawn.append(f"shot {n}")
+            scene_ref = None
     if scene_ref is None:
         _draw_shot(config, shot_prompt(shot, ref_ids), own, f"shot {n}", dest)
 
