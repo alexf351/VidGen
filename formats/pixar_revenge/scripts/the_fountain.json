@@ -254,9 +254,9 @@
       "characters": [
         "marcus"
       ],
-      "image_prompt": "close shot, chest up, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, the black sports car behind him, {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, one hand lifted in a small apologetic wave, a warm easy smile, eyebrows raised kindly, head tipped a little to one side, mouth open mid-sentence. He is turned toward the right of the frame, looking at someone just off camera. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Marcus gives a small friendly shrug and his mouth moves as he says it lightly, smiling the whole time. Small push-in on his easy smile.",
-      "vo_line": "Sorry. I'm fully booked.",
+      "image_prompt": "close shot, chest up, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, the black sports car behind him, {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, hands in his pockets, a calm easy half-smile, one eyebrow raised, head tipped a little to one side, mouth open mid-sentence. He is turned toward the right of the frame, looking at someone just off camera. Vertical composition, no text anywhere in the image.",
+      "motion_prompt": "Marcus gives a small easy shrug and his mouth moves as he says it lightly, the same words she once said to him, then glances past her toward the hotel doors. Small push-in on his calm half-smile.",
+      "vo_line": "Not a chance. I like winners.",
       "speaker": "marcus",
       "same_scene": true
     },
