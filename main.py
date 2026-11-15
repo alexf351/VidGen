@@ -55,6 +55,9 @@ def cmd_new(args, config) -> None:
     run_dir = commands.create_new_run(args.premise or "", config, engine=getattr(args, "engine", None),
                                       captions=getattr(args, "captions", None), screens=picks, ready=ready,
                                       length=getattr(args, "length", None))
+    if getattr(args, "model", None):
+        import video_model
+        video_model.set_for_run(run_dir, args.model)
     commands.execute_new(run_dir, config, args.dry_run)
 
 
@@ -117,6 +120,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument("--length", choices=["short", "standard", "long"], default=None,
                        help="how long the video runs: the format's own length (default), or longer "
                             "(short 15-30 s, standard 40-60 s, long 75-100 s)")
+    p_new.add_argument("--model", choices=["fast", "standard", "2.5"], default=None,
+                       help="the video model for the clips: Seedance 2.0 Fast, 2.0 or 2.5 (default: the config's)")
     p_new.add_argument("--captions", default=None, metavar="STYLE",
                        help="caption style: format (the format's own look), classic, outline, "
                             "yellow_pop, comic, headline, banner or off")

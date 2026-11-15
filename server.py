@@ -33,6 +33,7 @@ import ready_scripts
 import caption_styles
 import code_engine
 import video_length
+import video_model
 import progress
 from common import (KEY_ENV, PROVIDERS, ROOT, STEP_ORDER, StepError, available_app_screens,
                     run_cast, run_engine, run_format, runs_dir, write_json)
@@ -68,6 +69,7 @@ class NewRun(BaseModel):
     clip_sound: bool | None = None    # clips made with their own sound (clip_sound.py); None = the config's setting
     quality: str | None = None        # "480p" or "720p" clips for this video (clip_quality.py); None = the config's
     length: str | None = None         # "short", "standard" or "long" (video_length.py); None = the format's own
+    video_model: str | None = None    # "fast", "standard" or "2.5" (video_model.py); None = the config's
 
 
 class ScreenIn(BaseModel):
@@ -137,6 +139,10 @@ class ClipSoundChoice(BaseModel):
 
 class ClipQualityChoice(BaseModel):
     quality: str | None = None        # "480p" | "720p"; None = follow the config again
+
+
+class VideoModelChoice(BaseModel):
+    model: str | None = None          # "fast" | "standard" | "2.5" (video_model.py); None = the config's
 
 
 class LibraryVoice(BaseModel):
@@ -280,7 +286,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             cfg = load_config(format_name=run_format(run_dir), providers=providers, cast=cast)
         else:
             cfg = load_config(format_name=run_format(run_dir), providers=providers)
-        return video_length.apply(clip_quality.apply(cfg, run_dir), run_dir)
+        return video_length.apply(clip_quality.apply(video_model.apply(cfg, run_dir), run_dir), run_dir)
 
     def run_dir_of(run_id: str) -> Path:
         root = runs_dir().resolve()
@@ -523,7 +529,10 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             "caption_styles": caption_styles.catalog(),
             "caption_style": caption_default(cfg),
             "video": {"clip_seconds": cfg["fal"]["video_seconds"],
-                      "resolution": cfg[cfg["providers"]["video"]]["video_resolution"]},
+                      "resolution": cfg[cfg["providers"]["video"]]["video_resolution"],
+                      "model": video_model.of(cfg),
+                      "models": [{"id": k, "title": m["title"], "short": m["short"], "note": m["note"]}
+                                 for k, m in video_model.MODELS.items()]},
             "prices": prices(cfg),
             "clip_sound": bool(cfg["clip_sound"]["enabled"]),
         }
@@ -560,6 +569,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             "voice_per_1k_chars": float(cfg["elevenlabs"]["cost_per_1k_chars"]),
             "talking_per_second": float(cfg["fal"]["avatar_cost_per_second"]),
             "song_per_minute": float(cfg["elevenlabs"]["music_cost_per_minute"]),
+            "video_models": video_model.prices(),          # per model, per provider, per resolution
         }
 
     @app.get("/api/doctor")
@@ -600,6 +610,12 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             clip_sound.set_for_run(run_dir, body.clip_sound)
             if body.clip_sound:
                 preface.append("  clip sound: on (clips are made with their own sound; lines are taken from them)")
+        if body.video_model is not None and body.engine != "claude_code":
+            try:
+                video_model.set_for_run(run_dir, body.video_model)
+            except StepError as e:
+                raise HTTPException(400, str(e)) from e
+            preface.append(f"  video model: {video_model.MODELS[body.video_model]['title']}")
         if body.quality is not None and body.engine != "claude_code":
             import clip_quality
             try:
@@ -669,6 +685,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             # 480p or 720p: what this video's clips are made at from now on (clip_quality.py).
             import clip_quality
             out["clip_quality"] = clip_quality.of(cfg) if cfg else None
+            out["video_model"] = video_model.of(cfg) if cfg else None
             # Made from a ready-made script that has been improved since: what an update would do.
             import ready_update
             out["script_update"] = ready_update.summary(run_dir, cfg)
@@ -979,6 +996,17 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         except StepError as e:
             raise HTTPException(400, str(e)) from e
         return {"clip_quality": clip_quality.of(config_for_run(run_dir))}
+
+    @app.put("/api/runs/{run_id}/video-model")
+    def set_run_video_model(run_id: str, body: VideoModelChoice) -> dict:
+        """The video model that makes this video's clips from now on. Clips already made stay."""
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "video model")
+        try:
+            video_model.set_for_run(run_dir, body.model)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        return {"video_model": video_model.of(config_for_run(run_dir))}
 
     @app.put("/api/runs/{run_id}/clip-sound")
     def set_run_clip_sound(run_id: str, body: ClipSoundChoice) -> dict:

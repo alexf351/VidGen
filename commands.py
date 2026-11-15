@@ -21,7 +21,11 @@ def step_module(name: str):
 
 def run_step(name: str, run_dir: Path, config: dict, only: str | None = None) -> None:
     progress.step(name)
+    import clip_quality
     import video_length
+    import video_model
+    # The video's own choices in run.json (the server applies these too; doing it again is harmless).
+    clip_quality.apply(video_model.apply(config, run_dir), run_dir)
     video_length.apply(config, run_dir)       # a longer video's counts (run.json "length")
     if run_engine(run_dir) == "claude_code":
         import code_engine

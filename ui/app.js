@@ -177,9 +177,18 @@ function prices() {
            talkPerSecond: p.talking_per_second ?? RATES.talkPerSecond, songPerMinute: p.song_per_minute ?? RATES.songPerMinute };
 }
 function imageRate(choice) { return prices()[providerFor("images", choice)].image; }
+// The video model whose prices the estimates use: this video's or the create screen's choice,
+// else the config's (video_model.py on the server).
+function videoModel() { return S.videoModel || (S.config && S.config.video.model) || null; }
 function videoRate(choice) {
-  const v = prices()[providerFor("video", choice)].video;
+  const prov = providerFor("video", choice);
+  const m = videoModel(), all = S.config && S.config.prices && S.config.prices.video_models;
+  const v = (m && all && all[m] && all[m][prov]) || prices()[prov].video;
   return v[resolution()] ?? Object.values(v)[0];
+}
+function modelTitle(id) {
+  const m = ((S.config && S.config.video.models) || []).find((x) => x.id === id);
+  return m ? m.title : "the model in your config";
 }
 function imageCost(n, choice) { return n * imageRate(choice); }
 function clipCost(n, formatName, choice) { return n * clipSeconds(formatName) * videoRate(choice); }
@@ -1190,6 +1199,36 @@ function qualityPanel(run, busy) {
   return box;
 }
 
+// The video model for this video's clips from now on (video_model.py on the server).
+function modelPanel(run, busy) {
+  const box = h("section", { class: "captions-panel model-panel", "aria-label": "Video model" });
+  const models = (S.config && S.config.video.models) || [];
+  const draw = () => {
+    const now = run.video_model;
+    const set = async (v) => {
+      if (v === now) return;
+      try {
+        const r = await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/video-model`, { model: v });
+        run.video_model = r.video_model; S.videoModel = r.video_model; S.modelChanged = run.run_id;
+      } catch (e) { toast(e.message, "bad"); }
+      draw();
+    };
+    const clips = run.shots.filter((s) => s.clip).map((s) => s.n);
+    const changed = S.modelChanged === run.run_id && clips.length;
+    const m = models.find((x) => x.id === now);
+    box.replaceChildren(...[
+      h("div", { class: "panel-title" }, "Video model"),
+      chips(models.map((x) => [x.id, x.title]), now, set, "Video model for this video"),
+      changed ? h("div", { class: "notice" },
+        `The ${clips.length} clips made so far stay as they are. New and redone clips are made with ${modelTitle(now)}. Try a few shots first: select them in Shots and press Reroll, or `,
+        h("button", { class: "btn small", disabled: busy, onclick: () => { S.modelChanged = null; runStep(run, "video", clips); } }, `Redo all ${clips.length} clips`))
+        : h("div", { class: "field-note" }, m ? `${m.title}: ${m.note}.` : "Clips are made with the model in your config."),
+    ].filter(Boolean));
+  };
+  draw();
+  return box;
+}
+
 // Clip sound for this video: the clips speak their own lines (clip_sound.py on the server).
 function soundPanel(run, busy) {
   const box = h("section", { class: "captions-panel sound-panel", "aria-label": "Sound" });
@@ -1399,6 +1438,7 @@ function renderCreate(formatName) {
     provSec.classList.toggle("hidden", st.engine === "claude_code");
     sndSec.classList.toggle("hidden", st.engine === "claude_code");
     qualSec.classList.toggle("hidden", st.engine === "claude_code");
+    if (modelSec) modelSec.classList.toggle("hidden", st.engine === "claude_code");
     if (scrSec) scrSec.classList.toggle("hidden", st.engine === "claude_code" || !!readyOn);
     if (lenSec) {
       lenSec.classList.toggle("hidden", !!readyOn);
@@ -1470,6 +1510,24 @@ function renderCreate(formatName) {
     st.quality = lastQ === "480p" || lastQ === "720p" ? lastQ : ((S.config && S.config.video.resolution) || "480p");
   }
   S.quality = st.quality;
+  // The video model, remembered in this browser like Clip quality.
+  const models = (S.config && S.config.video.models) || [];
+  if (st.model === undefined) {
+    let lastM = null;
+    try { lastM = localStorage.getItem("vidgen.videoModel"); } catch { /* private mode */ }
+    st.model = models.some((m) => m.id === lastM) ? lastM : ((S.config && S.config.video.model) || null);
+  }
+  S.videoModel = st.model;
+  const modelNote = h("div", { class: "field-note" });
+  const drawModelNote = () => {
+    const m = models.find((x) => x.id === st.model);
+    modelNote.textContent = m ? `${m.title}: ${m.note}. A video can be switched later; clips already made stay as they are.` : "";
+  };
+  drawModelNote();
+  const modelSec = models.length ? h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Video model")),
+    chips(models.map((m) => [m.id, m.title]), st.model,
+      (v) => { st.model = v; S.videoModel = v; try { localStorage.setItem("vidgen.videoModel", v); } catch { /* private mode */ } drawModelNote(); update(); }, "Video model"),
+    modelNote) : null;
   const qualSec = h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Clip quality")),
     chips(QUALITY, st.quality, (v) => { st.quality = v; S.quality = v; try { localStorage.setItem("vidgen.clipQuality", v); } catch { /* private mode */ } update(); }, "Clip quality"),
     h("div", { class: "field-note" }, "How sharp each clip is made. The finished video is 1080 by 1920 either way; 480p clips are stretched further to fill it and look softer. Sharp costs a little over twice as much per clip. Your choice is remembered, and a video can be switched later."));
@@ -1514,7 +1572,8 @@ function renderCreate(formatName) {
       const lenPick = !picked ? lengths.find((l) => l.id === st.length) : null;
       if (lenPick && lengths.length > 1) est.rows = [...est.rows, ["Length", `${lenPick.title} (${lenPick.seconds})`]];
       est.rows = [...est.rows, ["Sound", st.clipSound ? "clips speak for themselves" : "voices added after (ElevenLabs)"],
-        ["Clip quality", st.quality === "720p" ? "sharp (720p)" : "standard (480p)"]];
+        ["Clip quality", st.quality === "720p" ? "sharp (720p)" : "standard (480p)"],
+        ...(st.model ? [["Video model", modelTitle(st.model)]] : [])];
       const ok = await confirmDialog({ title: picked ? `Generate "${picked.title}"?` : `Generate a ${formatTitle(f)} video?`, rows: est.rows, total: est.total,
         text: picked ? `${formatTitle(f)}, from the ready-made script. Runs images, video, voice and assemble.` : "Runs script, images, video, voice and assemble.", ok: "Generate",
         note: picked ? "Counted from the script's own shot list. Character sheets you already have are reused and cost nothing; shots you redo afterwards cost extra. Choose Script only to read it first for free."
@@ -1526,6 +1585,7 @@ function renderCreate(formatName) {
       dry_run: st.dry, engine: st.engine, cast: st.cast, captions: st.engine === "ai" ? st.captions : null,
       screens: st.engine === "ai" && !ready ? st.screens : [], ready,
       clip_sound: st.engine === "ai" ? !!st.clipSound : null, quality: st.engine === "ai" ? st.quality : null,
+      video_model: st.engine === "ai" && st.model ? st.model : null,
       length: !ready && st.length && st.length !== ownLength ? st.length : null }),
       st.dry ? (st.engine === "claude_code" ? "story" : "script") : `${formatTitle(f)} video`);
     go.disabled = false;
@@ -1550,6 +1610,7 @@ function renderCreate(formatName) {
     scrSec,
     provSec,
     sndSec,
+    modelSec,
     qualSec,
     capSec,
     castSection(f, st, update),
@@ -1731,6 +1792,7 @@ function renderRun() {
   if (S.run.engine === "claude_code") { renderCodeRun(); return; }
   const run = S.run;
   S.quality = run.clip_quality || null;       // cost estimates on this page are for this video's clip quality
+  S.videoModel = run.video_model || null;     // ... and its video model
   const busy = runBusy(run.run_id);
   const active = S.jobs.find((j) => j.run_id === run.run_id && ACTIVE.has(j.status));
   const d = S.config.providers.default;
@@ -2027,7 +2089,7 @@ function sideColumn(run, busy) {
   }
   col.append(final);
   if (run.script) col.append(soundPanel(run, busy));
-  if (run.script) col.append(qualityPanel(run, busy));
+  if (run.script) col.append(modelPanel(run, busy), qualityPanel(run, busy));
   if (run.script && run.music) col.append(musicPanel(run, busy));
   if (run.script && captionStyles().length) col.append(captionsPanel(run, busy));
   if (run.voices && run.voices.length) col.append(voicesPanel(run, busy));

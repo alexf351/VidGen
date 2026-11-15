@@ -176,12 +176,14 @@ def generate_clip(run_dir: Path, config: dict, shot: dict,
         return dest
     if downloads.resume(dest, fal_api.download, label):
         return dest
+    # Seedance 2.5 on fal takes the shape from the picture ("auto" only) and its duration as text.
+    v25 = "seedance-2.5" in str(fal["video_model"])
     result = fal_api.call(fal["video_model"], {
         "prompt": _motion(config, shot, descriptions, sound),
         "image_url": fal_api.upload(keyframe),
-        "duration": int(fal["video_seconds"]),
+        "duration": str(int(fal["video_seconds"])) if v25 else int(fal["video_seconds"]),
         "resolution": video_resolution(config),
-        "aspect_ratio": ASPECT,
+        "aspect_ratio": "auto" if v25 else ASPECT,
         "generate_audio": bool(fal["video_audio"]) or sound,
     }, label=label)
     downloads.save(fal_api.video_url(result, label), dest, fal_api.download)

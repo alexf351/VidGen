@@ -252,7 +252,7 @@ def generate_image(config: dict, prompt: str, aspect_ratio: str, refs: list[Path
 
 
 def generate_video(config: dict, prompt: str, first_frame: Path, label: str) -> str:
-    """Seedance 2.0 Fast image-to-video on Sume."""
+    """Seedance image-to-video on Sume (sume.video_model: 2.0 Fast, 2.0 or 2.5; video_model.py)."""
     cfg = config["sume"]
     body = {
         "model": cfg["video_model"],

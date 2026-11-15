@@ -102,7 +102,7 @@ fal:
 
   # Image-to-video for shots marked animate: true. Clip length comes from the format
   # (clip_seconds); set video_seconds here or in config.local.yaml to override it (4-15).
-  video_model: "bytedance/seedance-2.0/fast/image-to-video"
+  video_model: "bytedance/seedance-2.0/fast/image-to-video"   # a video can pick 2.0 or 2.5 (video_model.py)
   video_resolution: "480p"      # 480p | 720p (assemble scales to 1080x1920 either way)
   video_audio: false            # generate_audio
   # USD per second of output, by resolution, for the cost estimates.
@@ -120,7 +120,7 @@ sume:
   base_url: "https://api.sume.com"
   image_model: "nano-banana"    # one id for text-to-image and reference-image edits
   image_cost: 0.039             # USD per image
-  video_model: "seedance-2-fast"
+  video_model: "seedance-2-fast"   # or "seedance-2" / "seedance-2.5"; a video can pick its own (video_model.py)
   video_resolution: "480p"      # 480p | 720p
   video_audio: false            # generate_audio
   video_cost_per_second:        # USD per second of output, by resolution

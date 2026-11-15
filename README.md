@@ -952,6 +952,18 @@ the choice with `lengths: [short, standard]` in its format.yaml (Product Launch 
 Standard: a film cut to music drags past about 45 seconds), and a ready-made script keeps its
 own length. The choice is kept in the video's run.json as "length"; the cost grows with it.
 
+**Video model: Seedance 2.0 Fast, 2.0 or 2.5.** Pick it on the create screen, switch it for a
+video on its page (clips already made stay as they are; new and redone clips use the new one),
+or `--model fast|standard|2.5` on the command line. Each has its own price, so the estimates
+follow the choice. On Sume, per second at 480p / 720p: Fast $0.056 / $0.121, 2.0 $0.070 / $0.151,
+2.5 $0.103 / $0.231 (a 4 second clip at 480p: $0.22 / $0.28 / $0.41). What is known about quality
+(November 2026): on the Artificial Analysis image-to-video board with sound, 2.5 ranks first and
+2.0 third, close behind; Fast is not ranked, and vendors say it falls behind most on busy motion.
+Nobody has published lip-sync or first-frame likeness numbers for any of them, so try a few
+shots before switching a whole video. On fal, 2.5 takes the clip's shape from the keyframe
+(already 9:16), so VidGen sends it "auto". The choice is kept in the video's run.json as
+"video_model"; with none, the config's `video_model` is used.
+
 **Clip quality: 480p or 720p.** Seedance makes a clip at 480p or 720p, and the finished video
 is 1080x1920 either way, so a 480p clip is stretched further and looks softer next to reels made
 at 720p. 720p costs a little over twice as much per second (Sume: $0.056 against $0.121). The
