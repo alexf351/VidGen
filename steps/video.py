@@ -41,7 +41,9 @@ def video_resolution(config: dict) -> str:
 # drawn facing the camera, told to "walk off down the corridor") came back as a turn-around, a
 # cut to their backs and a different corridor.
 ONE_TAKE = ("One continuous take that starts on this exact picture: no cut, no jump to another angle "
-            "or place, and nobody turns to face the other way unless the action says so.")
+            "or place, and nobody turns to face the other way unless the action says so. Everyone in the "
+            "picture stays solid and in view for the whole clip: nobody fades, flickers, turns see-through, "
+            "vanishes or appears from nowhere, and smoke, steam or mist never hides a face.")
 
 
 def _motion(config: dict, shot: dict, descriptions: dict[str, str] | None, sound: bool = False) -> str:
