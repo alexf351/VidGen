@@ -234,8 +234,8 @@
         "jess"
       ],
       "image_prompt": "close shot, chest up, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, {jess}, in a glittering silver dress, frozen mid-step, both arms dropped to her sides, eyes enormous, eyebrows shot up into her hair, jaw dropped in total disbelief, mouth open on a single word. She is turned toward the left of the frame, looking at someone just off camera. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess does a double take: she glances away, snaps her head back and stares, her arms drop and her mouth moves as she gasps his name. Fast push-in on her huge eyes.",
-      "vo_line": "Marcus?!",
+      "motion_prompt": "Jess does a double take: she glances away, snaps her head back and stares, her arms drop and her mouth moves as she gasps his name and asks if it is really him. Fast push-in on her huge eyes.",
+      "vo_line": "Marcus?! Is that you?",
       "speaker": "jess",
       "same_scene": true
     },
@@ -245,8 +245,8 @@
         "marcus"
       ],
       "image_prompt": "medium two shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, the black sports car parked behind them at the foot of the red carpet, {jess}, in a glittering silver dress, on the left, hurrying up to him with both hands clasped under her chin and her head tilted, eyes shining and pleading, a trembling hopeful smile, mouth open mid-plea; {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, on the right, standing beside the car with his hands in his pockets, one eyebrow raised, unimpressed, looking down at her. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Jess hurries up to Marcus clasping her hands, her mouth moving as she pleads in a small sweet voice, lashes fluttering; Marcus just raises an eyebrow and stays still. Slow push-in.",
-      "vo_line": "Take me back. Please.",
+      "motion_prompt": "Jess hurries up to Marcus clasping her hands, her mouth moving as she gushes about his business and pleads in a small sweet voice, lashes fluttering; Marcus just raises an eyebrow and stays still. Slow push-in.",
+      "vo_line": "I saw your AI business. Take me back?",
       "speaker": "jess",
       "same_scene": true
     },
