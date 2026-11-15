@@ -70,6 +70,7 @@ python main.py new "A laid-off line cook opens a food truck and nobody shows up 
 
 # pick a video format (default pixar_arc); list the installed ones
 python main.py new "A laid-off line cook opens a food truck" --format pixar_arc
+python main.py new "A laid-off line cook opens a food truck" --length standard   # a 40-60 s video
 python main.py formats
 
 # choose the app screenshots the video shows (list them with: python main.py screens)
@@ -936,6 +937,20 @@ and a note telling the model which reference is which. Shots with no characters 
 text-to-image. A running cost estimate is printed at the end.
 
 ## The video step
+
+**Length: Short, Standard or Long.** Every format is written for one length (its own, shown
+first and picked by default), and the create screen offers the longer ones: Short 15-30 s,
+Standard 40-60 s, Long 75-100 s (`--length short|standard|long` on the command line). A longer
+video's counts grow with it: shots, spoken words (never faster than about 2.7 words a second),
+how many shots move, flashes, app screens, and a montage (by less: it is a burst). The script
+writer is told the new numbers and where the time goes: every beat stays, in the same order,
+and the extra room goes to the middle of the story (a first try that fails, a setback, more of
+the change shown), never to padding. The validator, the cost estimate and the Claude Code story
+step all use the same numbers. Shorter than a format was written for is not offered (a Pixar
+arc's montage, time card and call to action do not fit in half the shots), a format can narrow
+the choice with `lengths: [short, standard]` in its format.yaml (Product Launch stops at
+Standard: a film cut to music drags past about 45 seconds), and a ready-made script keeps its
+own length. The choice is kept in the video's run.json as "length"; the cost grows with it.
 
 **Clip quality: 480p or 720p.** Seedance makes a clip at 480p or 720p, and the finished video
 is 1080x1920 either way, so a 480p clip is stretched further and looks softer next to reels made

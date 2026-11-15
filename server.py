@@ -32,6 +32,7 @@ import app_assets
 import ready_scripts
 import caption_styles
 import code_engine
+import video_length
 import progress
 from common import (KEY_ENV, PROVIDERS, ROOT, STEP_ORDER, StepError, available_app_screens,
                     run_cast, run_engine, run_format, runs_dir, write_json)
@@ -66,6 +67,7 @@ class NewRun(BaseModel):
     ready: str | None = None          # a ready-made script of the format (ready_scripts.py)
     clip_sound: bool | None = None    # clips made with their own sound (clip_sound.py); None = the config's setting
     quality: str | None = None        # "480p" or "720p" clips for this video (clip_quality.py); None = the config's
+    length: str | None = None         # "short", "standard" or "long" (video_length.py); None = the format's own
 
 
 class ScreenIn(BaseModel):
@@ -273,9 +275,12 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         """The config a job on this run uses: its format, plus its cast from your library."""
         import clip_quality
         cast = run_cast(run_dir)
+        import video_length
         if cast:
-            return clip_quality.apply(load_config(format_name=run_format(run_dir), providers=providers, cast=cast), run_dir)
-        return clip_quality.apply(load_config(format_name=run_format(run_dir), providers=providers), run_dir)
+            cfg = load_config(format_name=run_format(run_dir), providers=providers, cast=cast)
+        else:
+            cfg = load_config(format_name=run_format(run_dir), providers=providers)
+        return video_length.apply(clip_quality.apply(cfg, run_dir), run_dir)
 
     def run_dir_of(run_id: str) -> Path:
         root = runs_dir().resolve()
@@ -319,6 +324,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             r = f["rules"]
             out.append({"name": f["name"], "title": f["title"], "default": f["name"] == DEFAULT_FORMAT,
                         "description": f["description"], "duration_target": f["duration_target"],
+                        "lengths": lengths_of(f),
                         "aspect": f["aspect"], "clip_seconds": f["clip_seconds"], "cast": f["cast"],
                         "beats": f["beats"], "examples": f["examples"],
                         "references": f.get("references", []),
@@ -335,18 +341,34 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                         "ready_scripts": ready_scripts.listing(f),
                         "cover": media_url(f["name"], "cover", f["cover"]),
                         "example_video": media_url(f["name"], "example", f["example_video"]),
-                        "limits": {"story_shots": r["story_shots"], "vo_words": r["vo_words"],
-                                   "montage": r["montage"]["count"] if r["montage"] else None,
-                                   "cards": r["cards"]["count"] if r["cards"] else None,
-                                   "flashes": r["flashes"]["count"] if r.get("flashes") else None,
-                                   "flashes_move": bool(r.get("flashes") and r["flashes"].get("animate")),
-                                   "max_animated_shots": f["overlay"].get("max_animated_shots"),
-                                   "animate_all": animate_all_for(f),
-                                   "narrator": r["narrator"], "cta_caption": r["cta_caption"] if r.get("closing_shot", True) else "",
-                                   "closing_shot": bool(r.get("closing_shot", True)),
-                                   "talking": r["talking"]["max"] if r.get("talking") else None,
-                                   "app_screens": int(r["app_screens"]["max"]),
-                                   "song": bool(r.get("song")), "letter": bool(r.get("letter"))}})
+                        "limits": limits_of(r, f["overlay"].get("max_animated_shots"), animate_all_for(f))})
+        return out
+
+    def limits_of(r: dict, max_animated, animate_all: bool) -> dict:
+        """What the create screen shows and counts the cost from, for one set of rules."""
+        return {"story_shots": r["story_shots"], "vo_words": r["vo_words"],
+                "montage": r["montage"]["count"] if r["montage"] else None,
+                "cards": r["cards"]["count"] if r["cards"] else None,
+                "flashes": r["flashes"]["count"] if r.get("flashes") else None,
+                "flashes_move": bool(r.get("flashes") and r["flashes"].get("animate")),
+                "max_animated_shots": max_animated,
+                "animate_all": animate_all,
+                "narrator": r["narrator"], "cta_caption": r["cta_caption"] if r.get("closing_shot", True) else "",
+                "closing_shot": bool(r.get("closing_shot", True)),
+                "talking": r["talking"]["max"] if r.get("talking") else None,
+                "app_screens": int(r["app_screens"]["max"]),
+                "song": bool(r.get("song")), "letter": bool(r.get("letter"))}
+
+    def lengths_of(f: dict) -> list[dict]:
+        """The lengths a video of this format can pick, each with the limits it would run to."""
+        import copy
+        out = []
+        for item in video_length.describe(f):
+            c = {"format": copy.deepcopy({k: f[k] for k in ("rules", "duration_target", "lengths", "name")}),
+                 "max_animated_shots": f["overlay"].get("max_animated_shots")}
+            video_length.apply(c, band=item["id"])
+            out.append({**item, "duration_target": c["format"]["duration_target"],
+                        "limits": limits_of(c["format"]["rules"], c["max_animated_shots"], animate_all_for(f))})
         return out
 
     def animate_all_for(f: dict) -> bool:
@@ -568,7 +590,8 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         preface: list[str] = []
         try:
             run_dir = commands.create_new_run(premise, cfg, log=preface.append, engine=body.engine,
-                                              captions=captions, screens=body.screens, ready=body.ready)
+                                              captions=captions, screens=body.screens, ready=body.ready,
+                                              length=body.length)
         except StepError as e:
             raise HTTPException(400, str(e)) from e
         premise = run_status.run_meta(run_dir)["premise"] or premise
@@ -649,6 +672,10 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             # Made from a ready-made script that has been improved since: what an update would do.
             import ready_update
             out["script_update"] = ready_update.summary(run_dir, cfg)
+        if cfg:
+            band = cfg.get("_length") or video_length.native(cfg["format"])
+            out["length"] = {"id": band, "title": video_length.BANDS[band][0],
+                             "seconds": cfg["format"]["duration_target"]}
         job = runner.latest_for_run(run_id)
         out["job"] = job_out(job) if job else None
         out["active_job"] = job_out(runner.active_for_run(run_id)) if runner.active_for_run(run_id) else None

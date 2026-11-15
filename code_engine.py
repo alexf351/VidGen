@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -601,6 +602,16 @@ HEADLESS = (
 )
 
 
+def _length_words(config: dict) -> str:
+    """How long the story runs, as the format (or the video's longer length) says."""
+    fmt = config["format"]
+    m = re.search(r"(\d+)\s*-\s*(\d+)\s*s", fmt.get("duration_target") or "")
+    secs = f"{m.group(1)} to {m.group(2)} seconds" if m else "15 to 25 seconds"
+    shots = (fmt.get("rules") or {}).get("story_shots")
+    beats = f", {shots[0]} to {shots[1]} beats" if shots and fmt.get("length_note") else ""
+    return f"{secs} read aloud{beats}"
+
+
 def story_prompt(run_dir: Path, config: dict) -> str:
     blender = kind(config) == "blender"
     hf = kind(config) == "hyperframes"
@@ -623,12 +634,13 @@ def story_prompt(run_dir: Path, config: dict) -> str:
         read = "1. Read skill/SKILL.md and skill/copywriter.md (and the part of styles.md for each style you use).\n"
         names = "<style file name>"
         tail = "Do NOT edit anything in styles/ or lib/ and do NOT render. Finish with the winning "
+    length = config["format"].get("length_note") or ""
     return "\n\n".join([
         head,
-        "THE BRIEF\n" + _brief(run_dir, config),
+        "THE BRIEF\n" + _brief(run_dir, config) + (f"\n\n{length}" if length else ""),
         "THIS STEP: WRITE THE STORY ONLY\n" + read +
         "2. Draft THREE different stories with copywriter.md, each with its own first line and its own "
-        "twist: one line per beat, 3 to 9 words a line, 15 to 25 seconds read aloud. Write them in "
+        f"twist: one line per beat, 3 to 9 words a line, {_length_words(config)}. Write them in "
         "story-drafts.md. Then give each draft one point for every test below it passes, write the "
         "scores under it, and keep the draft with the most points:\n" + (tests or
         "   - every test in the format's rules (format/script_prompt.md)") + "\n"

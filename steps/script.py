@@ -210,7 +210,8 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict],
     scenes = "" if (fmt.get("rules") or {}).get("letter") else SCENE_NOTE
     import sfx as sound
     effects = SFX_NOTE.format(max=sound.MAX_SHOT_SFX) if sfx and not (fmt.get("rules") or {}).get("song") else ""
-    return prompt + scenes + (ANIMATE_ALL_NOTE if animate_all else "") + effects
+    length = f"\n\n{fmt['length_note']}\n" if fmt.get("length_note") else ""   # a longer video (video_length.py)
+    return prompt + scenes + (ANIMATE_ALL_NOTE if animate_all else "") + effects + length
 
 
 def build_user_prompt(premise: str) -> str:

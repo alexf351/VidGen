@@ -276,9 +276,14 @@ function estimateReroll(run, shot) {
 
 // Upper bound for a whole video in a format, from its limits: every shot drawn, the most
 // animated clips it allows, the longest script it allows (about 6 characters a spoken word).
-function formatSize(formatName) {
+// The limits a video of this format runs to at this length (the format's own when not given).
+function lengthLimits(f, length) {
+  const l = f && length ? (f.lengths || []).find((x) => x.id === length) : null;
+  return l ? l.limits : f && f.limits;
+}
+function formatSize(formatName, length) {
   const f = S.formats.find((x) => x.name === formatName);
-  const L = f && f.limits;
+  const L = lengthLimits(f, length);
   if (!L) return { ...NEW_RUN_GUESS, guess: true };
   const flashes = L.flashes ? L.flashes[1] : 0;     // an image each; a clip each too when the format's flashes move
   const still = L.flashes_move ? 0 : flashes;
@@ -302,8 +307,8 @@ function estimateReady(formatName, choice, e) {
   ].filter(Boolean);
   return { rows, total: rows.reduce((a, [, v]) => a + (typeof v === "number" ? v : 0), 0) };
 }
-function estimateNew(formatName, choice) {
-  const g = formatSize(formatName);
+function estimateNew(formatName, choice, length) {
+  const g = formatSize(formatName, length);
   const rows = [
     ["Script (Claude)", "a few cents"],
     [`up to ${g.images} keyframes + ~${g.sheets} sheets (${providerFor("images", choice)})`, imageCost(g.images + g.sheets, choice)],
@@ -1361,7 +1366,9 @@ function renderCreate(formatName) {
   const f = S.formats.find((x) => x.name === formatName && !x.error);
   if (!f) { $("#main").replaceChildren(h("div", { class: "empty" }, `No format called "${formatName}". `, h("a", { href: "#/new", class: "muted" }, "Back to Studio"))); return; }
   const codeOnly = (f.engines || []).length === 1 && f.engines[0] === "claude_code";
-  const st = { provider: "", dry: false, engine: codeOnly ? "claude_code" : "ai", cast: [], captions: S.config.caption_style || "format", screens: [], ready: null };
+  const lengths = f.lengths || [];
+  const ownLength = (lengths.find((l) => l.default) || lengths[0] || {}).id || null;
+  const st = { provider: "", dry: false, engine: codeOnly ? "claude_code" : "ai", cast: [], captions: S.config.caption_style || "format", screens: [], ready: null, length: ownLength };
   const hasCode = (f.engines || []).includes("claude_code");
   const blender = f.code_kind === "blender";
   const hyper = f.code_kind === "hyperframes";
@@ -1393,9 +1400,16 @@ function renderCreate(formatName) {
     sndSec.classList.toggle("hidden", st.engine === "claude_code");
     qualSec.classList.toggle("hidden", st.engine === "claude_code");
     if (scrSec) scrSec.classList.toggle("hidden", st.engine === "claude_code" || !!readyOn);
+    if (lenSec) {
+      lenSec.classList.toggle("hidden", !!readyOn);
+      const l = lengths.find((x) => x.id === st.length);
+      lenNote.textContent = !l ? "" : l.default
+        ? `The length ${formatTitle(f)} is written for: ${l.limits.story_shots ? `${l.limits.story_shots[0]}-${l.limits.story_shots[1]} shots` : l.seconds}.`
+        : `${l.limits.story_shots ? `${l.limits.story_shots[0]}-${l.limits.story_shots[1]} shots` : l.seconds}${l.limits.vo_words && l.limits.vo_words[1] > 0 ? `, up to ${l.limits.vo_words[1]} spoken words` : ""}. The story keeps every beat and gets more room in the middle; the cost grows with it.`;
+    }
     codeWarn.textContent = st.engine === "claude_code" ? codeEngineProblem(f.code_kind) : "";
     if (st.engine === "claude_code") {
-      const est = estimateCode(f.name);
+      const est = estimateCode(f.name, st.length);
       costLine.textContent = st.dry ? "free" : `about ${usd(est.total)}`;
       costSub.textContent = st.dry ? "Claude Code writes the story on your Claude plan. Nothing else runs."
         : "Claude Code writes and codes it on your Claude plan · voice by ElevenLabs · renders on this computer";
@@ -1410,7 +1424,7 @@ function renderCreate(formatName) {
       costLine.textContent = "a few cents"; costSub.textContent = "Script only. Nothing goes to the image, video or voice providers.";
       go.textContent = "Write the script";
     } else {
-      const est = readyOn ? estimateReady(f.name, st.provider, readyOn) : estimateNew(f.name, st.provider);
+      const est = readyOn ? estimateReady(f.name, st.provider, readyOn) : estimateNew(f.name, st.provider, st.length);
       costLine.textContent = readyOn ? `about ${usd(est.total)}` : `up to ${usd(est.total)}`;
       costSub.textContent = est.rows.slice(1).map(([k]) => k).join(" · ");
       go.textContent = "Generate video";
@@ -1471,6 +1485,12 @@ function renderCreate(formatName) {
       st.clipSound, (v) => { st.clipSound = v; try { localStorage.setItem("vidgen.clipSound", v ? "1" : "0"); } catch { /* private mode */ } }, "Sound"),
     h("div", { class: "field-note" }, "With clips speaking for themselves the video model makes each clip with its own sound: people say their lines with matching lips, doors slam, feet walk. The voices are then the model's own. Your choice is remembered for the next video, and you can switch it per video later."));
   const scrSec = screensSection(f, st);
+  // Short, Standard or Long (video_length.py): the format's own length first, then longer ones.
+  const lenNote = h("div", { class: "field-note" });
+  const lenSec = lengths.length > 1 ? h("section", { class: "card-sec" },
+    h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Length")),
+    chips(lengths.map((l) => [l.id, l.title, l.seconds]), st.length, (v) => { st.length = v; update(); }, "Length"),
+    lenNote) : null;
   const readySec = readySection(f, st, () => { drawOutput(); update(); });
   S.onDoctor = update;
   const form = h("form", { class: "create-left", onsubmit: async (e) => {
@@ -1479,7 +1499,9 @@ function renderCreate(formatName) {
     const ready = st.engine === "ai" ? st.ready : null;
     if (!text && !ready) { premise.focus(); toast("Write a premise first.", "bad"); return; }
     if (st.engine === "claude_code" && !st.dry) {
-      const est = estimateCode(f.name);
+      const est = estimateCode(f.name, st.length);
+      const lenPick = lengths.find((l) => l.id === st.length);
+      if (lenPick && lengths.length > 1) est.rows = [...est.rows, ["Length", `${lenPick.title} (${lenPick.seconds})`]];
       const ok = await confirmDialog({ title: `Make a ${formatTitle(f)} video with Claude Code?`, rows: est.rows, total: est.total,
         text: "Claude Code writes the story, codes every scene and checks stills; then VidGen adds the voice and renders.",
         ok: "Make video",
@@ -1487,8 +1509,10 @@ function renderCreate(formatName) {
       if (!ok) return;
     } else if (!st.dry) {
       const picked = ready ? (f.ready_scripts || []).find((e) => e.id === ready) : null;
-      const est = picked ? estimateReady(f.name, st.provider, picked) : estimateNew(f.name, st.provider);
+      const est = picked ? estimateReady(f.name, st.provider, picked) : estimateNew(f.name, st.provider, st.length);
       // Said before any money is spent: redoing every clip to change this costs as much as the clips did.
+      const lenPick = !picked ? lengths.find((l) => l.id === st.length) : null;
+      if (lenPick && lengths.length > 1) est.rows = [...est.rows, ["Length", `${lenPick.title} (${lenPick.seconds})`]];
       est.rows = [...est.rows, ["Sound", st.clipSound ? "clips speak for themselves" : "voices added after (ElevenLabs)"],
         ["Clip quality", st.quality === "720p" ? "sharp (720p)" : "standard (480p)"]];
       const ok = await confirmDialog({ title: picked ? `Generate "${picked.title}"?` : `Generate a ${formatTitle(f)} video?`, rows: est.rows, total: est.total,
@@ -1501,7 +1525,8 @@ function renderCreate(formatName) {
     const r = await submit(api("POST", "/api/runs", { premise: text, format: f.name, provider: st.engine === "ai" ? (st.provider || null) : null,
       dry_run: st.dry, engine: st.engine, cast: st.cast, captions: st.engine === "ai" ? st.captions : null,
       screens: st.engine === "ai" && !ready ? st.screens : [], ready,
-      clip_sound: st.engine === "ai" ? !!st.clipSound : null, quality: st.engine === "ai" ? st.quality : null }),
+      clip_sound: st.engine === "ai" ? !!st.clipSound : null, quality: st.engine === "ai" ? st.quality : null,
+      length: !ready && st.length && st.length !== ownLength ? st.length : null }),
       st.dry ? (st.engine === "claude_code" ? "story" : "script") : `${formatTitle(f)} video`);
     go.disabled = false;
     if (r) { await refreshRuns(); location.hash = `#/run/${encodeURIComponent(r.run_id)}`; }
@@ -1520,6 +1545,7 @@ function renderCreate(formatName) {
         (v) => { st.engine = v; drawOutput(); update(); }, "Engine"),
       h("div", { class: "field-note" }, "Claude Code codes every scene in this style and renders it here, with no image or video model."),
       codeWarn) : null,
+    lenSec,
     h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Output")), outputBox),
     scrSec,
     provSec,
@@ -1629,9 +1655,10 @@ function codeEngineProblem(kind) {
   return bad.length ? `Not ready on this computer: ${bad.map((c) => `${c.item}: ${c.detail}`).join(" · ")}` : "";
 }
 
-function estimateCode(formatName) {
+function estimateCode(formatName, length) {
   const f = S.formats.find((x) => x.name === formatName);
-  const chars = f && f.limits && f.limits.vo_words ? f.limits.vo_words[1] * 6 : 400;
+  const L = lengthLimits(f, length);
+  const chars = L && L.vo_words ? L.vo_words[1] * 6 : 400;
   const rows = [["Story + scenes (Claude Code)", "your Claude plan"],
     [`up to ~${chars} characters of voice`, voiceCost(chars)], ["Rendering", "on this computer"]];
   return { rows, total: voiceCost(chars) };

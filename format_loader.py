@@ -296,6 +296,16 @@ def _references(raw, where: str) -> list[dict]:
     return out
 
 
+def _lengths(raw, where: str) -> list[str]:
+    """lengths: the video lengths a format offers (video_length.py); [] = its own and longer."""
+    if raw in (None, []):
+        return []
+    from video_length import BANDS
+    if not isinstance(raw, list) or not all(isinstance(x, str) and x in BANDS for x in raw):
+        raise StepError(f"{where}: lengths must be a list of {', '.join(BANDS)}, got {raw!r}")
+    return list(raw)
+
+
 def _merge(base: dict, over: dict) -> dict:
     """`over` on top of `base`: mappings merge key by key, everything else is replaced."""
     out = dict(base)
@@ -365,6 +375,7 @@ def load_format(name: str | None = None) -> dict:
         "title": str(f.get("title") or name.replace("_", " ").title()),
         "description": " ".join(str(f.get("description") or "").split()),
         "duration_target": str(f.get("duration_target") or ""),
+        "lengths": _lengths(f.get("lengths"), where),
         "aspect": str(f.get("aspect") or ""),
         "clip_seconds": f.get("clip_seconds"),
         "cast": f.get("cast", "locked"),

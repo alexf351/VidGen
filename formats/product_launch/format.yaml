@@ -38,3 +38,5 @@ code_render:
   story_tests: false           # not a narrative: the drafts are scored on this format's rules
   snap_to_beats: true          # every beat ends on a beat of the music
   docs: [launch-shots]         # the 124-recipe shot menu
+
+lengths: [short, standard]     # a launch film cut to music drags past about 45 seconds

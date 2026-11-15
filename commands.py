@@ -21,6 +21,8 @@ def step_module(name: str):
 
 def run_step(name: str, run_dir: Path, config: dict, only: str | None = None) -> None:
     progress.step(name)
+    import video_length
+    video_length.apply(config, run_dir)       # a longer video's counts (run.json "length")
     if run_engine(run_dir) == "claude_code":
         import code_engine
         if only:
@@ -59,12 +61,26 @@ def pick_screens(config: dict, screens) -> list[str]:
 
 
 def create_new_run(premise: str, config: dict, log=print, engine: str | None = None,
-                   captions: str | None = None, screens=None, ready: str | None = None) -> Path:
+                   captions: str | None = None, screens=None, ready: str | None = None,
+                   length: str | None = None) -> Path:
     """Make the run folder for `new` (premise.txt, run.json with the format, cast, engine,
     caption style and any pinned app screens). With `ready`, the run starts from a ready-made
     script (ready_scripts.py): script.json is written now and the script step is not run."""
     import caption_styles
+    import video_length
     captions = caption_styles.check(captions) if captions else None
+    if length:
+        length = video_length.check(length)
+        offered = video_length.options(config["format"])
+        if length not in offered:
+            raise StepError(f"the {config['format'].get('title') or config['format']['name']} format comes in "
+                            f"{', '.join(offered)}, not {length}")
+        if ready and length != video_length.native(config["format"]):
+            raise StepError("a ready-made script has its own length; leave the length at the format's own")
+        if length == video_length.native(config["format"]):
+            length = None                     # the format as written: nothing to save
+        else:
+            video_length.apply(config, band=length)
     script = None
     if ready:
         if engine == "claude_code" or (config["format"].get("code_render") or {}).get("only"):
@@ -92,6 +108,8 @@ def create_new_run(premise: str, config: dict, log=print, engine: str | None = N
     if script is not None:
         from common import write_json
         write_json(run_dir / "script.json", script)
+    if length:
+        video_length.set_for_run(run_dir, length)
     hf = (config["format"].get("code_render") or {}).get("kind") == "hyperframes"
     if engine != "claude_code" or hf:
         import music
@@ -103,6 +121,10 @@ def create_new_run(premise: str, config: dict, log=print, engine: str | None = N
     log(f"  {run_dir}")
     if screens:
         log(f"  app screens: {', '.join(Path(p).stem for p in screens)}")
+    if length:
+        r = config["format"]["rules"]
+        log(f"  length: {video_length.BANDS[length][0]} ({config['format']['duration_target']}, "
+            f"{r['story_shots'][0]}-{r['story_shots'][1]} shots)")
     if script is not None:
         log(f"  ready-made script: {info['title']} ({len(script['shots'])} shots, {info['words']} spoken words); "
             f"no script step")

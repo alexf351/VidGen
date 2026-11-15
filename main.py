@@ -53,7 +53,8 @@ def cmd_new(args, config) -> None:
     if not (args.premise or "").strip() and not ready:
         raise StepError("give a premise in quotes, or --ready NAME to use a ready-made script")
     run_dir = commands.create_new_run(args.premise or "", config, engine=getattr(args, "engine", None),
-                                      captions=getattr(args, "captions", None), screens=picks, ready=ready)
+                                      captions=getattr(args, "captions", None), screens=picks, ready=ready,
+                                      length=getattr(args, "length", None))
     commands.execute_new(run_dir, config, args.dry_run)
 
 
@@ -113,6 +114,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument("--screens", default=None, metavar="NAMES",
                        help="app screenshots this video must show, by name and comma-separated "
                             "(--screens learn,certificate); see: python main.py screens")
+    p_new.add_argument("--length", choices=["short", "standard", "long"], default=None,
+                       help="how long the video runs: the format's own length (default), or longer "
+                            "(short 15-30 s, standard 40-60 s, long 75-100 s)")
     p_new.add_argument("--captions", default=None, metavar="STYLE",
                        help="caption style: format (the format's own look), classic, outline, "
                             "yellow_pop, comic, headline, banner or off")
