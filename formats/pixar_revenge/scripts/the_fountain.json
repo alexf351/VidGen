@@ -256,8 +256,8 @@
         "jess"
       ],
       "image_prompt": "over-the-shoulder medium two shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, the black sports car behind him, {jess}, in a glittering silver dress, seen from behind on the left edge of the frame, only her bare shoulder, the back of her head and her long wavy hair in the near foreground, slightly out of focus; {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, on the right of the frame, facing her toward the left, hands in his pockets, a calm easy half-smile, one eyebrow raised, head tipped a little to one side, mouth open mid-sentence. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Marcus gives a small easy shrug and his mouth moves as he says it lightly to her, the same words she once said to him, then glances past her toward the hotel doors; Jess's shoulder stays still in the foreground. Small push-in on his calm half-smile.",
-      "vo_line": "Not a chance. I like winners.",
+      "motion_prompt": "Marcus gives a small easy shrug and his mouth moves as he says it lightly to her, the same words she once said to him; Jess's shoulder stays still in the foreground. Small push-in on his calm half-smile.",
+      "vo_line": "Not a chance.",
       "speaker": "marcus",
       "same_scene": true
     },
@@ -267,9 +267,9 @@
         "sofia"
       ],
       "image_prompt": "medium two shot, the lit entrance of a grand hotel at night with a red carpet, brass doors and a valet stand, warm golden light from the doors against a deep blue night, beside the black sports car at the foot of the red carpet, {sofia}, in a long fitted black dress with sheer black sleeves and a black corset belt, on the left, having just walked down the carpet from the brass doors, slipping her arm through his and leaning on his shoulder, looking at someone off camera with a slow knowing smile and one eye closed in a wink; {marcus}, in a perfectly fitted black suit with an open collar and a slim steel watch, on the right, smiling down at her, his hand on hers on his arm. Vertical composition, no text anywhere in the image.",
-      "motion_prompt": "Sofia walks down the red carpet from the brass doors, slips her arm through Marcus's and leans on his shoulder, then turns her head and gives the ex one slow wink. Slow push-in on the two of them.",
-      "vo_line": "",
-      "speaker": "",
+      "motion_prompt": "Sofia tightens her arm through Marcus's and leans on his shoulder; Marcus turns his head toward the ex just off camera and his mouth moves as he says it calmly, then Sofia gives her one slow wink. Slow push-in on the two of them.",
+      "vo_line": "I told you. I like winners.",
+      "speaker": "marcus",
       "same_scene": true
     },
     {
