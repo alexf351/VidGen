@@ -151,7 +151,10 @@ def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False,
         parts.append(
             f"Reference images, in order: {order}. Each reference is a character sheet; keep that "
             "character's face, hair, skin and build identical to its sheet. The sheet's plain grey "
-            "clothes, layout and background are placeholders: dress everyone as described above.")
+            "clothes, layout and background are placeholders: dress everyone as described above. "
+            "This holds when someone is small in the frame, far away, seen through a car window or "
+            "half turned: the same facial features, hairstyle, facial hair and skin tone as their sheet, "
+            "never a different-looking stand-in.")
     at = len(ref_ids)
     if scene:
         at += 1
