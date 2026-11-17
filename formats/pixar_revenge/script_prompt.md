@@ -169,6 +169,10 @@ HOW IT IS SHOT
   chest-up shot).
 - Clothes are part of who someone is in a scene: give each person the same clothes, in
   the same words, in every shot of that scene. They change only when the story moves on.
+  Name every piece that shows and its colour ("a black suit over a black shirt, collar open,
+  no tie", not "a black suit with an open collar": the shirt then comes back white in one
+  shot and black in the next), and write it out in full every time. Never "the same jacket"
+  or "his suit from before": each picture is drawn from its own words alone.
 - Every later picture of a scene is drawn from the scene's FIRST picture, and the picture
   model copies it closely. So the scene's first shot shows every thing that stays in the
   scene, also one that matters only later: when the hero's car pulls up beside the
