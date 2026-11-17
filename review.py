@@ -739,6 +739,33 @@ def eyes_measure(run_dir: Path, config: dict) -> dict | None:
     return summarize_dna(dna)
 
 
+def speech_measure(run_dir: Path) -> dict | None:
+    """How fast the voice speaks and when the first word is heard, from the word timings
+    VidGen already has for every spoken shot (audio/<n>.json) and where each shot sits in
+    the cut. Claude Eyes measures the same from a transcript, when its transcriber is
+    installed; this needs nothing."""
+    from steps.voice import timing_path
+    words = 0
+    spoken = 0.0
+    first = None
+    for item in _timeline(run_dir):
+        try:
+            data = read_json(timing_path(Path(run_dir), int(item["n"])))
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        ws = [w for w in (data.get("words") or []) if isinstance(w, dict)
+              and isinstance(w.get("start"), (int, float)) and isinstance(w.get("end"), (int, float))]
+        if not ws:
+            continue
+        words += len(ws)
+        spoken += max(0.0, float(ws[-1]["end"]) - float(ws[0]["start"]))
+        if first is None:
+            first = float(item.get("start", 0)) + float(ws[0]["start"])
+    if words < 5 or spoken <= 0:
+        return None
+    return {"words_per_minute": round(words * 60 / spoken), "first_word_at": round(first or 0.0, 2), "words": words}
+
+
 def summarize_dna(dna: dict) -> dict:
     pacing = dna.get("pacing") or {}
     speech = dna.get("speech") or {}
@@ -798,8 +825,10 @@ def check_final(run_dir: Path, config: dict, again: bool = False) -> dict | None
     print("[review] checking the finished video (black, frozen and silent stretches, slow shots)")
     issues = measure_final(run_dir, config)
     eyes = eyes_measure(run_dir, config)
-    if eyes:
-        issues += eyes_issues(eyes)
+    speech = speech_measure(run_dir)            # VidGen's own word timings: no transcriber needed
+    measured = {**(speech or {}), **(eyes or {})}
+    if measured:
+        issues += eyes_issues(measured)
     cost = 0.0
     look_failed = None
     if s["final_look"]:
@@ -813,7 +842,8 @@ def check_final(run_dir: Path, config: dict, again: bool = False) -> dict | None
             look_failed = str(e)
             print(f"[review] the look at the finished video failed ({e}); the measured checks still count")
     issues.sort(key=lambda i: (i.get("severity") != "redo", float(i.get("at") or 0)))
-    entry = {"mtime": _mtime(final), "issues": issues, "eyes": eyes, "cost": round(cost, 4), "checked": _now()}
+    entry = {"mtime": _mtime(final), "issues": issues, "eyes": eyes, "speech": speech,
+             "cost": round(cost, 4), "checked": _now()}
     if look_failed:
         entry["look_failed"] = look_failed[:200]
 

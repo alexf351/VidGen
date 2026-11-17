@@ -1111,9 +1111,10 @@ given no API key, so nothing leaves it. Install it into VidGen's own environment
 git+https://github.com/moritzkremb/claude-eyes`, then `eyes setup --fix` (VidGen finds it there
 even when the environment is not activated, and lends it its ffmpeg). Without it,
 every other check works the same. `review.eyes: off` skips it. Tested with Eyes 0.2.0: it takes
-about two minutes on an 80 second video without a graphics card, and the speech numbers (words a
-minute, first word) need its local transcriber, which `eyes setup --fix` installs; without that
-it still measures the cuts, the shot lengths and the loudness.
+about two minutes on an 80 second video without a graphics card. Its optional transcriber
+(whisper.cpp, which `eyes setup` reports as missing on Windows) is not needed: how fast the voice
+speaks and when the first word comes are worked out from the word timings VidGen already has for
+every line, with or without Eyes.
 
 The reviewer's brief borrows ideas from the review room of
 [Take One](https://github.com/talsiach/take-one) (MIT): a reviewer who has seen none of the work,

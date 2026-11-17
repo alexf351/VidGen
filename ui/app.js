@@ -2223,11 +2223,11 @@ function reviewPanel(run, busy) {
         h("div", { class: "review-head" }, finIssues.length ? `The finished video: ${plural(finIssues.length, "note")}` : "The finished video: nothing found"),
         ...finIssues.slice(0, 8).map((i) => h("div", { class: i.severity === "redo" ? "review-bad-line" : "review-minor" },
           (typeof i.at === "number" ? `${fmtSec(i.at)} ` : "") + i.what)),
-        eyes ? h("div", { class: "review-minor" }, "Measured by Claude Eyes: " + [
-          eyes.cuts_per_min != null ? `${eyes.cuts_per_min} cuts a minute` : "",
-          eyes.median_shot != null ? `median shot ${eyes.median_shot}s` : "",
-          eyes.words_per_minute != null ? `${eyes.words_per_minute} words a minute` : "",
-          eyes.lufs != null ? `${eyes.lufs} LUFS` : ""].filter(Boolean).join(", ") + ".") : null) : null,
+        eyes || fin.speech ? ((m) => h("div", { class: "review-minor" }, (eyes ? "Measured by Claude Eyes: " : "Measured: ") + [
+          m.cuts_per_min != null ? `${m.cuts_per_min} cuts a minute` : "",
+          m.median_shot != null ? `median shot ${m.median_shot}s` : "",
+          m.words_per_minute != null ? `${m.words_per_minute} words a minute` : "",
+          m.lufs != null ? `${m.lufs} LUFS` : ""].filter(Boolean).join(", ") + "."))({ ...(fin.speech || {}), ...(eyes || {}) }) : null) : null,
       h("div", { class: "trip-btns" },
         h("button", { class: "btn small", disabled: busy || !canCheck, onclick: () => startCheck("all") }, checked ? "Check what is new" : "Check the shots now"),
         checked ? h("button", { class: "btn small ghost", disabled: busy, onclick: () => startCheck("all", true) }, "Check everything again") : null,
