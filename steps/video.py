@@ -48,7 +48,7 @@ ONE_TAKE = ("One continuous take that starts on this exact picture: no cut, no j
 
 def _motion(config: dict, shot: dict, descriptions: dict[str, str] | None, sound: bool = False) -> str:
     import review
-    fix = review.fix_note(config, "clip", shot["n"])          # made again because the review flagged it
+    fix = review.fix_note(config, "clip", shot.get("n"))      # made again because the review flagged it
     text = _motion_text(config, shot, descriptions, sound)
     return f"{text}{fix}" if fix else text
 
