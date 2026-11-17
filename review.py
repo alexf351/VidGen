@@ -683,10 +683,37 @@ def measure_final(run_dir: Path, config: dict) -> list[dict]:
 
 
 def eyes_command(config: dict) -> str | None:
+    """The `eyes` program: on the PATH, or next to this Python (pip install puts it in the
+    environment's Scripts or bin folder, which is not on the PATH unless the environment is
+    activated)."""
+    import sys
     s = settings(config)
     if str(s.get("eyes") or "auto").lower() in ("off", "false", "no", "0"):
         return None
-    return shutil.which(str(s.get("eyes_command") or "eyes"))
+    name = str(s.get("eyes_command") or "eyes")
+    found = shutil.which(name)
+    if found:
+        return found
+    here = Path(sys.executable).parent
+    for cand in (here / name, here / f"{name}.exe"):
+        if cand.is_file():
+            return str(cand)
+    return None
+
+
+def _eyes_env() -> dict:
+    """The environment Eyes runs in: no API keys (it works on this computer only), and
+    VidGen's ffmpeg folder on the PATH so Eyes finds the same ffmpeg."""
+    import os
+    import common
+    import media
+    env = {k: v for k, v in os.environ.items() if not k.endswith(("_API_KEY", "_KEY", "_TOKEN"))}
+    ff = media.tool_path("ffmpeg") or common.TOOLS["ffmpeg"]
+    folder = str(Path(ff).parent) if Path(ff).is_absolute() else ""
+    if folder and folder not in env.get("PATH", "").split(os.pathsep):
+        env["PATH"] = folder + os.pathsep + env.get("PATH", "")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    return env
 
 
 def eyes_measure(run_dir: Path, config: dict) -> dict | None:
@@ -697,8 +724,7 @@ def eyes_measure(run_dir: Path, config: dict) -> dict | None:
     if not exe:
         return None
     final = Path(run_dir) / "final.mp4"
-    import os
-    env = {k: v for k, v in os.environ.items() if not k.endswith(("_API_KEY", "_KEY", "_TOKEN"))}
+    env = _eyes_env()
     try:
         subprocess.run([exe, "index", str(final), "--title", f"vidgen {Path(run_dir).name}", "--force", "--json"],
                        stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=900, env=env,

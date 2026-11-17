@@ -1107,8 +1107,9 @@ MIT). When the `eyes` command is installed, the check of the finished cut also r
 video to measure cuts per minute, shot lengths, how fast the voice speaks, when the first word
 comes and how loud it is, and notes what is off for a short (over about 190 words a minute, the
 first word after 2 s, louder or quieter than phones play shorts). It runs on this computer and is
-given no API key, so nothing leaves it. Install it with `uv tool install
-git+https://github.com/moritzkremb/claude-eyes` (or pipx), then `eyes setup --fix`. Without it,
+given no API key, so nothing leaves it. Install it into VidGen's own environment: `pip install
+git+https://github.com/moritzkremb/claude-eyes`, then `eyes setup --fix` (VidGen finds it there
+even when the environment is not activated, and lends it its ffmpeg). Without it,
 every other check works the same. `review.eyes: off` skips it. Tested with Eyes 0.2.0: it takes
 about two minutes on an 80 second video without a graphics card, and the speech numbers (words a
 minute, first word) need its local transcriber, which `eyes setup --fix` installs; without that
