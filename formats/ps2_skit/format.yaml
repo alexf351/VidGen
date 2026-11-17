@@ -1,0 +1,146 @@
+# PS2 Cutscene Skit: a deadpan comedy skit in the look of a mid-2000s console game cutscene.
+#
+# The shape comes from Starpop's "PS2 Cutscene Skit" ad format (starpop.ai/formats/ps2-cutscene-ad):
+# someone with authority sizes the hero up against the usual idea of success, the hero answers
+# in a few flat words, and the room turns in his favour. A hook caption, brags that climb, one
+# silent shock beat, the reversal, a button line, the end card. Nobody narrates: the characters
+# say every line on camera. Only the structure is taken; the words, cast and sets are VidGen's own.
+#
+# The look is the same as PS2 Game (formats/ps2), which is a narrated story. This one is dialogue.
+
+name: ps2_skit
+title: PS2 Cutscene Skit
+description: 'A deadpan skit as a 2000s game cutscene: someone important sizes the hero up, he answers
+  in a few flat words, and the room turns.'
+duration_target: about 22-30 seconds
+aspect: '9:16'
+resolution:
+- 1080
+- 1920
+fps: 30
+clip_seconds: 4
+cast: none                     # everyone is invented for the skit (or cast from your characters)
+references:
+- url: https://starpop.ai/formats/ps2-cutscene-ad
+  note: 'Starpop, PS2 Cutscene Skit: a POV hook, climbing brags, a silent shock beat, a reversal, a button line'
+beats:
+- 'the hook: where we are (POV tag)'
+- the brags climb
+- '"and you?"'
+- the flat answer
+- the phone comes out
+- silent shock
+- the room turns
+- the button line
+- Search Iro AI
+style: early 2000s PlayStation 2 era game cutscene, very low-polygon 3D models with blocky hands and
+  flat painted faces, small blurry low-resolution textures full of noise, a bold simple colour palette,
+  simple lighting, dark blob shadow under characters instead of real shadows, fog in the distance,
+  slightly muddy colors, faint scanlines, vertical 9:16
+# Every line is said on camera, so every shot is a clip (with clip sound on, the clips speak
+# the lines themselves, lips moving).
+animate_all: true
+max_animated_shots: 12
+rules:
+  story_shots:
+  - 8
+  - 12
+  vo_words:
+  - 35
+  - 75
+  caption_max_words: 2
+  cta_caption: SEARCH IRO AI
+  narrator: false
+  silent_run_max: 2
+  dialogue_lines_min: 6
+  labels: true                   # the hook tag on the first shot: POV: MEETING HER DAD
+  label_max_words: 6
+  app_screens:
+    max: 1
+    hint: right after the hero's flat answer
+  banned_image_prompt:
+    fix: show the back of the phone with the screen glow on their face
+    patterns:
+    - - \biro\s*ai\b
+      - the app name 'Iro AI'
+    - - \biro\s+app\b
+      - '''Iro app'''
+    - - \bapp('s)?\s+(ui|interface|screen|logo|icon|name|home ?screen|menu|dashboard)\b
+      - app UI
+    - - \buser interface\b
+      - '''user interface'''
+    - - \bui\b
+      - '''UI'''
+    - - \blogos?\b
+      - a logo
+    - - \bscreen\s+(shows|showing|displays|displaying|reads|reading)\b
+      - what a screen shows
+  banned_vo_line:
+    fix: rewrite it the way a person says it out loud
+    patterns:
+    - - —
+      - an em dash
+    - - ;
+      - a semicolon
+    - - \bnot just\b.*\bbut\b
+      - '"not just X but Y"'
+    - - \bit['’]?s not (?:about )?\w+[^.]*?, it['’]?s\b
+      - '"it''s not X, it''s Y"'
+    - - here['’]?s the thing|let that sink in|read the (?:tiny|fine) print|the truth is|in today['’]?s|buckle
+        up|imagine this|it['’]?s worth noting|at the end of the day|whether you['’]?re a
+      - filler
+    - - \b(?:spoiler|plot twist)\s*:|here['’]?s where it gets interesting|the best part\?
+      - fake suspense
+    - - \b(?:delve|unlock|unleash|harness|leverage|seamless|robust|cutting[- ]edge|game[- ]?changer|revolutionary|transformative|landscape|realm|tapestry|elevate|empower|supercharge|deep
+        dive|next level|dive in)\b
+      - an AI word
+    - - \b(?:panic button|goldmine|secret sauce)\b
+      - a metaphor punchline
+prompt:
+  app_screen_line: '  * "{{PATH}}": {{SHOWS}}'
+  app_screen_unknown: an Iro app screen
+# Subtitles like a game's: plain white with a dark edge, low on the screen, a few words at a
+# time, no bounce.
+captions:
+  font: Inter SemiBold
+  font_file: assets/fonts/Inter-SemiBold.otf
+  fallback_font: Arial
+  italic: false
+  bold: true
+  size: 62
+  y: 0.80
+  max_words: 4
+  fill: '&H00FFFFFF'
+  outline_color: '&H00101010'
+  outline: 4
+  blur: 0
+  pop_from: 100
+  pop_ms: 0
+  card_fade_ms: 200
+# The hook tag: white on black at the top, like a mission title.
+labels:
+  size: 46
+  y: 0.10
+  text: '#FFFFFF'
+  box: '#0B0B10'
+grade:
+  saturation: 1.0
+  colorbalance: ''
+timing:
+  vo_pad_seconds: 0.12           # hard cuts: a line ends and the next shot is already there
+  min_shot_seconds: 1.0
+  zoom_end: 1.06
+  card_seconds: 1.5
+  app_screen_seconds: 1.5
+  app_screen_zoom_end: 1.04
+  montage_seconds: 0.5
+  montage_zoom_end: 1.12
+app_screens:
+- path: assets/screens/learn.jpg
+  shows: the learning path map with the next lesson card and a START button (a first lesson)
+- path: assets/screens/lesson.jpg
+  shows: 'a lesson in progress: Iro asks the learner to match AI tools to what they do best'
+- path: assets/screens/progress.jpg
+  shows: 'the progress screen: Gold II rank, XP bar and the six-skill operator build'
+- path: assets/screens/create.jpg
+  shows: the create screen for building a custom learning path on any topic

@@ -156,12 +156,13 @@ prompt bytes, validation, captions, grade and timing. To make a new format, copy
 | `pixar_mirror` | the same look and cast | one small scene played twice: brushed off, opens Iro, three progress shots with his rank and a climbing number, a time card, the same scene with the roles reversed |
 | `pixel_art`, `ps2`, `comic`, `brick`, `claymation`, `paper_cutout`, `retro_anime`, `low_poly`, `risograph`, `miniature` | one look each | a narrated 15-25 s story ad: someone wants something, it goes wrong, they open Iro, it pays off, a twist, SEARCH IRO AI |
 | `style_switch` | a different look every shot, on hard cuts | the same narrated story |
+| `ps2_skit` | the PS2 cutscene look of `ps2` | a deadpan 22-30 s comedy skit, all dialogue, no narrator: someone with authority sizes the hero up (meeting her dad, a job interview), the brags climb, the hero answers in a few flat words, one silent shock close-up, the room turns, a button line, SEARCH IRO AI. A POV tag on the first shot, plain game subtitles. The shape follows [Starpop's PS2 Cutscene Skit](https://starpop.ai/formats/ps2-cutscene-ad); the words, cast and sets are VidGen's own. Every shot is a clip, so it is best with clip sound on (the characters say their lines with moving lips) |
 
 | `pixar_revenge` | the same look and cast | almost wordless: a public rejection, she leaves with a richer man, the grind in quick flashes, a time card, the reunion and one comeback line |
 | `pixar_ladder` | the same look and cast | "I can fix that": doubted, he does the work on screen, gets paid, word spreads, every client is bigger than the last |
 | `pixar_steps` | the same look and cast | a 90-110 s film plus tutorial: the rejection, the method shown working, then the hero gives it in numbered steps, one of them Iro |
 
-Every format above except the five `pixar_*` ones can also use the Claude Code engine (below).
+Every format above except the five `pixar_*` ones and `ps2_skit` can also use the Claude Code engine (below).
 Three formats run only on it: `blender_3d` (Blender 3D), `product_launch` (a HyperFrames launch film)
 and `animated_story` (cartoon people in a 3D town, drawn in code).
 
