@@ -136,7 +136,8 @@ sume:
   base_url: "https://api.sume.com"
   image_model: "nano-banana"    # one id for text-to-image and reference-image edits
   image_cost: 0.039             # USD per image
-  video_model: "seedance-2-fast"   # or "seedance-2" / "seedance-2.5"; a video can pick its own (video_model.py)
+  video_model: "seedance-2-fast"   # or seedance-2-mini (cheapest) / seedance-2 / seedance-2.5 / grok-imagine-video-1.5;
+                                   # a video can pick its own (video_model.py)
   video_resolution: "480p"      # 480p | 720p
   video_audio: false            # generate_audio
   video_cost_per_second:        # USD per second of output, by resolution

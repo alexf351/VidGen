@@ -164,6 +164,14 @@ def clip_prompt(shot: dict, descriptions: dict[str, str] | None = None, who: str
             f'"{quoted}" No subtitles or text on screen.')
 
 
+def _sound(config: dict, run_dir: Path) -> bool:
+    """Clips are made with their own sound: clip sound is on for this video and the video
+    model makes sound (Grok Imagine on Sume does not; its lines get the added voices)."""
+    import clip_sound
+    import video_model
+    return bool(clip_sound.on(config, run_dir)) and video_model.makes_sound(config)
+
+
 def generate_clip(run_dir: Path, config: dict, shot: dict,
                   descriptions: dict[str, str] | None = None) -> Path:
     n = shot["n"]
@@ -173,8 +181,7 @@ def generate_clip(run_dir: Path, config: dict, shot: dict,
         raise StepError(f"shot {n}: keyframe {keyframe} is missing; run the images step first")
     dest = video_path(run_dir, n)
     label = f"shot {n}"
-    import clip_sound
-    sound = clip_sound.on(config, run_dir)          # the clip comes with its own sound
+    sound = _sound(config, run_dir)                 # the clip comes with its own sound
     if video_provider(config) == "sume":
         video_resolution(config)
         if downloads.resume(dest, sume_api.download, label):
@@ -231,7 +238,13 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
     via = "" if video_provider(config) == "fal" else \
         f" via Sume ({block['video_model']}, up to {_workers(config)} at once)"
     import clip_sound
-    sound = clip_sound.on(config, run_dir)
+    import video_model
+    if animated:
+        video_model.require_available(config, run_dir)
+    sound = _sound(config, run_dir)
+    if clip_sound.on(config, run_dir) and not sound:
+        print(f"[video] {block['video_model']} makes clips without sound, so this video's lines are spoken by "
+              f"the added voices (clip sound has nothing to take from these clips)")
     print(f"[video] {len(animated)} animated shot(s), {seconds}s each at {resolution}, "
           f"${rate:.4f}/s{via}" + (", each with its own sound" if sound else ", without sound (voices are added after)"))
     if talking:

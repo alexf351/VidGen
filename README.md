@@ -966,11 +966,19 @@ the choice with `lengths: [short, standard]` in its format.yaml (Product Launch 
 Standard: a film cut to music drags past about 45 seconds), and a ready-made script keeps its
 own length. The choice is kept in the video's run.json as "length"; the cost grows with it.
 
-**Video model: Seedance 2.0 Fast, 2.0 or 2.5.** Pick it on the create screen, switch it for a
-video on its page (clips already made stay as they are; new and redone clips use the new one),
-or `--model fast|standard|2.5` on the command line. Each has its own price, so the estimates
-follow the choice. On Sume, per second at 480p / 720p: Fast $0.056 / $0.121, 2.0 $0.070 / $0.151,
-2.5 $0.103 / $0.231 (a 4 second clip at 480p: $0.22 / $0.28 / $0.41). What is known about quality
+**Video model: Seedance 2.0 Mini, 2.0 Fast, 2.0, 2.5, or Grok Imagine 1.5.** Pick it on the
+create screen, switch it for a video on its page (clips already made stay as they are; new and
+redone clips use the new one), or `--model mini|fast|standard|2.5|grok` on the command line.
+Each has its own price, so the estimates follow the choice. On Sume, per second at 480p / 720p:
+Mini $0.035 / $0.076, Fast $0.056 / $0.121, 2.0 $0.070 / $0.151, 2.5 $0.103 / $0.231, Grok
+$0.080 / $0.140 (a 4 second clip at 480p: $0.14 / $0.22 / $0.28 / $0.41 / $0.32). **Mini is the
+cheap one**: about 37% under Fast, the same family, with sound. **Grok Imagine 1.5 on Sume costs
+more than Seedance Fast**, and Sume lists no sound for it: with clip sound on, its clips are made
+silent and the lines are spoken by the added voices. (xAI sells a cheaper Grok, 1.5 Lite at
+$0.02 a second, only through its own API, which VidGen does not talk to.) Mini and Grok are on
+Sume only; with fal making the clips the video step says so before anything is spent. A model
+that refuses a field (`aspect_ratio`, `generate_audio`) is asked again without it; a refused
+request costs nothing. Neither has been run from here: try one shot first. What is known about quality
 (November 2026): on the Artificial Analysis image-to-video board with sound, 2.5 ranks first and
 2.0 third, close behind; Fast is not ranked, and vendors say it falls behind most on busy motion.
 Nobody has published lip-sync or first-frame likeness numbers for any of them, so try a few
@@ -1101,7 +1109,10 @@ comes and how loud it is, and notes what is off for a short (over about 190 word
 first word after 2 s, louder or quieter than phones play shorts). It runs on this computer and is
 given no API key, so nothing leaves it. Install it with `uv tool install
 git+https://github.com/moritzkremb/claude-eyes` (or pipx), then `eyes setup --fix`. Without it,
-every other check works the same. `review.eyes: off` skips it.
+every other check works the same. `review.eyes: off` skips it. Tested with Eyes 0.2.0: it takes
+about two minutes on an 80 second video without a graphics card, and the speech numbers (words a
+minute, first word) need its local transcriber, which `eyes setup --fix` installs; without that
+it still measures the cuts, the shot lengths and the loudness.
 
 The reviewer's brief borrows ideas from the review room of
 [Take One](https://github.com/talsiach/take-one) (MIT): a reviewer who has seen none of the work,

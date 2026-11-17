@@ -251,8 +251,15 @@ def generate_image(config: dict, prompt: str, aspect_ratio: str, refs: list[Path
     return _artifact_url(wait(job, label, cfg), "image", label)
 
 
+# Fields a model may not take. A request Sume refuses for one of them (HTTP 400, nothing is
+# charged) is sent again without it, once per field.
+OPTIONAL_VIDEO_FIELDS = ("generate_audio", "aspect_ratio")
+
+
 def generate_video(config: dict, prompt: str, first_frame: Path, label: str) -> str:
-    """Seedance image-to-video on Sume (sume.video_model: 2.0 Fast, 2.0 or 2.5; video_model.py)."""
+    """Image-to-video on Sume (sume.video_model: Seedance 2.0 Mini, Fast, 2.0, 2.5 or Grok
+    Imagine 1.5; video_model.py). A model listed without sound is not asked for any."""
+    import video_model
     cfg = config["sume"]
     body = {
         "model": cfg["video_model"],
@@ -263,5 +270,17 @@ def generate_video(config: dict, prompt: str, first_frame: Path, label: str) -> 
         "aspect_ratio": "9:16",
         "generate_audio": bool(cfg["video_audio"]),
     }
-    job = submit(VIDEO_ENDPOINT, body, label, cfg)
+    key = video_model.by_id("sume", cfg["video_model"])
+    if key and video_model.MODELS[key].get("audio") is False:
+        body.pop("generate_audio")
+    while True:
+        try:
+            job = submit(VIDEO_ENDPOINT, body, label, cfg)
+            break
+        except StepError as e:
+            refused = next((f for f in OPTIONAL_VIDEO_FIELDS if f in body and "HTTP 400" in str(e) and f in str(e)), None)
+            if not refused:
+                raise
+            print(f"    {label}: {cfg['video_model']} does not take {refused}; sending the request without it")
+            body.pop(refused)
     return _artifact_url(wait(job, label, cfg), "video", label)
