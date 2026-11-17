@@ -142,6 +142,7 @@ def run_rest(run_dir: Path, config: dict, names: list[str]) -> None:
     for i, name in enumerate(names):
         try:
             run_step(name, run_dir, config)
+            _review_after(name, run_dir, config)
         except StepError as e:
             if name != "video" or "voice" not in names[i + 1:]:
                 raise
@@ -151,6 +152,13 @@ def run_rest(run_dir: Path, config: dict, names: list[str]) -> None:
             run_step("voice", run_dir, config)
             raise StepError(f"{e}\nEverything else is made. Reroll the shot that failed (its card on the "
                             f"video's page), then press Finish the video.") from e
+
+
+def _review_after(name: str, run_dir: Path, config: dict, only: str | None = None) -> None:
+    """The self-review after a step, when it is on for this video (review.py; never raises)."""
+    import review
+    from common import parse_only
+    review.after_step(name, run_dir, config, parse_only(only) if only else None)
 
 
 def finish(run_id: str, config: dict) -> None:
@@ -221,7 +229,9 @@ def _spoken_among(run_dir: Path, only: str) -> str:
                     if s.get("n") in want and str(s.get("vo_line") or "").strip() and not s.get("app_screen"))
 
 
-def step(run_id: str, step_name: str, config: dict, only: str | None = None) -> None:
+def step(run_id: str, step_name: str, config: dict, only: str | None = None, review_after: bool = True) -> None:
+    """`review_after`: check what the step made when the review is on (review.py makes shots
+    again through here with it off, and checks them itself)."""
     run_dir = run_dir_for(run_id)
     run_step(step_name, run_dir, config, only=only)
     # Clip sound: a spoken shot's voice is cut from its clip, so shots whose clip was just made
@@ -233,6 +243,8 @@ def step(run_id: str, step_name: str, config: dict, only: str | None = None) -> 
             if spoken:
                 print(f"\nClip sound: reading the line again from the new clip of shot{'s' if ',' in spoken else ''} {spoken}.")
                 run_step("voice", run_dir, config, only=spoken)
+    if review_after and run_engine(run_dir) != "claude_code":
+        _review_after(step_name, run_dir, config, only)
 
 
 def _image_pipeline_only(run_dir: Path, what: str) -> None:
@@ -261,6 +273,8 @@ def reroll(run_id: str, shot_number: int, config: dict) -> None:
     if revoice:
         progress.step("voice")
         step_module("voice").run(run_dir, config, only=str(shot_number))
+    _review_after("images", run_dir, config, str(shot_number))
+    _review_after("video", run_dir, config, str(shot_number))
 
 
 def remix(run_id: str, config: dict) -> None:
@@ -333,6 +347,7 @@ def reroll_many(run_id: str, shots: list[int], config: dict) -> None:
     revoice = clip_sound.on(config, run_dir) and bool(_spoken_among(run_dir, only))
     progress.start(["images", "video"] + (["voice"] if revoice else []))
     run_step("images", run_dir, config, only=only)
+    _review_after("images", run_dir, config, only)
     step(run_id, "video", config, only=only)          # with clip sound this reads the lines again too
 
 

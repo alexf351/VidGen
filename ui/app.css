@@ -1259,3 +1259,15 @@ input[type=text], input[type=number], input[type=search], select, textarea { bor
 .update-notice { display: flex; align-items: center; gap: 14px; justify-content: space-between; margin: 10px 0 2px; }
 .update-notice .btn { flex: none; }
 @media (max-width: 700px) { .update-notice { flex-direction: column; align-items: flex-start; } }
+
+/* self-review (review.py) */
+.badge.review-bad { background: #c2410c; color: #fff; font-weight: 600; }
+.badge.review-ok { color: var(--ok, #2e9e4a); }
+.review-note .review-head, .review-final .review-head { font-weight: 600; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.review-minor { color: var(--muted); font-size: 11.5px; line-height: 1.4; margin-top: 3px; }
+.review-bad-line { font-size: 12px; line-height: 1.4; margin-top: 3px; color: var(--text); }
+.review-details { margin-top: 6px; font-size: 11.5px; color: var(--muted); }
+.review-details summary { cursor: pointer; }
+.review-final { margin: 8px 0; }
+.review-panel .trip-btns { margin-top: 10px; }
+.review-note .trip-btns .btn.small { height: auto; min-height: 26px; white-space: normal; text-align: left; line-height: 1.25; padding: 4px 9px; }

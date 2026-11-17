@@ -47,6 +47,13 @@ ONE_TAKE = ("One continuous take that starts on this exact picture: no cut, no j
 
 
 def _motion(config: dict, shot: dict, descriptions: dict[str, str] | None, sound: bool = False) -> str:
+    import review
+    fix = review.fix_note(config, "clip", shot["n"])          # made again because the review flagged it
+    text = _motion_text(config, shot, descriptions, sound)
+    return f"{text}{fix}" if fix else text
+
+
+def _motion_text(config: dict, shot: dict, descriptions: dict[str, str] | None, sound: bool = False) -> str:
     # mouths_move (config, on by default): spoken shots tell the video model who is talking.
     # `sound`: the clip is made with its own sound (clip_sound.py), so the model is also told
     # what should be heard: the line in the speaker's kind of voice, or nobody speaking.

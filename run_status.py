@@ -204,7 +204,16 @@ def summary(run_dir: Path, config: dict | None) -> dict:
     c = cost(run_dir, script, config)
     return {**meta, "steps": step_status(run_dir, script),
             "shots": len(script["shots"]) if script else 0,
-            "final_video": file_url(run_dir / "final.mp4"), "est_cost": c["total"]}
+            "final_video": file_url(run_dir / "final.mp4"), "est_cost": c["total"],
+            "review_mark": _review_mark(run_dir)}
+
+
+def _review_mark(run_dir: Path) -> int:
+    """When the self-review last wrote its report (0: never), so the run page shows new verdicts."""
+    try:
+        return int((run_dir / "qa_report.json").stat().st_mtime * 1000)
+    except OSError:
+        return 0
 
 
 def _caption_style(run_dir: Path, config: dict | None) -> str:
@@ -302,6 +311,14 @@ def detail(run_dir: Path, config: dict | None) -> dict:
     for c in (script or {}).get("characters", []):
         if isinstance(c, dict) and isinstance(c.get("id"), str):
             characters.append({**c, "sheet": file_url(sheet_path(run_dir, c["id"]))})
+    try:
+        import review
+        checks = review.for_status(run_dir, config) if config else review.for_status(run_dir)
+    except Exception:                      # the review must never break the run page
+        checks = {"shots": {}, "final": None, "cost": 0}
+    for sh in shots:
+        sh["review"] = checks["shots"].get(sh["n"]) or None
+    checks.pop("shots", None)
     song = None
     if isinstance((script or {}).get("song"), dict):
         from steps.song import song_path
@@ -329,4 +346,6 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             "timing": {"clip": float(((config or {}).get("fal") or {}).get("video_seconds") or 4),
                        "silent": float(((config or {}).get("assemble") or {}).get("min_shot_seconds") or 1.2),
                        "montage": float(((config or {}).get("assemble") or {}).get("montage_seconds") or 0.5)},
+            "review": checks,
+            "qa_report": file_url(run_dir / "qa_report.json"),
             "cost": cost(run_dir, script, config)}

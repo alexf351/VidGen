@@ -438,6 +438,10 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
         raise StepError(f"shot {n}: no reference sheet for {missing}")
     limit = int(config[image_provider(config)].get("max_reference_images") or 0)
     carried: list[str] = []
+    import review
+    fix = review.fix_note(config, "picture", n)       # drawn again because the review flagged it
+    if fix:
+        print(f"  shot {n}: with the review's fix:{fix.split(':', 1)[1]}")
     if scene_ref is not None and limit and len(ref_ids) + 1 > limit:
         # Too many people for their sheets and the scene picture. Whoever the scene's first
         # picture already shows is carried by it (face, hair and the clothes of this scene), so
@@ -475,7 +479,7 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
               f"Reroll shot {scene_ref.stem} first, then this one.")
     if scene_ref is not None:
         try:
-            _draw_shot(config, shot_prompt(shot, ref_ids, scene=True, wardrobe=[ids for ids, _ in wardrobe], carried=carried),
+            _draw_shot(config, shot_prompt(shot, ref_ids, scene=True, wardrobe=[ids for ids, _ in wardrobe], carried=carried) + fix,
                        own + [scene_ref] + [p for _, p in wardrobe], f"shot {n}", dest)
         except StepError as e:
             # A refused request costs nothing. Draw the shot the way it was drawn before scene
@@ -499,7 +503,7 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
                   f"{' and '.join(ref_ids[limit:])} {'are' if len(ref_ids) - limit > 1 else 'is'} drawn from the description alone")
             ref_ids = ref_ids[:limit]
         own = [sheets[cid] for cid in ref_ids]
-        _draw_shot(config, shot_prompt(shot, ref_ids), own, f"shot {n}", dest)
+        _draw_shot(config, shot_prompt(shot, ref_ids) + fix, own, f"shot {n}", dest)
 
     video = dest.with_suffix(".mp4")
     if (shot.get("animate") or shot.get("talk")) and video.exists():

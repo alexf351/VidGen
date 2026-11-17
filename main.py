@@ -21,6 +21,10 @@ Commands:
   python main.py recast <run_id>            sync script.json with the format's locked characters
   python main.py move <run_id> <shot> <to>  move a shot to another place (its files move with it)
   python main.py captions <run_id> [style]  show or change a run's caption style (then: step assemble)
+  python main.py review <run_id>            check the pictures, clips and the cut (qa_report.json)
+      ... --what clips --only 3,7 --again   just the clips / just those shots / check again
+      ... --fix                             make what it flags again (a picture or clip each, max 2 a shot)
+  python main.py new "<premise>" --review   check every shot as the video is made (--auto-fix: and redo)
 
 step, reroll and recast reuse the format the run was created with (saved in run.json).
 """
@@ -58,7 +62,19 @@ def cmd_new(args, config) -> None:
     if getattr(args, "model", None):
         import video_model
         video_model.set_for_run(run_dir, args.model)
+    if getattr(args, "review", False) or getattr(args, "auto_fix", False):
+        import review
+        review.set_for_run(run_dir, on=True, auto_fix=bool(getattr(args, "auto_fix", False)))
     commands.execute_new(run_dir, config, args.dry_run)
+
+
+def cmd_review(args, config) -> None:
+    import review
+    from common import parse_only
+    run_dir = commands.run_dir_for(args.run_id)
+    commands._image_pipeline_only(run_dir, "the review")
+    review.review(run_dir, config, what=args.what, only=parse_only(args.only), again=args.again,
+                  fix_flagged=args.fix)
 
 
 def cmd_step(args, config) -> None:
@@ -126,6 +142,20 @@ def build_parser() -> argparse.ArgumentParser:
                        help="caption style: format (the format's own look), classic, outline, "
                             "yellow_pop, comic, headline, banner or off")
     p_new.set_defaults(func=cmd_new)
+
+    p_new.add_argument("--review", action="store_true",
+                       help="Claude checks every picture, clip and the cut as they are made (qa_report.json)")
+    p_new.add_argument("--auto-fix", action="store_true",
+                       help="with the review: make a flagged picture or clip again (max 2 takes a shot; costs a take each)")
+
+    p_rev = sub.add_parser("review", help="check a video's pictures, clips and cut with Claude (qa_report.json)")
+    p_rev.add_argument("run_id")
+    p_rev.add_argument("--what", choices=["all", "pictures", "clips", "final"], default="all")
+    p_rev.add_argument("--only", metavar="N,N", default=None, help="only these shots")
+    p_rev.add_argument("--again", action="store_true", help="check again what was already checked")
+    p_rev.add_argument("--fix", action="store_true",
+                       help="make what it flags again, with its fixes (max 2 takes a shot; costs a picture or clip each)")
+    p_rev.set_defaults(func=cmd_review)
 
     p_step = sub.add_parser("step", help="re-run one step on an existing run")
     p_step.add_argument("run_id")

@@ -100,6 +100,13 @@ python main.py move 20261103-201530-a-laid-off-line-cook 2 1
 # drop the stale reference sheets, and print the images --only command to regenerate
 python main.py recast 20261103-201530-a-laid-off-line-cook
 
+# let Claude check every picture, clip and the cut as the video is made (qa_report.json);
+# --auto-fix also makes a flagged picture or clip again with the reviewer's fix (max 2 a shot)
+python main.py new "A laid-off line cook buys a food truck" --review --auto-fix
+# check a video that is already made, or only its clips, or only shots 3 and 7
+python main.py review 20261103-201530-a-laid-off-line-cook
+python main.py review 20261103-201530-a-laid-off-line-cook --what clips --only 3,7 --fix
+
 # pick a caption style for a new video, or change it on a finished one (then assemble again)
 python main.py new "A laid-off line cook buys a food truck" --captions yellow_pop
 python main.py captions 20261103-201530-a-laid-off-line-cook headline
@@ -635,6 +642,11 @@ that was running or queued when the server stopped is marked failed on the next 
 | `POST /api/runs/{run_id}/remix` | mix the sound again on the picture the video already has (a job; no API calls) |
 | `PUT /api/runs/{run_id}/shots/{n}/clip-voice` `{on}` | mark (or unmark) a spoken shot as "its clip says the line": the voice step then takes the line from the clip whatever the word finder heard |
 | `POST /api/runs/{run_id}/reroll-many` `{shots, provider}` | the same for several shots as one job: their pictures, then their clips (and, with clip sound, their lines) |
+| `POST /api/runs/{run_id}/review` `{what, shots, again, fix}` | the self-review as a job: `all`, `pictures`, `clips` or `final`; `fix` also makes what it flags again |
+| `POST /api/runs/{run_id}/review/fix` `{shots, what}` | make these shots' pictures (`picture`) or clips (`clip`) again with the reviewer's fix, then check them again |
+| `POST /api/runs/{run_id}/review/ignore` `{n, what, ignored}` | set a flag aside (or bring it back) |
+| `PUT /api/runs/{run_id}/review-settings` `{on, auto_fix}` | check this video's shots as they are made, and make what it flags again |
+| `POST /api/runs/{run_id}/clip-start` `{n, start}` | use a shot's clip from this second (0 = from its start) |
 | `POST /api/runs/{run_id}/recast` | recast |
 | `DELETE /api/runs/{run_id}` | deletes the video's folder (409 while a job is working on it, or while one of its files is open in another program: nothing is half deleted) |
 | `POST /api/runs/{run_id}/shots` `{after, shot}` | adds a shot after shot `after` (0 = first); `shot` is the form's answers, `{kind: scene / texts / card, ...}`. 422 with the reason when an answer is missing or the format's rules refuse it |
@@ -664,7 +676,9 @@ runs/<run_id>/
   audio/<n>.json        per-word timings for that clip
   app/                  the hand holding the phone, previews, the drawn chat screens of texts shots
   build/                intermediate clips, captions.ass, sfx.wav + sfx.json, the pre-outro mix
+  build/timeline.json   where each shot sits in the cut and which part of its clip it uses
   final.mp4             the finished short
+  qa_report.json        the self-review's verdicts, when it ran (review/ holds the strips it looked at)
 characters_cache/<id>.png   generated sheets for locked characters, reused by every run
 characters_cache/<id>.txt   the description each sheet was drawn from
 ```
@@ -1042,6 +1056,57 @@ input per sound (forty or more in a fast cut) is the obvious way, and some Windo
 builds stop in the middle of it and never finish; the same command takes under a second
 elsewhere. Any ffmpeg command that has no progress to watch is also stopped, and named, if it
 has not finished in ten minutes, so the final cut can no longer sit at 99%.
+
+### Self-review: Claude checks every shot
+
+`review.py`. Claude looks at the video the way a stranger would, and says what is wrong, at the
+three points where catching it is cheapest:
+
+- **Each picture, before its clip is made.** The keyframe goes in next to the character sheets of
+  the people in it and the earlier shot of its scene. It catches someone missing or extra, a face
+  that is not the character, people or a car on the other side than the shot before, someone
+  standing who should sit, broken hands, writing nobody asked for. A picture costs about $0.04
+  and a clip $0.30 to $1, so a bad picture caught here saves its clip.
+- **Each clip, as it lands.** The clip is shown as a strip of 8 frames with their times, the
+  frames in the part the cut uses marked green. It catches people fading, flickering or
+  vanishing, melting faces, a jump to another angle, a parked car rolling away, a car driving off
+  the wrong side. When what the shot needs happens in the clip but after the part the cut uses
+  (the car only drives off at 3.1 s), it says from when to use it, and the card offers
+  **Use from 2.4s** (no new clip; it shows once the video is put together again).
+- **The finished cut.** Free checks with ffmpeg: black stretches (the time cards' black is not
+  counted), a clip that stands still, dead air, a shot on screen longer than 5 s. Then one look
+  at a strip of the cut for captions over faces or cut off at an edge.
+
+A problem a viewer would notice that a new take fixes is **redo**; everything else is a note. The
+verdicts go in `qa_report.json` in the run folder, each tied to the file it judged: a picture or
+clip made again is checked again, and an old verdict never sticks to a new file. The run page
+shows them on the shot cards (**Redraw with fix**, **Redo with fix**, **Leave it**) and in the
+Self-review panel, with the review's cost so far.
+
+Switch it on for a video when you make it (**Self-review** on the create screen, or `new
+--review`), on the video's page, or for every video with `review.enabled: true` in
+config.local.yaml. **Check and redo** (`--auto-fix`) also makes a flagged picture or clip again
+with the reviewer's fix added to its prompt, at most `review.max_fixes` (2) times a shot, and
+checks it again; each new take costs what a picture or clip costs, and is said before it is made.
+
+Each check is one request to Claude (`review.model`, Sonnet 5.5 by default) with small pictures,
+on your `ANTHROPIC_API_KEY`: about 1 to 3 cents, so a 34-shot video is roughly $1 to $2 for
+pictures, clips and the cut. The review never stops a video: when a check fails it says so and
+the video carries on.
+
+**Claude Eyes** (optional, [github.com/moritzkremb/claude-eyes](https://github.com/moritzkremb/claude-eyes),
+MIT). When the `eyes` command is installed, the check of the finished cut also runs it on the
+video to measure cuts per minute, shot lengths, how fast the voice speaks, when the first word
+comes and how loud it is, and notes what is off for a short (over about 190 words a minute, the
+first word after 2 s, louder or quieter than phones play shorts). It runs on this computer and is
+given no API key, so nothing leaves it. Install it with `uv tool install
+git+https://github.com/moritzkremb/claude-eyes` (or pipx), then `eyes setup --fix`. Without it,
+every other check works the same. `review.eyes: off` skips it.
+
+The reviewer's brief borrows ideas from the review room of
+[Take One](https://github.com/talsiach/take-one) (MIT): a reviewer who has seen none of the work,
+told what cannot change, who names only what is visible and never reports a pass that did not
+happen. No code from it is copied.
 
 ### Caption styles
 

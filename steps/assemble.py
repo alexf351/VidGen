@@ -11,7 +11,7 @@ import subprocess
 from pathlib import Path
 
 import phone_texts
-from common import ROOT, StepError, read_json, read_script
+from common import ROOT, StepError, read_json, read_script, write_json
 from media import ffmpeg_version, has_audio_stream, probe_duration, require_ffmpeg, run_ffmpeg
 from steps.images import shot_path
 from steps.video import video_path
@@ -1176,7 +1176,49 @@ def cost_report(run_dir: Path, script: dict, config: dict) -> list[tuple[str, fl
         rows.append((f"song ({secs:.0f}s)", secs / 60 * float(config["elevenlabs"]["music_cost_per_minute"])))
     else:
         rows.append((f"voice ({chars} chars)", chars / 1000 * float(config["elevenlabs"]["cost_per_1k_chars"])))
+    try:                                   # the self-review's Claude checks (review.py)
+        import review
+        spent = float(review.load(run_dir).get("cost") or 0)
+        if spent > 0:
+            rows.append(("review (Claude checks)", spent))
+    except Exception:
+        pass
     return rows
+
+
+def shot_kind(shot: dict, run_dir: Path) -> str:
+    """What a shot is on screen, for the timeline the review reads."""
+    if shot.get("card"):
+        return "card"
+    if shot.get("app_screen"):
+        return "app_screen"
+    if shot.get("texts"):
+        return "texts"
+    for k in ("flash", "montage", "letter"):
+        if shot.get(k):
+            return k
+    if (shot.get("animate") or shot.get("talk")) and video_path(run_dir, shot["n"]).exists():
+        return "clip"
+    return "still"
+
+
+def write_timeline(build: Path, plan: list[dict], run_dir: Path) -> None:
+    """build/timeline.json: where each shot sits in the cut, and which part of its clip it
+    uses (review.py reads it to tell a card's black from a broken frame)."""
+    out = []
+    for it in plan:
+        shot = it["shot"]
+        kind = shot_kind(shot, run_dir)
+        item = {"n": it["n"], "kind": kind, "start": round(float(it["start"]), 3),
+                "end": round(float(it["start"]) + float(it["duration"]), 3)}
+        if kind == "clip" and not it.get("letter_page"):
+            item["clip_from"] = round(float(it["clip_offset"]) if "clip_offset" in it
+                                      else float(shot.get("clip_start") or 0), 3)
+        out.append(item)
+    try:
+        write_json(build / "timeline.json", out)
+    except OSError:
+        pass
 
 
 # ------------------------------------------------------------------- run ----
@@ -1279,6 +1321,7 @@ def run(run_dir: Path, config: dict, sound_only: bool = False) -> None:
             scene_clip = clip
         clips.append(clip)
 
+    write_timeline(build, plan, run_dir)
     concat_list = build / "concat.txt"
     concat_list.write_text("".join(f"file '{c.name}'\n" for c in clips), encoding="utf-8")
     cut = build / "cut.mp4"

@@ -69,6 +69,22 @@ clip_sound:
   match: 0.7                    # how much of a line must be heard in its clip (0-1) to use the clip's voice
   model: scribe_v2              # the ElevenLabs model that finds the words in a clip
 
+# Self-review (review.py): Claude checks every picture before its clip is made, every clip as it
+# lands and the finished cut, and writes what a viewer would notice to the run's qa_report.json.
+# About 1 to 3 cents a check (your ANTHROPIC_API_KEY). One video can switch it on for itself (new
+# --review, or on its page). Auto-fix makes a flagged picture or clip again with the reviewer's fix
+# in its prompt: that costs a picture or a clip each time, at most max_fixes times a shot.
+review:
+  enabled: false
+  auto_fix: false
+  max_fixes: 2
+  model: "claude-sonnet-5-5"
+  effort: "medium"              # low | medium | high
+  frames: 8                     # frames of a clip the reviewer sees
+  final_look: true              # one look at a strip of the finished cut (captions, framing)
+  slow_shot_seconds: 5.0        # a shot on screen longer than this is noted as slow
+  eyes: auto                    # use Claude Eyes for the cut's pacing when `eyes` is installed | off
+
 script:
   model: "claude-sonnet-5-5"
   # The cap on one reply. The model thinks before it writes and the thinking counts toward this

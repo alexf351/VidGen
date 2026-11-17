@@ -876,7 +876,7 @@ async function refreshOpenRun() {
     const runs = await api("GET", "/api/runs");
     const fresh = runs.find((r) => r.run_id === S.runId);
     S.runs = runs; renderSidebar();
-    if (fresh && key(fresh.steps) !== key(S.run.steps)) {
+    if (fresh && (key(fresh.steps) !== key(S.run.steps) || (fresh.review_mark || 0) !== (S.run.review_mark || 0))) {
       S.stamps[S.runId] = Date.now();
       await loadRun(S.runId);
     }
@@ -1437,6 +1437,7 @@ function renderCreate(formatName) {
     keyWarn.textContent = missing.length ? `No API key set for ${missing.join(", ")}.` : "";
     provSec.classList.toggle("hidden", st.engine === "claude_code");
     sndSec.classList.toggle("hidden", st.engine === "claude_code");
+    revSec.classList.toggle("hidden", st.engine === "claude_code");
     qualSec.classList.toggle("hidden", st.engine === "claude_code");
     if (modelSec) modelSec.classList.toggle("hidden", st.engine === "claude_code");
     if (scrSec) scrSec.classList.toggle("hidden", st.engine === "claude_code" || !!readyOn);
@@ -1542,6 +1543,17 @@ function renderCreate(formatName) {
     chips([[false, "Voices added after", "ElevenLabs voices you pick"], [true, "Clips speak for themselves", "lips match, real scene sound"]],
       st.clipSound, (v) => { st.clipSound = v; try { localStorage.setItem("vidgen.clipSound", v ? "1" : "0"); } catch { /* private mode */ } }, "Sound"),
     h("div", { class: "field-note" }, "With clips speaking for themselves the video model makes each clip with its own sound: people say their lines with matching lips, doors slam, feet walk. The voices are then the model's own. Your choice is remembered for the next video, and you can switch it per video later."));
+  // Self-review (review.py): Claude checks every picture, clip and the cut as they are made.
+  if (st.review === undefined) {
+    let last = null;
+    try { last = localStorage.getItem("vidgen.review"); } catch { /* private mode */ }
+    const rv = (S.config && S.config.review) || {};
+    st.review = ["off", "check", "fix"].includes(last) ? last : rv.enabled ? (rv.auto_fix ? "fix" : "check") : "off";
+  }
+  const revSec = h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Self-review")),
+    chips([["off", "Off"], ["check", "Check every shot", "flags what looks wrong"], ["fix", "Check and redo", "makes flagged shots again"]],
+      st.review, (v) => { st.review = v; try { localStorage.setItem("vidgen.review", v); } catch { /* private mode */ } }, "Self-review"),
+    h("div", { class: "field-note" }, "Claude looks at each picture before its clip is made, at each clip as it lands and at the finished cut, and flags what a viewer would notice: missing or extra people, a face that is not the character, people on the wrong side, fading, melting, a car that rolls away. About 2 cents a check (your Anthropic key). Check and redo also makes a flagged shot again with the fix, at most twice a shot, at the price of the picture or clip."));
   const scrSec = screensSection(f, st);
   // Short, Standard or Long (video_length.py): the format's own length first, then longer ones.
   const lenNote = h("div", { class: "field-note" });
@@ -1573,6 +1585,7 @@ function renderCreate(formatName) {
       if (lenPick && lengths.length > 1) est.rows = [...est.rows, ["Length", `${lenPick.title} (${lenPick.seconds})`]];
       est.rows = [...est.rows, ["Sound", st.clipSound ? "clips speak for themselves" : "voices added after (ElevenLabs)"],
         ["Clip quality", st.quality === "720p" ? "sharp (720p)" : "standard (480p)"],
+        ...(st.review !== "off" ? [["Self-review", st.review === "fix" ? "check and redo flagged shots (about 2¢ a check, plus any redo)" : "check every shot (about 2¢ a check)"]] : []),
         ...(st.model ? [["Video model", modelTitle(st.model)]] : [])];
       const ok = await confirmDialog({ title: picked ? `Generate "${picked.title}"?` : `Generate a ${formatTitle(f)} video?`, rows: est.rows, total: est.total,
         text: picked ? `${formatTitle(f)}, from the ready-made script. Runs images, video, voice and assemble.` : "Runs script, images, video, voice and assemble.", ok: "Generate",
@@ -1586,6 +1599,7 @@ function renderCreate(formatName) {
       screens: st.engine === "ai" && !ready ? st.screens : [], ready,
       clip_sound: st.engine === "ai" ? !!st.clipSound : null, quality: st.engine === "ai" ? st.quality : null,
       video_model: st.engine === "ai" && st.model ? st.model : null,
+      review: st.engine === "ai" ? st.review !== "off" : null, auto_fix: st.engine === "ai" ? st.review === "fix" : null,
       length: !ready && st.length && st.length !== ownLength ? st.length : null }),
       st.dry ? (st.engine === "claude_code" ? "story" : "script") : `${formatTitle(f)} video`);
     go.disabled = false;
@@ -1612,6 +1626,7 @@ function renderCreate(formatName) {
     sndSec,
     modelSec,
     qualSec,
+    revSec,
     capSec,
     castSection(f, st, update),
     h("section", { class: "card-sec cost-card" }, h("div", {}, costLine, costSub), go));
@@ -1977,7 +1992,8 @@ function shotCard(run, s, busy) {
     shot.stat ? h("span", { class: "badge stat", title: "Progress overlay: the rank and the number drawn over this shot" }, `${shot.stat.rank} · ${Number(shot.stat.value).toLocaleString("en-US")} ${shot.stat.unit}`) : null,
     s.shape ? h("span", { class: "badge stat", title: `This picture came back ${s.shape}, not 9:16. The video crops its sides to fill the screen. Reroll the shot for a new one.` }, "not 9:16") : null,
     shot.same_scene ? h("span", { class: "badge scene", title: "Same scene as the shot before: drawn with that scene's first shot as a reference, so the place and clothes match" }, "↳ scene") : null,
-    shot.talk ? h("span", { class: "badge anim", title: s.clip ? "Lip-synced talking clip (hover to play)" : "Talking shot: no clip yet (video step)" }, s.clip ? "talk" : "talk —") : null));
+    shot.talk ? h("span", { class: "badge anim", title: s.clip ? "Lip-synced talking clip (hover to play)" : "Talking shot: no clip yet (video step)" }, s.clip ? "talk" : "talk —") : null,
+    reviewBadge(s)));
   if (drawable) {
     thumb.append(h("input", { type: "checkbox", class: "sel", checked: selected, "aria-label": `Select shot ${s.n}`,
       onchange: (e) => {
@@ -2063,6 +2079,7 @@ function shotCard(run, s, busy) {
       : h("div", { class: "line-note trip" },
           h("div", {}, "Added voice, not the clip’s own, so the lips may not match."),
           h("div", { class: "trip-btns" }, trustBtn(), againBtn("Check again"), redoClipBtn()))) : null,
+    reviewNotes(run, s, busy),
     spoken && s.trusted ? h("div", { class: "line-note" }, "The clip’s own voice, on your say-so. ",
       h("button", { class: "link-btn", type: "button", disabled: busy, onclick: () => useClipVoice(run, s.n, false) }, "Undo")) : null);
   const actions = h("div", { class: "shot-actions" },
@@ -2071,6 +2088,170 @@ function shotCard(run, s, busy) {
     h("button", { disabled: busy || !spoken, title: run.song ? "Make the whole song again" : shot.talk ? "Redo the voice line (then redo its talking clip)" : "Redo the voice line",
       onclick: () => runStep(run, "voice", run.song ? null : [s.n]) }, run.song ? "Song" : "Voice"));
   return h("article", { class: `shot${selected ? " selected" : ""}` }, thumb, info, actions);
+}
+
+// ------------------------------------------------------------ self-review
+// review.py on the server: Claude checks each picture, each clip and the cut. A shot's current
+// verdicts come with the run (s.review.picture / s.review.clip); a verdict about a picture or
+// clip that has been made again since is not sent.
+const reviewOpen = (e) => e && e.verdict === "redo" && !e.ignored;
+function reviewBadge(s) {
+  const r = s.review;
+  if (!r) return null;
+  const flagged = ["picture", "clip"].filter((k) => reviewOpen(r[k]));
+  if (flagged.length) return h("span", { class: "badge review-bad", title: `The review flagged this shot's ${flagged.join(" and ")}. See the note under it.` }, "⚠ review");
+  const checked = ["picture", "clip"].filter((k) => r[k]);
+  return checked.length ? h("span", { class: "badge review-ok", title: `Checked by the review: ${checked.join(" and ")} look right` }, "✓") : null;
+}
+
+async function reviewFix(run, n, what) {
+  run = await saveFirst(run);
+  if (!run) return;
+  const s = run.shots.find((x) => x.n === n);
+  const est = what === "picture" ? estimateReroll(run, s) : estimateStep(run, "video", [n]);
+  const ok = await confirmDialog({ title: what === "picture" ? `Draw shot ${n} again with the fix?` : `Make shot ${n}'s clip again with the fix?`,
+    rows: est.rows, total: est.total,
+    text: what === "picture" ? "A new picture, with the reviewer's fix added to its description, then a new clip from it if the shot moves. Both are checked again."
+      : "A new clip from the same picture, with the reviewer's fix added to what happens in it. It is checked again." });
+  if (!ok) return;
+  releaseMedia();
+  await submit(api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/review/fix`,
+    { shots: [n], what, provider: providerBody() }), `fix shot ${n}`);
+}
+
+async function reviewIgnore(run, n, what, ignored = true) {
+  try {
+    await api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/review/ignore`, { n, what, ignored });
+  } catch (e) { toast(e.message, "bad"); return; }
+  await loadRun(run.run_id);
+}
+
+async function useClipFrom(run, n, start) {
+  try {
+    await api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/clip-start`, { n, start });
+  } catch (e) { toast(e.message, "bad"); return; }
+  toast(`Shot ${n} now starts at ${start.toFixed(1)}s of its clip. Put the video together again to see it.`, "ok");
+  await loadRun(run.run_id);
+}
+
+function reviewNotes(run, s, busy) {
+  const r = s.review;
+  if (!r) return null;
+  const out = [];
+  for (const what of ["picture", "clip"]) {
+    const e = r[what];
+    if (!e || !e.problems || !e.problems.length) continue;
+    const label = what === "picture" ? "Picture" : "Clip";
+    const big = e.problems.filter((p) => p.severity === "redo");
+    const small = e.problems.filter((p) => p.severity !== "redo");
+    const starts = what === "clip" ? e.problems.filter((p) => typeof p.start === "number") : [];
+    const startBtns = starts.map((p) => h("button", { class: "btn small", type: "button", disabled: busy,
+      title: "Use the clip from this moment, where the reviewer saw the action happen (no new clip is made)",
+      onclick: () => useClipFrom(run, s.n, p.start) }, `Use from ${p.start.toFixed(1)}s`));
+    if (big.length && !e.ignored) {
+      out.push(h("div", { class: "line-note trip review-note" },
+        h("div", { class: "review-head" }, `${label} check`),
+        ...big.map((p) => h("div", {}, p.what)),
+        ...small.map((p) => h("div", { class: "review-minor" }, p.what)),
+        h("div", { class: "trip-btns" },
+          h("button", { class: "btn small primary", type: "button", disabled: busy || !s.image,
+            onclick: () => reviewFix(run, s.n, what) }, what === "picture" ? "Redraw with fix" : "Redo with fix"),
+          ...startBtns,
+          h("button", { class: "btn small", type: "button", disabled: busy, title: "It is fine as it is: set the flag aside",
+            onclick: () => reviewIgnore(run, s.n, what) }, "Leave it")),
+        e.fixes ? h("div", { class: "review-minor" }, `Made again ${e.fixes === 1 ? "once" : `${e.fixes} times`} by the review so far.`) : null));
+    } else {
+      const notes = e.ignored ? big.concat(small) : small;
+      if (!notes.length) continue;
+      out.push(h("details", { class: "review-details" },
+        h("summary", {}, `${label} notes (${notes.length})${e.ignored ? ", set aside" : ""}`),
+        ...notes.map((p) => h("div", { class: "review-minor" }, p.what)),
+        startBtns.length || e.ignored ? h("div", { class: "trip-btns" }, ...startBtns,
+          e.ignored ? h("button", { class: "btn small", type: "button", disabled: busy, onclick: () => reviewIgnore(run, s.n, what, false) }, "Flag it again") : null) : null));
+    }
+  }
+  return out.length ? out : null;
+}
+
+function fmtSec(t) { return typeof t === "number" ? `${t.toFixed(1)}s` : ""; }
+
+function reviewPanel(run, busy) {
+  const box = h("section", { class: "captions-panel review-panel", "aria-label": "Self-review" });
+  const rv = run.review || {};
+  const draw = () => {
+    const mode = rv.on ? (rv.auto_fix ? "fix" : "check") : "off";
+    const set = async (v) => {
+      if (v === mode) return;
+      try {
+        const r = await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/review-settings`, { on: v !== "off", auto_fix: v === "fix" });
+        rv.on = r.on; rv.auto_fix = r.auto_fix;
+      } catch (e) { toast(e.message, "bad"); }
+      draw();
+    };
+    const pics = run.shots.filter((s) => s.review && reviewOpen(s.review.picture)).map((s) => s.n);
+    const clips = run.shots.filter((s) => s.review && reviewOpen(s.review.clip)).map((s) => s.n);
+    const checked = run.shots.filter((s) => s.review && (s.review.picture || s.review.clip)).length;
+    const canCheck = run.shots.some((s) => s.image || s.clip);
+    const fin = rv.final;
+    const finIssues = fin ? fin.issues || [] : [];
+    const eyes = fin && fin.eyes;
+    const startCheck = async (what, again = false) => {
+      run = await saveFirst(run);
+      if (!run) return;
+      const n = run.shots.filter((s) => s.image || s.clip).length;
+      const ok = await confirmDialog({ title: what === "final" ? "Check the finished video?" : "Check this video with Claude?",
+        rows: what === "final" ? [["Checks", "black, frozen and silent stretches, slow shots (free)"], ["Look", "one look at a strip of the cut"]]
+          : [["Pictures and clips", `${n} shots`], ["Price", "about 2¢ a check"]],
+        total: what === "final" ? 0.03 : Math.round(n * 2 * 0.02 * 100) / 100,
+        text: "Claude looks at each picture next to its character sheets and the earlier shot of its scene, at each clip as a strip of frames, and at the finished cut, and flags what a viewer would notice. Nothing is made again unless you ask.",
+        ok: "Check" });
+      if (!ok) return;
+      await submit(api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/review`, { what, again, provider: providerBody() }), "review");
+    };
+    box.replaceChildren(...[
+      h("div", { class: "panel-title" }, "Self-review"),
+      chips([["off", "Off"], ["check", "Check as it is made"], ["fix", "Check and redo"]], mode, set, "Self-review for this video"),
+      checked ? h("div", { class: "field-note" },
+        `${checked} ${checked === 1 ? "shot" : "shots"} checked.` + (pics.length || clips.length ? "" : " Nothing flagged.")
+        + (rv.cost ? ` Review cost so far $${rv.cost.toFixed(2)}.` : "")) : null,
+      pics.length || clips.length ? h("div", { class: "notice" },
+        [pics.length ? `Pictures flagged: ${pics.join(", ")}.` : "", clips.length ? `Clips flagged: ${clips.join(", ")}.` : ""].filter(Boolean).join(" ")
+        + " Each card says what is wrong. ",
+        pics.length > 1 ? h("button", { class: "btn small", disabled: busy, onclick: () => fixAll(run, pics, "picture") }, `Redraw all ${pics.length} with their fixes`) : null,
+        clips.length > 1 ? h("button", { class: "btn small", disabled: busy, onclick: () => fixAll(run, clips, "clip") }, `Redo all ${clips.length} clips with their fixes`) : null) : null,
+      fin ? h("div", { class: "review-final" },
+        h("div", { class: "review-head" }, finIssues.length ? `The finished video: ${plural(finIssues.length, "note")}` : "The finished video: nothing found"),
+        ...finIssues.slice(0, 8).map((i) => h("div", { class: i.severity === "redo" ? "review-bad-line" : "review-minor" },
+          (typeof i.at === "number" ? `${fmtSec(i.at)} ` : "") + i.what)),
+        eyes ? h("div", { class: "review-minor" }, "Measured by Claude Eyes: " + [
+          eyes.cuts_per_min != null ? `${eyes.cuts_per_min} cuts a minute` : "",
+          eyes.median_shot != null ? `median shot ${eyes.median_shot}s` : "",
+          eyes.words_per_minute != null ? `${eyes.words_per_minute} words a minute` : "",
+          eyes.lufs != null ? `${eyes.lufs} LUFS` : ""].filter(Boolean).join(", ") + ".") : null) : null,
+      h("div", { class: "trip-btns" },
+        h("button", { class: "btn small", disabled: busy || !canCheck, onclick: () => startCheck("all") }, checked ? "Check what is new" : "Check the shots now"),
+        checked ? h("button", { class: "btn small ghost", disabled: busy, onclick: () => startCheck("all", true) }, "Check everything again") : null,
+        run.final_video ? h("button", { class: "btn small ghost", disabled: busy, onclick: () => startCheck("final", !!fin) }, "Check the cut") : null),
+      run.qa_report ? h("a", { class: "field-note", href: bust(run.qa_report, run.run_id), target: "_blank", rel: "noopener" }, "Open the report (qa_report.json)") : null,
+      !checked && !fin ? h("div", { class: "field-note" },
+        "Claude checks each picture before its clip is made, each clip as it lands and the finished cut, and flags what a viewer would notice. About 2¢ a check." + (rv.eyes ? " Claude Eyes is installed: the cut's pacing is measured too." : "")) : null,
+    ].filter(Boolean));
+  };
+  draw();
+  return box;
+}
+
+async function fixAll(run, shots, what) {
+  run = await saveFirst(run);
+  if (!run) return;
+  const est = what === "picture" ? estimateStep(run, "images", shots) : estimateStep(run, "video", shots);
+  const ok = await confirmDialog({ title: `Make ${shots.length} ${what === "picture" ? "pictures" : "clips"} again with the reviewer's fixes?`,
+    rows: est.rows, total: est.total,
+    text: what === "picture" ? "New pictures with the fixes in their descriptions, then new clips from them where the shots move. All are checked again."
+      : "New clips from the same pictures, with the fixes in what happens. All are checked again." });
+  if (!ok) return;
+  releaseMedia();
+  await submit(api("POST", `/api/runs/${encodeURIComponent(run.run_id)}/review/fix`, { shots, what, provider: providerBody() }), "fixes");
 }
 
 function sideColumn(run, busy) {
@@ -2089,6 +2270,7 @@ function sideColumn(run, busy) {
   }
   col.append(final);
   if (run.script) col.append(soundPanel(run, busy));
+  if (run.script) col.append(reviewPanel(run, busy));
   if (run.script) col.append(modelPanel(run, busy), qualityPanel(run, busy));
   if (run.script && run.music) col.append(musicPanel(run, busy));
   if (run.script && captionStyles().length) col.append(captionsPanel(run, busy));
@@ -3071,7 +3253,9 @@ function jobLabel(j) {
   const only = j.params.only ? [].concat(j.params.only) : [];
   const what = j.action === "step" ? `${names[j.params.step] || j.params.step}${only.length ? ` · ${only.length === 1 ? "shot" : "shots"} ${only.join(", ")}` : ""}`
     : j.action === "assemble" ? (j.params.sound_only ? "Sound mix" : "Assemble")
+    : j.action === "reroll" && j.params.what ? `Fix ${j.params.what === "clip" ? "clips" : "pictures"} of ${j.params.shots.length === 1 ? "shot" : "shots"} ${j.params.shots.join(", ")}`
     : j.action === "reroll" ? (j.params.shots ? `Reroll shots ${j.params.shots.join(", ")}` : `Reroll shot ${j.params.shot}`)
+    : j.action === "review" ? `Self-review${j.params.what && j.params.what !== "all" ? ` · ${j.params.what}` : ""}`
     : j.action === "new" ? (j.params.dry_run ? (j.params.engine === "claude_code" ? "New video (story only)" : "New video (dry run)") : "New video")
     : j.action === "finish" ? "Finish the video"
     : j.action === "draw_character" ? `Draw ${j.params.character}` : j.action.charAt(0).toUpperCase() + j.action.slice(1);

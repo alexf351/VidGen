@@ -27,6 +27,7 @@ from sse_starlette.sse import EventSourceResponse
 
 import characters as lib
 import commands
+import review as review_mod
 import run_status
 import app_assets
 import ready_scripts
@@ -70,6 +71,8 @@ class NewRun(BaseModel):
     quality: str | None = None        # "480p" or "720p" clips for this video (clip_quality.py); None = the config's
     length: str | None = None         # "short", "standard" or "long" (video_length.py); None = the format's own
     video_model: str | None = None    # "fast", "standard" or "2.5" (video_model.py); None = the config's
+    review: bool | None = None        # Claude checks every shot as it is made (review.py); None = the config's
+    auto_fix: bool | None = None      # ... and makes what it flags again
 
 
 class ScreenIn(BaseModel):
@@ -139,6 +142,36 @@ class ClipSoundChoice(BaseModel):
 
 class ClipQualityChoice(BaseModel):
     quality: str | None = None        # "480p" | "720p"; None = follow the config again
+
+
+class ReviewChoice(BaseModel):
+    on: bool | None = None            # check this video's shots as they are made
+    auto_fix: bool | None = None      # and make what it flags again
+
+
+class ReviewRequest(BaseModel):
+    what: str = "all"                 # all | pictures | clips | final
+    shots: list[int] = []             # only these shots (empty = every shot)
+    again: bool = False               # check again what was already checked
+    fix: bool = False                 # make what it flags again
+    provider: ProviderChoice = None
+
+
+class ReviewFix(BaseModel):
+    shots: list[int] = Field(min_length=1, max_length=200)
+    what: str = "picture"             # picture | clip
+    provider: ProviderChoice = None
+
+
+class ReviewIgnore(BaseModel):
+    n: int = Field(ge=1)
+    what: str = "picture"             # picture | clip
+    ignored: bool = True
+
+
+class ClipStart(BaseModel):
+    n: int = Field(ge=1)
+    start: float = Field(ge=0, le=15)
 
 
 class VideoModelChoice(BaseModel):
@@ -535,6 +568,9 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                                  for k, m in video_model.MODELS.items()]},
             "prices": prices(cfg),
             "clip_sound": bool(cfg["clip_sound"]["enabled"]),
+            # self-review (review.py): the defaults for a new video, and whether Claude Eyes is installed
+            "review": (lambda r: {"enabled": bool(r["enabled"]), "auto_fix": bool(r["auto_fix"]),
+                                  "max_fixes": r["max_fixes"], "eyes": bool(review_mod.eyes_command(cfg))})(review_mod.settings(cfg)),
         }
 
     def caption_default(cfg: dict) -> str:
@@ -616,6 +652,12 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             except StepError as e:
                 raise HTTPException(400, str(e)) from e
             preface.append(f"  video model: {video_model.MODELS[body.video_model]['title']}")
+        if (body.review is not None or body.auto_fix is not None) and body.engine != "claude_code":
+            import review
+            choice = review.set_for_run(run_dir, on=body.review, auto_fix=body.auto_fix)
+            if choice.get("on"):
+                preface.append("  review: on (Claude checks every picture, clip and the cut"
+                               + ("; flagged takes are made again" if choice.get("auto_fix") else "") + ")")
         if body.quality is not None and body.engine != "claude_code":
             import clip_quality
             try:
@@ -1007,6 +1049,91 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         except StepError as e:
             raise HTTPException(400, str(e)) from e
         return {"video_model": video_model.of(config_for_run(run_dir))}
+
+    @app.put("/api/runs/{run_id}/review-settings")
+    def set_run_review(run_id: str, body: ReviewChoice) -> dict:
+        """Check this video's shots as they are made, and make what the check flags again."""
+        import review
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "the review")
+        review.set_for_run(run_dir, on=body.on, auto_fix=body.auto_fix)
+        cfg = config_for_run(run_dir)
+        return {"on": review.on(cfg, run_dir), "auto_fix": review.auto_fix(cfg, run_dir)}
+
+    @app.post("/api/runs/{run_id}/review", status_code=202)
+    def run_review(run_id: str, body: ReviewRequest) -> dict:
+        """Check the video now: its pictures, clips and cut (a cent or three a check)."""
+        import review
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "the review")
+        if body.what not in ("all", "pictures", "clips", "final"):
+            raise HTTPException(400, "what must be all, pictures, clips or final")
+        if run_status.load_script(run_dir) is None:
+            raise HTTPException(409, "this run has no script.json yet")
+        only = set(body.shots) or None
+        providers = _providers(body.provider)
+        params = {"what": body.what, "shots": sorted(only or []), "again": body.again, "fix": body.fix,
+                  "provider": providers}
+        return submit_run_job("review", run_dir, params,
+                              lambda cfg: review.review(run_dir, cfg, body.what, only, body.again, body.fix),
+                              providers)
+
+    @app.post("/api/runs/{run_id}/review/fix", status_code=202)
+    def review_fix(run_id: str, body: ReviewFix) -> dict:
+        """Make these shots' pictures (and their clips) or clips again with the reviewer's fix."""
+        import review
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "the review")
+        if body.what not in ("picture", "clip"):
+            raise HTTPException(400, "what must be picture or clip")
+        script = run_status.load_script(run_dir)
+        if script is None:
+            raise HTTPException(409, "this run has no script.json yet")
+        have = {s.get("n") for s in script["shots"] if isinstance(s, dict)}
+        shots = sorted(set(body.shots))
+        missing = [n for n in shots if n not in have]
+        if missing:
+            raise HTTPException(404, f"shot {missing[0]} is not in script.json")
+        providers = _providers(body.provider)
+        params = {"shots": shots, "what": body.what, "provider": providers}
+        return submit_run_job("reroll", run_dir, params,
+                              lambda cfg: review.fix(run_dir, cfg, shots, body.what), providers)
+
+    @app.post("/api/runs/{run_id}/review/ignore")
+    def review_ignore(run_id: str, body: ReviewIgnore) -> dict:
+        """Set a flag aside (or bring it back): the shot is left as it is."""
+        import review
+        run_dir = run_dir_of(run_id)
+        if body.what not in ("picture", "clip"):
+            raise HTTPException(400, "what must be picture or clip")
+        if not review.set_ignored(run_dir, body.n, body.what, body.ignored):
+            raise HTTPException(404, f"shot {body.n} has no {body.what} check")
+        return {"n": body.n, "what": body.what, "ignored": body.ignored}
+
+    @app.post("/api/runs/{run_id}/clip-start")
+    def set_clip_start(run_id: str, body: ClipStart) -> dict:
+        """Use a clip from a later moment (the review saw the action happen after the part the
+        cut used). Saved in the script; it shows once the video is put together again."""
+        from common import read_json, write_json
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "clip timing")
+        active = runner.active_for_run(run_id)
+        if active:
+            raise HTTPException(409, f"job {active.id} ({active.action}) is {active.status} on this run; "
+                                     f"wait for it to finish")
+        path = run_dir / "script.json"
+        if not path.is_file():
+            raise HTTPException(409, "this run has no script.json yet")
+        script = read_json(path)
+        shot = next((s for s in script.get("shots") or [] if isinstance(s, dict) and s.get("n") == body.n), None)
+        if shot is None:
+            raise HTTPException(404, f"shot {body.n} is not in script.json")
+        if body.start > 0:
+            shot["clip_start"] = round(float(body.start), 2)
+        else:
+            shot.pop("clip_start", None)
+        write_json(path, script)
+        return {"n": body.n, "clip_start": shot.get("clip_start", 0)}
 
     @app.put("/api/runs/{run_id}/clip-sound")
     def set_run_clip_sound(run_id: str, body: ClipSoundChoice) -> dict:
