@@ -136,7 +136,7 @@ def wardrobe_shots(shots: list[dict], i: int) -> list[tuple[list[str], dict]]:
 
 
 def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False,
-                wardrobe: list[list[str]] | None = None) -> str:
+                wardrobe: list[list[str]] | None = None, carried: list[str] | None = None) -> str:
     """The keyframe prompt. `scene`: the next reference image after the sheets is the first shot
     of the scene this shot continues (shot "same_scene"), given so the place and the clothes
     carry over. `wardrobe`: after that come earlier shots of the scene, one per entry, each
@@ -166,6 +166,13 @@ def shot_prompt(shot: dict, ref_ids: list[str], scene: bool = False,
             "clothes. Faces and bodies come from each character's own sheet. New camera angle and "
             "poses, as described above. Draw everything the description names, also what the "
             "earlier shot does not show (a second car, someone arriving), where it puts it.")
+        if carried:
+            # Their sheets did not fit (the picture model takes a few references at most): the
+            # earlier shot, which shows them, stands in for their sheets.
+            who = " and ".join(carried)
+            parts.append(f"{who} {'have' if len(carried) > 1 else 'has'} no sheet here: take "
+                         f"{'their' if len(carried) > 1 else 'their'} face, hair, build and clothes from "
+                         f"{which.lower()}, exactly as they look there.")
     for ids in wardrobe:
         at += 1
         who = " and ".join(ids)
@@ -416,8 +423,10 @@ def ensure_hand(run_dir: Path, config: dict, script: dict) -> None:
 
 def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str, Path],
                       scene_ref: Path | None = None,
-                      wardrobe: list[tuple[list[str], Path]] | None = None) -> Path:
-    """`scene_ref`: the keyframe of the first shot of the scene this shot continues.
+                      wardrobe: list[tuple[list[str], Path]] | None = None,
+                      scene_people: list[str] | None = None) -> Path:
+    """`scene_ref`: the keyframe of the first shot of the scene this shot continues, and
+    `scene_people` the characters it shows.
     `wardrobe`: [(character ids, keyframe of an earlier shot of the scene with them)], so people
     the scene's first shot does not show keep their clothes too (wardrobe_shots)."""
     n = shot["n"]
@@ -427,8 +436,23 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
     missing = [cid for cid in shot["characters"] if cid not in sheets]
     if missing:
         raise StepError(f"shot {n}: no reference sheet for {missing}")
-    own = [sheets[cid] for cid in ref_ids]
     limit = int(config[image_provider(config)].get("max_reference_images") or 0)
+    carried: list[str] = []
+    if scene_ref is not None and limit and len(ref_ids) + 1 > limit:
+        # Too many people for their sheets and the scene picture. Whoever the scene's first
+        # picture already shows is carried by it (face, hair and the clothes of this scene), so
+        # their sheets give way first, from the last named; the scene picture stays, and with it
+        # where everything stands. Only when that is not enough does the scene picture go.
+        over = len(ref_ids) + 1 - limit
+        shown = [cid for cid in ref_ids if cid in (scene_people or [])]
+        if len(shown) >= over and len(ref_ids) - over >= 1:     # someone still keeps a sheet
+            carried = shown[-over:]
+            ref_ids = [cid for cid in ref_ids if cid not in carried]
+            wardrobe = []                   # no room left: the scene picture is the last one
+            print(f"  shot {n}: {image_provider(config)} takes {limit} reference pictures, so "
+                  f"{' and '.join(carried)} {'are' if len(carried) > 1 else 'is'} taken from the scene picture "
+                  f"(shot {scene_ref.stem}) instead of {'their sheets' if len(carried) > 1 else 'a sheet'}")
+    own = [sheets[cid] for cid in ref_ids]
     if scene_ref is not None and limit and len(own) + 1 > limit:
         print(f"  shot {n}: {len(own)} characters plus the scene picture is more reference pictures than "
               f"{image_provider(config)} takes ({limit}), so the scene picture is left out")
@@ -451,7 +475,7 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
               f"Reroll shot {scene_ref.stem} first, then this one.")
     if scene_ref is not None:
         try:
-            _draw_shot(config, shot_prompt(shot, ref_ids, scene=True, wardrobe=[ids for ids, _ in wardrobe]),
+            _draw_shot(config, shot_prompt(shot, ref_ids, scene=True, wardrobe=[ids for ids, _ in wardrobe], carried=carried),
                        own + [scene_ref] + [p for _, p in wardrobe], f"shot {n}", dest)
         except StepError as e:
             # A refused request costs nothing. Draw the shot the way it was drawn before scene
@@ -469,6 +493,12 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
                 _redrawn.append(f"shot {n}")
             scene_ref = None
     if scene_ref is None:
+        ref_ids = ref_ids + carried          # no scene picture after all: their sheets come back
+        if limit and len(ref_ids) > limit:
+            print(f"  shot {n}: {image_provider(config)} takes {limit} reference pictures, so "
+                  f"{' and '.join(ref_ids[limit:])} {'are' if len(ref_ids) - limit > 1 else 'is'} drawn from the description alone")
+            ref_ids = ref_ids[:limit]
+        own = [sheets[cid] for cid in ref_ids]
         _draw_shot(config, shot_prompt(shot, ref_ids), own, f"shot {n}", dest)
 
     video = dest.with_suffix(".mp4")
@@ -532,7 +562,8 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
             if shot_path(run_dir, w["n"]).exists():
                 same += f", {' and '.join(ids)} dressed as in shot {w['n']}"
         print(f"  shot {shot['n']}: generating ({who}{same})...")
-        generate_keyframe(run_dir, config, shot, sheets, scene_ref, wardrobe)
+        generate_keyframe(run_dir, config, shot, sheets, scene_ref, wardrobe,
+                          scene_people=list(anchor.get("characters") or []) if anchor else None)
         progress.tick()
         with lock:
             done.append(shot["n"])
