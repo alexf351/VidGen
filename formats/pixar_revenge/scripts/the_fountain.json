@@ -282,7 +282,8 @@
       "motion_prompt": "Marcus and Sofia stay seated in the car as its tyres spin and smoke, then it launches left and roars out of the frame with them inside; in the foreground Jess and the blond man stand watching it go as the low smoke rolls toward them. Static camera.",
       "vo_line": "",
       "speaker": "",
-      "same_scene": true
+      "same_scene": true,
+      "seconds": 3.6
     },
     {
       "characters": [

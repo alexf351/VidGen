@@ -22,7 +22,11 @@ OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage",   # card / app screenshot
                       "stat",                              # progress overlay: {"rank", "value", "unit"}
                       "flash",                             # one of a run of very short silent stills
                       "texts",                             # text messages on the phone (phone_texts.py)
-                      "app_still"}                         # app screen: show the still, not its recording
+                      "app_still",                         # app screen: show the still, not its recording
+                      "clip_start",                        # seconds into the clip the shot starts at
+                      "seconds"}                           # how long a silent shot stays on screen
+CLIP_START_MAX = 15.0
+SHOT_SECONDS = (0.3, 15.0)
 LABEL_MAX_WORDS = 3
 LETTER_MAX_WORDS = 40
 SONG_STYLE_MAX = 300
@@ -782,6 +786,19 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             shot["same_scene"] = True
         else:
             shot.pop("same_scene")
+    # Clip timing, set in the script editor: where in the clip the shot starts ("clip_start") and
+    # how long a silent shot stays on screen ("seconds"). Both are seconds; zero/empty = automatic.
+    for i, shot in enumerate(normalized_shots):
+        for key, lo, hi in (("clip_start", 0.0, CLIP_START_MAX), ("seconds", *SHOT_SECONDS)):
+            if key not in shot:
+                continue
+            v = shot[key]
+            if v is None or v == "" or v == 0:
+                shot.pop(key)
+            elif isinstance(v, bool) or not isinstance(v, (int, float)) or not (lo <= float(v) <= hi):
+                errors.append(f"shots[{i}].{key} must be a number of seconds from {lo:g} to {hi:g}, got {v!r}")
+            else:
+                shot[key] = round(float(v), 2)
     # "sfx" is a sound name or "none"; anything else is quietly dropped, and so are sounds past
     # the cap (a cut where every shot booms has no boom).
     import sfx as sound

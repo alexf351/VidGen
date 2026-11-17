@@ -522,6 +522,10 @@ details.notes { margin-top: 14px; }
 .look-stat { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 0 8px; }
 .look-stat label:last-child { grid-column: 1 / -1; }
 .look-stat input, .look-stat select { width: 100%; min-width: 0; }
+.look-timing { margin-top: 6px; }
+.look-timing-head { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.look-timing .look-stat { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.look-timing .look-stat label:last-child { grid-column: auto; }
 .badge.stat { color: var(--on-media-warn); }
 .look-check { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; color: var(--muted); margin-top: 5px; cursor: pointer; }
 .look-check input { margin-top: 1px; accent-color: var(--accent); }

@@ -91,6 +91,8 @@ def shot_durations(run_dir: Path, script: dict, asm: dict, song: bool = False) -
                              app_screen_length(shot, asm) if shot.get("app_screen") else
                              phone_texts.seconds(shot["texts"], asm) if shot.get("texts") else
                              asm["flash_seconds"] if shot.get("flash") else asm["montage_seconds"])
+            if shot.get("montage") and shot.get("seconds"):
+                duration = float(shot["seconds"])                 # set in the script editor
             plan.append({"shot": shot, "n": n, "start": t, "duration": duration, "vo": None, "vo_len": 0.0})
             t += duration
             continue
@@ -108,6 +110,10 @@ def shot_durations(run_dir: Path, script: dict, asm: dict, song: bool = False) -
         else:
             vo = None
         duration = max(minimum, vo_len + pad) if vo else minimum
+        if shot.get("seconds"):
+            # Set in the script editor: a silent shot stays up exactly this long; a spoken one at
+            # least this long (its line still fits).
+            duration = max(float(shot["seconds"]), duration if vo else 0.0)
         if own:
             duration = max(0.5, vo_len)
         if shot.get("stat") and not vo:
@@ -432,8 +438,8 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
         # half second looks like no motion at all.
         zoom = float(asm["flash_zoom_end"] if shot.get("flash") else asm["montage_zoom_end"])
         if shot.get("animate") and clip.exists():
-            begin = 0.0
-            if shot.get("flash"):
+            begin = float(shot.get("clip_start") or 0)          # set in the script editor
+            if shot.get("flash") and not shot.get("clip_start"):
                 begin = max(0.0, min(float(asm.get("flash_clip_from", 1.2)), probe_duration(clip) - duration - 0.1))
             _push_in(clip, out, frames, zoom, asm, label, ease_out=True, video=True, start=begin)
             return out
@@ -535,7 +541,9 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
               f"tpad=stop_mode=clone:stop_duration={duration + 1:.3f},setsar=1")
         # A shot that speaks from its own clip starts where its line starts in the clip, so the
         # picture is the same stretch as the sound and the lips stay with the words.
-        seek = ["-ss", f"{float(item['clip_offset']):.3f}"] if item.get("clip_offset") else []
+        # Otherwise it starts where the script editor says ("clip_start"), from the clip's start by default.
+        begin = float(item["clip_offset"]) if "clip_offset" in item else float(shot.get("clip_start") or 0)
+        seek = ["-ss", f"{begin:.3f}"] if begin > 0 else []
         run_ffmpeg([*seek, "-i", str(clip), "-t", f"{duration:.3f}", "-vf", vf, "-an",
                     "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
                     str(out)], label)

@@ -324,4 +324,9 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             "sfx": bool(((config or {}).get("sfx") or {}).get("enabled")),
             # ranks and units for the progress overlay, when the format has one
             "stats": (((config or {}).get("format") or {}).get("rules") or {}).get("stats"),
+            # what the script editor's clip timing starts from: how long a clip is, how long a
+            # silent shot stays up, and a montage shot (steps/assemble.py)
+            "timing": {"clip": float(((config or {}).get("fal") or {}).get("video_seconds") or 4),
+                       "silent": float(((config or {}).get("assemble") or {}).get("min_shot_seconds") or 1.2),
+                       "montage": float(((config or {}).get("assemble") or {}).get("montage_seconds") or 0.5)},
             "cost": cost(run_dir, script, config)}

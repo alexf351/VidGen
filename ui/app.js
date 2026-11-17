@@ -2440,7 +2440,7 @@ function draftChanged() {
   if (!S.run || !S.run.script || !S.draft) return out;
   S.draft.shots.forEach((s, i) => {
     const o = S.run.script.shots[i] || {};
-    for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt", "same_scene", "sfx", "label", "app_screen", "app_still"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
+    for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt", "same_scene", "sfx", "label", "app_screen", "app_still", "clip_start", "seconds"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
     if (JSON.stringify(s.stat ?? null) !== JSON.stringify(o.stat ?? null)) out.add(s.n);
     if (JSON.stringify(s.texts ?? null) !== JSON.stringify(o.texts ?? null)) out.add(s.n);
   });
@@ -2494,10 +2494,34 @@ function scriptPanel(run, busy) {
       h("select", { "aria-label": `Shot ${s.n} sound`,
         onchange: (e) => { if (e.target.value) update(i, "sfx", e.target.value, row); else { delete S.draft.shots[i].sfx; update(i, "motion_prompt", S.draft.shots[i].motion_prompt, row); } } },
         SOUNDS.map(([v, t]) => h("option", { value: v, selected: (s.sfx || "") === v }, t)))) : null;
+    // Which part of the clip the cut uses (steps/assemble.py): where it starts, how long it stays up.
+    const T = run.timing || { clip: 4, silent: 1.2, montage: 0.5 };
+    const hasClip = s.animate || s.talk || (s.montage && run.animate_all) || (s.montage && s.animate);
+    const ownLine = run.clip_sound && (s.vo_line || "").trim();
+    const setTime = (key, value) => {
+      const v = Number(value);
+      if (!value || !(v > 0)) delete S.draft.shots[i][key]; else S.draft.shots[i][key] = Math.round(v * 100) / 100;
+      update(i, "motion_prompt", S.draft.shots[i].motion_prompt, row);
+    };
+    const auto = s.montage ? T.montage : T.silent;
+    const timing = hasClip ? h("div", { class: "look-timing" },
+      h("div", { class: "look-timing-head" }, "Clip timing"),
+      ownLine ? h("div", { class: "field-note" }, "This shot says its line from the clip, so it uses exactly the stretch where the line is said.")
+      : h("div", { class: "look-stat" },
+        h("label", { class: "look-label" }, "Start at (seconds into the clip)",
+          h("input", { type: "number", min: "0", max: String(T.clip), step: "0.1", value: s.clip_start ? String(s.clip_start) : "",
+            placeholder: "0, the start", "aria-label": `Shot ${s.n} clip start`, oninput: (e) => setTime("clip_start", e.target.value) })),
+        h("label", { class: "look-label" }, (s.vo_line || "").trim() ? "On screen at least (seconds)" : "On screen for (seconds)",
+          h("input", { type: "number", min: "0.3", max: "15", step: "0.1", value: s.seconds ? String(s.seconds) : "",
+            placeholder: (s.vo_line || "").trim() ? "as long as its line" : `${auto}, automatic`, "aria-label": `Shot ${s.n} seconds on screen`,
+            oninput: (e) => setTime("seconds", e.target.value) }))),
+      ownLine ? null : h("div", { class: "field-note" },
+        `The clip is ${T.clip} s long. Play it on the shot card to see when the action happens, then pick the stretch: start at 1.5 and stay 2.5 shows 1.5 to 4.0 s. Past the clip's end the last frame holds. Save, then assemble again; nothing is generated.`)) : null;
     const box = h("details", { class: "look", open: touched || S.lookOpen.has(s.n) },
       h("summary", {}, run.sfx ? "Picture, motion and sound" : "Picture and motion"),
       statEdit,
       sceneBox,
+      timing,
       h("label", { class: "look-label" }, "Motion: what moves in the clip, and the camera",
         h("textarea", { rows: "3", "aria-label": `Shot ${s.n} motion`, placeholder: "the car drives forward and leaves the frame, camera holds on Marcus",
           oninput: (e) => update(i, "motion_prompt", e.target.value, row) }, s.motion_prompt || "")),
@@ -2622,7 +2646,7 @@ function scriptPanel(run, busy) {
   }
   if (S.afterSave && S.afterSave.run === run.run_id && (S.afterSave.overlay || []).length) {
     const ns = S.afterSave.overlay;
-    panel.append(h("div", { class: "notice" }, `Saved. The on-screen rank, number or label changed on ${ns.length === 1 ? "shot" : "shots"} ${ns.join(", ")}. `,
+    panel.append(h("div", { class: "notice" }, `Saved. The on-screen rank, number, label or clip timing changed on ${ns.length === 1 ? "shot" : "shots"} ${ns.join(", ")}. `,
       h("button", { class: "btn small", disabled: busy, onclick: () => { S.afterSave.overlay = []; runStep(run, "assemble"); } }, "Assemble again to see it")));
   }
   if (S.afterSave && S.afterSave.run === run.run_id && S.afterSave.voice.length) {
@@ -2676,7 +2700,8 @@ async function saveScript(run) {
   const sound = differs("sfx");
   const overlay = changed.filter((n) => {
     const a = S.draft.shots.find((s) => s.n === n), b = run.script.shots.find((s) => s.n === n) || {};
-    return JSON.stringify(a.stat ?? null) !== JSON.stringify(b.stat ?? null) || (a.label || "") !== (b.label || "");
+    return JSON.stringify(a.stat ?? null) !== JSON.stringify(b.stat ?? null) || (a.label || "") !== (b.label || "")
+      || (a.clip_start || 0) !== (b.clip_start || 0) || (a.seconds || 0) !== (b.seconds || 0);
   });
   const screen = [...new Set([...differs("app_screen"), ...changed.filter((n) => {
     const a = S.draft.shots.find((s) => s.n === n), b = run.script.shots.find((s) => s.n === n) || {};

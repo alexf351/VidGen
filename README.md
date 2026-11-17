@@ -964,6 +964,15 @@ shots before switching a whole video. On fal, 2.5 takes the clip's shape from th
 (already 9:16), so VidGen sends it "auto". The choice is kept in the video's run.json as
 "video_model"; with none, the config's `video_model` is used.
 
+**Clip timing: which part of a clip the cut uses.** A clip is 4 seconds; a silent shot is on
+screen for less (the format's `min_shot_seconds`, 1.8 s in Pixar Revenge), from the clip's first
+frame, so an action late in the clip (a car pulling away) can be cut before it happens. Under
+"Picture, motion and sound" in the script editor, "Clip timing" sets where the shot starts in its
+clip ("clip_start", seconds) and how long it stays on screen ("seconds"): start at 1.5 and stay 2.5
+shows 1.5 to 4.0 s, and past the clip's end its last frame holds. A spoken shot stays up at least
+that long; a shot that says its line from its own clip always uses the stretch where the line is
+said. Save, then assemble again: nothing is generated.
+
 **Clip quality: 480p or 720p.** Seedance makes a clip at 480p or 720p, and the finished video
 is 1080x1920 either way, so a 480p clip is stretched further and looks softer next to reels made
 at 720p. 720p costs a little over twice as much per second (Sume: $0.056 against $0.121). The
