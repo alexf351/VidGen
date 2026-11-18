@@ -313,6 +313,8 @@ and play on the phone for four or five seconds:
 | unit complete | the checklist of what you can do now stamps in line by line |
 | after a lesson | the rank bar steps up a division, the certificate and league cards land |
 | create a path | topic ideas type themselves into the create box |
+| prompt fix: 4 to 10 | a short film of the Prompt Lab: a prompt scores 4, Iro rewrites it, the same task scores 10 |
+| Iro showreel (wide) | the web of skills lights up around Iro, then "Use AI. Look insanely competent at work." |
 
 In the UI they carry a play mark and play when you hover over them; `python main.py screens`
 marks them `[moves, 4s]`.
@@ -335,10 +337,30 @@ web is lit and the count runs to 100. A screen with no `clip_from` plays from it
   in the script editor (`"app_still": true` on the shot).
 - Show stills everywhere: `assemble.app_screen_clips: false` in `config.local.yaml`, or a
   format's `timing.app_screen_clips: false`.
-- Your own recording: "Add your own" takes a phone screen recording too (MP4 or MOV, upright).
+- Your own recording: "Add your own" takes a screen recording too (MP4 or MOV).
   It is re-encoded to a silent MP4, cut to 12 seconds, and its picture is made from one of its
-  frames. Or drop the file in `assets/screens/mine/`. Trim it on your phone first so it starts
-  where the action starts.
+  frames. Or drop the file in `assets/screens/mine/`. Trim it first so it starts where the
+  action starts.
+
+**Wide screens go on a laptop.** Iro is a web app too, and some things worth showing are wide:
+the showreel, a recording of the web app. A picture that is wider than it is tall would be a
+thin strip on a phone, so an app screen shot with one shows a laptop instead. Nothing has to be
+set: the shape of the picture decides, for the library's screens and for your own (a wide
+picture or recording added under "Add your own" is kept wide). In the UI a wide screen carries
+a "laptop" tag, and the script writer is told the shot is the hero at his computer, not on his
+phone.
+
+- With `app_screen_hand: true` (the Pixar formats) the images step draws one more picture, once
+  per format: the hero seen from behind at a desk, in front of an open laptop with a plain
+  green screen (`characters_cache/desk@<format>-<hash>.png`, copied to `runs/<id>/app/desk.png`).
+  The assemble step puts the real picture or recording on the green, so the back of his head
+  stays in front of it. It is only drawn when the script shows a wide screen.
+- Without it, or when the drawn laptop has no clean green screen (seen from the side, too
+  small), the shot uses a plain laptop drawn by VidGen on the previous shot, blurred.
+- The label of the shot goes under the laptop, as it goes under the phone.
+
+`laptop_desk.py` holds the desk picture's prompt; finding the screen is shared with the
+hand-held phone (`phone_hand.py`).
 
 The shipped recordings were made from the app's web build one frame at a time on a paused
 clock, so they are smooth at 30 frames a second whatever the machine. Loops the app plays as
@@ -907,7 +929,8 @@ green screen (once per format, cached as `characters_cache/hand@<format>-<hash>.
 `runs/<id>/app/hand.png`), and the assemble step puts the real screenshot on the green area, so
 a thumb over the edge of the screen stays in front. A picture with no clean green screen is
 thrown away and tried once more; if that fails too, the shot uses the plain phone frame. To get
-the hand on a run made earlier, run its images step again, then assemble.
+the hand on a run made earlier, run its images step again, then assemble. A wide app screen
+gets a laptop the same way (`runs/<id>/app/desk.png`, see "Wide screens go on a laptop").
 
 **Scene continuity.** Each picture is drawn from its own text, so three shots of one
 conversation can come out with three different outfits and backgrounds. A shot marked

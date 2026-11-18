@@ -67,6 +67,9 @@ def _app_screens_block(screens: list[dict], fmt: dict | None = None, required: b
         if e.get("clip") and e.get("seconds"):
             # A recording: the screen is seen in motion, and the shot lasts as long as it plays.
             text += f" (this one MOVES: a {e['seconds']:.0f} second recording of the app doing it)"
+        if e.get("wide"):
+            import app_assets
+            text += f" ({app_assets.WIDE_NOTE})"
         return text
     lines = "\n".join(render(prompt["app_screen_line"], {"PATH": e["path"], "SHOWS": shows(e)},
                              f"{fmt['file']}: prompt.app_screen_line") for e in screens)

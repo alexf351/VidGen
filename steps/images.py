@@ -384,38 +384,52 @@ def ensure_sheets(run_dir: Path, config: dict, script: dict, needed: set[str] | 
 
 def ensure_hand(run_dir: Path, config: dict, script: dict) -> None:
     """For formats with app_screen_hand: the picture of a hand holding a green-screen phone that
-    the assemble step puts the real screenshot on. Drawn once per format and cached. Never fails
-    the step: without it, app screens use the plain phone frame."""
+    the assemble step puts the real screenshot on, and, when the script shows a WIDE app screen,
+    the picture of the hero at a laptop with a green screen (laptop_desk.py). Each is drawn once
+    per format and cached. Never fails the step: without them, app screens use the plain frames."""
+    import app_assets
+    import laptop_desk
     import phone_hand
-    if not phone_hand.enabled(config) or not any(s.get("app_screen") or s.get("texts") for s in script["shots"]):
+    if not phone_hand.enabled(config):
         return
-    dest = phone_hand.run_path(run_dir)
+    shots = script["shots"]
+    on_phone = any(s.get("texts") or (s.get("app_screen") and not app_assets.is_wide(str(s["app_screen"]))) for s in shots)
+    if on_phone:
+        _ensure_green(run_dir, config, script, phone_hand, "hand", "the hand that holds the phone", "phone")
+    if laptop_desk.wanted(script):
+        _ensure_green(run_dir, config, script, laptop_desk, "desk", "the hero at his laptop", "laptop")
+
+
+def _ensure_green(run_dir: Path, config: dict, script: dict, kind, name: str, what: str, thing: str) -> None:
+    """Draw (or take from the cache) one green-screen picture: `kind` is phone_hand or laptop_desk."""
+    dest = kind.run_path(run_dir)
     if dest.exists():
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
-    cache = phone_hand.cache_path(config, script)
-    if cache.exists() and phone_hand.usable(cache):
+    cache = kind.cache_path(config, script)
+    if cache.exists() and kind.usable(cache):
         shutil.copyfile(cache, dest)
-        print("[images] app screen: the hand holding the phone comes from the cache")
+        print(f"[images] app screen: {what} comes from the cache")
         return
-    print("[images] app screen: drawing the hand that holds the phone...")
+    print(f"[images] app screen: drawing {what}...")
     progress.add()
-    tmp = dest.with_name("hand.try.png")
+    tmp = dest.with_name(f"{name}.try.png")
     try:
         for attempt in (1, 2):
-            _generate_image(config, phone_hand.prompt(config, script), SHOT_ASPECT, [], "hand", tmp)
-            if phone_hand.usable(tmp):
+            _generate_image(config, kind.prompt(config, script), SHOT_ASPECT, [], name, tmp)
+            if kind.usable(tmp):
                 tmp.replace(dest)
                 cache.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(dest, cache)
-                print(f"  hand: ready, cached at {cache.relative_to(ROOT)}")
+                shown = cache.relative_to(ROOT) if cache.is_relative_to(ROOT) else cache
+                print(f"  {name}: ready, cached at {shown}")
                 break
             tmp.unlink(missing_ok=True)
-            print("  hand: the picture has no clean green screen" +
-                  (", trying once more" if attempt == 1 else "; app screens will use the plain phone frame"))
+            print(f"  {name}: the picture has no clean green screen" +
+                  (", trying once more" if attempt == 1 else f"; app screens will use the plain {thing} frame"))
     except StepError as e:
         tmp.unlink(missing_ok=True)
-        print(f"  hand: could not be drawn ({e}); app screens will use the plain phone frame")
+        print(f"  {name}: could not be drawn ({e}); app screens will use the plain {thing} frame")
     progress.tick()
 
 

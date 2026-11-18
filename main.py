@@ -283,9 +283,11 @@ def list_screens() -> int:
         print(f"\n{gtitle}")
         for e in rows:
             moves = f" [moves, {e['seconds']:.0f}s]" if e.get("clip") else ""
+            moves += " [wide: on a laptop]" if e.get("wide") else ""
             print(f"  {Path(e['path']).stem:<14} {e['title']}{moves}: {e['shows'] or '(no description)'}")
     print("\npin some for one video:  python main.py new \"premise\" --screens learn,certificate")
     print("add your own: drop phone screenshots or screen recordings in assets/screens/mine/, or use the UI")
+    print("a wide picture or recording (the web app) is shown on a laptop, not on the phone")
     return 0
 
 

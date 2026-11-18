@@ -1,6 +1,7 @@
 # The app screenshot library: the real Iro screens a video can show in its demo beat.
 #
-#   file    a picture in this folder (an upright phone screenshot)
+#   file    a picture in this folder (an upright phone screenshot; a WIDE picture, from the
+#           web app or a showreel, is shown on a laptop the hero is watching, not on the phone)
 #   title   the short name shown in the UI
 #   shows   what is on the screen. The script writer reads this to choose the screenshot that
 #           fits the moment, so say what the viewer sees, not what the feature is called.
@@ -124,7 +125,8 @@ screens:
 
   # ---- more of the app
   # Two short films about the app (made for the feed, not screen recordings), cut to their best
-  # five seconds. They play on the phone like any recording.
+  # few seconds. The first is upright and plays on the phone like any recording. The showreel is
+  # wide, so it plays on a laptop (laptop_desk.py).
   - file: prompt_fix.jpg
     title: "Prompt fix: 4 to 10"
     group: coach
@@ -132,7 +134,7 @@ screens:
   - file: showreel.jpg
     title: "Iro showreel"
     group: more
-    shows: "a wide showreel playing on the phone: 'Level me up in AI' typed to Iro, a web of skills and AI tools lighting up around Iro the penguin, then the words 'Use AI. Look insanely competent at work.'"
+    shows: "the Iro showreel: a web of skills and AI tools lighting up around Iro the penguin, a flash of light, then the words 'Use AI. Look insanely competent at work.'"
   - file: create.jpg
     title: "Create a path"
     group: more

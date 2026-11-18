@@ -550,8 +550,9 @@ function screenGrid(opts = {}) {
   const tile = (e) => {
     const on = opts.isOn ? opts.isOn(e.path) : false;
     const order = on && opts.orderOf ? opts.orderOf(e.path) : 0;
-    const pic = h("span", { class: "stile-pic" },
+    const pic = h("span", { class: "stile-pic" + (e.wide ? " wide" : "") },
       e.url ? h("img", { src: e.url, alt: "", loading: "lazy" }) : h("span", { class: "stile-none" }, "missing"),
+      e.wide ? h("span", { class: "stile-wide", title: "A wide screen: the video shows it on a laptop the hero is watching" }, "laptop") : null,
       e.clip_url ? h("span", { class: "stile-moves", title: "A recording: the screen moves in the video" }, icon("play", 11), `${Math.round(e.seconds)}s`) : null,
       on ? h("span", { class: "stile-check" }, order ? String(order) : icon("check", 13)) : null);
     hoverPlay(pic, e.clip_url);
@@ -608,7 +609,7 @@ function screenGrid(opts = {}) {
       busy = false; draw();
     } },
       h("div", { class: "sadd-title" }, "Add your own screenshot or recording"),
-      h("label", { class: "sadd-field" }, "A phone screenshot (PNG or JPG), or a screen recording (MP4 or MOV, upright, up to 12 seconds are used)", file),
+      h("label", { class: "sadd-field" }, "A phone screenshot (PNG or JPG), or a screen recording (MP4 or MOV, up to 12 seconds are used). A wide one, from a computer, is shown on a laptop.", file),
       h("label", { class: "sadd-field" }, "Name", title),
       h("label", { class: "sadd-field" }, "What it shows, so the script writer knows when to use it", shows),
       error ? h("div", { class: "field-note warn" }, error) : null,
@@ -748,7 +749,7 @@ function renderScreens() {
   const draw = () => $("#main").replaceChildren(h("div", { class: "view studio" },
     h("div", { class: "studio-head" },
       h("div", {}, h("h1", {}, "App screens"),
-        h("p", { class: "lede" }, "Real screens of the app. A video shows them on a phone in its demo beat. The ones with a play mark are recordings: the screen moves. Pick which ones when you make a video, or swap one later in the script editor.")),
+        h("p", { class: "lede" }, "Real screens of the app. A video shows them on a phone in its demo beat; a wide one plays on a laptop the hero is watching. The ones with a play mark are recordings: the screen moves. Pick which ones when you make a video, or swap one later in the script editor.")),
       h("span", { class: "muted", style: "font-size:12px;white-space:nowrap" }, plural((S.screens || []).length, "screen"))),
     screenGrid()));
   draw();
@@ -1932,9 +1933,9 @@ function shotCard(run, s, busy) {
     const scr = screenFor(shot.app_screen);
     // Once the hand picture is drawn the card shows the shot as it is in the video: the
     // screenshot on the phone in the hero's hand. Before that, the screenshot on its own.
-    if (s.image) thumb.append(h("img", { src: bust(s.image, run.run_id), alt: `App screen: ${scr ? scr.title : "app"}, on the phone in the hero's hand`, loading: "lazy" }));
+    if (s.image) thumb.append(h("img", { src: bust(s.image, run.run_id), alt: `App screen: ${scr ? scr.title : "app"}, ${scr && scr.wide ? "on the laptop the hero is watching" : "on the phone in the hero's hand"}`, loading: "lazy" }));
     else if (scr && scr.url) {
-      thumb.append(h("img", { class: "app-pic", src: scr.url, alt: `App screen: ${scr.title}`, loading: "lazy" }));
+      thumb.append(h("img", { class: "app-pic" + (scr.wide ? " wide" : ""), src: scr.url, alt: `App screen: ${scr.title}`, loading: "lazy" }));
       if (scr.clip_url && !shot.app_still) hoverPlay(thumb, scr.clip_url);
     }
     else thumb.append(h("div", { class: "placeholder" }, "App screen", h("br"), (shot.app_screen || "").split("/").pop()));
@@ -2059,7 +2060,11 @@ function shotCard(run, s, busy) {
       : s.kind === "texts" ? [h("div", { class: "speaker" }, `texts from ${(shot.texts || {}).from || "?"}`), h("div", { class: "line" }, ((shot.texts || {}).messages || []).join(" / "))]
       : h("div", { class: "line silent" }, s.kind === "card" ? "time card" : s.kind === "app_screen" ? `App screen: ${screenTitle(shot.app_screen)}${(screenFor(shot.app_screen) || {}).clip_url && !shot.app_still ? " (recording)" : ""}` :
         shot.caption ? `caption: ${shot.caption}` : "silent"),
-    s.kind === "app_screen" && run.app_hand
+    s.kind === "app_screen" && (screenFor(shot.app_screen) || {}).wide
+      ? h("div", { class: "line-note" }, s.image ? "On the laptop the hero is watching, as in the video."
+        : run.app_hand ? "A wide screen: in the video it plays on a laptop the hero is watching. The desk is drawn with the images."
+        : "A wide screen: in the video it plays on a laptop, not on the phone.")
+      : s.kind === "app_screen" && run.app_hand
       ? h("div", { class: "line-note" }, s.image ? "On the phone in the hero's hand, as in the video." : "In the video this sits on a phone in the hero's hand. The hand is drawn with the images.")
       : s.kind === "texts"
       ? h("div", { class: "line-note" }, "The messages arrive one at a time, each with a soft pop. Edit them under Script and editing; it costs nothing.")

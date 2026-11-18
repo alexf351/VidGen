@@ -214,6 +214,76 @@ def compose_phone_mockup(screen: Path, background: Path | None, out: Path, w: in
     return out
 
 
+LAPTOP_SCREEN_W = 0.80        # the plain laptop's screen, as a share of the frame's width
+LAPTOP_CENTRE_Y = 0.44        # where the middle of its screen sits
+
+
+def _laptop_place(w: int, h: int, shape: tuple[int, int]) -> tuple[int, int, int, int, int]:
+    """(left, top, width, height, bezel) of the screen of the plain laptop in a w x h frame, for
+    a picture of `shape` (width, height)."""
+    sw = round(w * LAPTOP_SCREEN_W)
+    sh = round(sw * shape[1] / shape[0])
+    if sh > h * 0.50:
+        sh = round(h * 0.50)
+        sw = round(sh * shape[0] / shape[1])
+    bezel = max(8, round(sw * 0.018))
+    return (w - sw) // 2, round(h * LAPTOP_CENTRE_Y) - sh // 2, sw, sh, bezel
+
+
+def compose_laptop_mockup(screen: Path, background: Path | None, out: Path, w: int, h: int) -> Path:
+    """A wide picture on a plain open laptop, centred on a blurred, darkened background (the
+    previous shot's last frame, or a plain dark fill if there is none)."""
+    try:
+        from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
+    except ImportError:
+        raise StepError("app_screen shots need Pillow: pip install -r requirements.txt") from None
+    lanczos = Image.Resampling.LANCZOS
+
+    if background is not None and background.exists():
+        bg = Image.open(background).convert("RGB")
+        scale = max(w / bg.width, h / bg.height)
+        bg = bg.resize((math.ceil(bg.width * scale), math.ceil(bg.height * scale)), lanczos)
+        left, top = (bg.width - w) // 2, (bg.height - h) // 2
+        bg = bg.crop((left, top, left + w, top + h)).filter(ImageFilter.GaussianBlur(36))
+        bg = ImageEnhance.Brightness(bg).enhance(0.55)
+    else:
+        bg = Image.new("RGB", (w, h), (12, 16, 26))
+
+    shot = Image.open(screen).convert("RGB")
+    x0, y0, sw, sh, bezel = _laptop_place(w, h, shot.size)
+    shot = shot.resize((sw, sh), lanczos)
+    lid = [x0 - bezel, y0 - bezel, x0 + sw + bezel - 1, y0 + sh + bezel - 1]
+    r_lid = max(10, round(sw * 0.022))
+    # The base: a low wedge a little wider than the lid, with the notch a laptop opens by.
+    base_h = max(14, round(sw * 0.034))
+    over = round(sw * 0.05)
+    bx0, bx1, by0 = lid[0] - over, lid[2] + over, lid[3] + 1
+    by1 = by0 + base_h
+
+    canvas = bg.convert("RGBA")
+    shadow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shadow)
+    sd.rounded_rectangle([lid[0], lid[1] + 22, lid[2], lid[3] + 22], r_lid, fill=(0, 0, 0, 150))
+    sd.rounded_rectangle([bx0 + 10, by0 + 14, bx1 - 10, by1 + 30], base_h, fill=(0, 0, 0, 190))
+    canvas = Image.alpha_composite(canvas, shadow.filter(ImageFilter.GaussianBlur(28)))
+    body = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    bd = ImageDraw.Draw(body)
+    bd.rounded_rectangle(lid, r_lid, fill=(16, 16, 20, 255), outline=(86, 88, 98, 255), width=3)
+    bd.rounded_rectangle([bx0, by0, bx1, by1], radius=base_h // 2, fill=(150, 152, 160, 255),
+                         corners=(False, False, True, True))
+    bd.rectangle([bx0, by0, bx1, by0 + max(2, base_h // 6)], fill=(196, 198, 205, 255))
+    notch = round(sw * 0.16)
+    bd.rounded_rectangle([w // 2 - notch // 2, by0, w // 2 + notch // 2, by0 + max(5, base_h // 3)],
+                         radius=max(3, base_h // 5), fill=(108, 110, 118, 255), corners=(False, False, True, True))
+    canvas = Image.alpha_composite(canvas, body)
+    mask = Image.new("L", (sw, sh), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, sw - 1, sh - 1], max(4, r_lid - bezel), fill=255)
+    canvas.paste(shot, (x0, y0), mask)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    canvas.convert("RGB").save(out)
+    return out
+
+
 def _hex(color: str) -> tuple[int, int, int]:
     c = str(color).lstrip("#")
     return tuple(int(c[i:i + 2], 16) for i in (0, 2, 4)) if len(c) == 6 else (0, 0, 0)
@@ -353,17 +423,27 @@ def screen_window(compose, build: Path, n: int, size: tuple[int, int]):
     return path, (left, top, right - left, bottom - top)
 
 
-def app_label_place(run_dir: Path, asm: dict, w: int, h: int) -> tuple[int, int]:
+def app_label_place(run_dir: Path, asm: dict, w: int, h: int, wide: bool = False) -> tuple[int, int]:
     """(y of its top edge, letter size) for the label of an app-screen shot: right under the
     phone, in letters that can be read on a phone. Under the hand-held phone that is just below
-    its screen; with the plain phone frame, just below the frame. It never goes lower than the
-    strip at the foot of the picture that Instagram and TikTok cover with their own text."""
+    its screen; with the plain phone frame, just below the frame. `wide`: the screen is on a
+    laptop, and the label goes under that. It never goes lower than the strip at the foot of the
+    picture that Instagram and TikTok cover with their own text."""
+    import laptop_desk
     import phone_hand
     size = int(asm.get("label_app_size", 80))
     bottom = None
-    hand = phone_hand.run_path(run_dir)
-    if hand.is_file():
-        bottom = phone_hand.screen_bottom(hand, w, h)
+    if wide:
+        desk = laptop_desk.run_path(run_dir)
+        if desk.is_file():
+            bottom = laptop_desk.screen_bottom(desk, w, h)
+        if bottom is None:                            # the plain laptop: under its base
+            _, top, sw, sh, bezel = _laptop_place(w, h, (16, 9))
+            bottom = top + sh + bezel + round(sw * 0.034)
+    else:
+        hand = phone_hand.run_path(run_dir)
+        if hand.is_file():
+            bottom = phone_hand.screen_bottom(hand, w, h)
     if bottom is None:
         bottom = int(h * 0.885)                       # the plain frame: the phone ends about here
     box = int(size * 1.6)                              # the label's box, letters and padding
@@ -451,21 +531,33 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
     if shot.get("app_screen"):
         # The real screenshot on a phone: in the hero's hand when the images step drew one
         # (phone_hand.py), else in a plain phone frame on the previous shot, blurred. Slight push-in.
+        # A WIDE picture (the web app, a showreel) goes on a laptop he is watching instead
+        # (laptop_desk.py), else on a plain laptop.
+        import app_assets
+        import laptop_desk
         import phone_hand
+        wide = app_assets.is_wide(str(shot["app_screen"]).strip())
+        if wide:
+            hand, thing, where = laptop_desk.run_path(run_dir), "laptop", "desk"
+            in_hand = lambda pic, to: laptop_desk.compose(hand, pic, to, w, h)
+            plain = compose_laptop_mockup
+        else:
+            hand, thing, where = phone_hand.run_path(run_dir), "phone", "hand"
+            in_hand = lambda pic, to: phone_hand.compose(hand, pic, to, w, h)
+            plain = compose_phone_mockup
         mock = None
-        hand = phone_hand.run_path(run_dir)
         bg_png = None
         recording = app_clip_file(shot, asm)
         if recording is not None:
             # A recording plays on the same phone: find the screen, put the recording under it.
             found = None
             if hand.is_file():
-                found = screen_window(lambda pic, to: phone_hand.compose(hand, pic, to, w, h), build, n, _video_size(recording))
+                found = screen_window(in_hand, build, n, _video_size(recording))
                 if found is None:
-                    print(f"  shot {n}: the hand picture has no clean green screen; using the plain phone frame")
+                    print(f"  shot {n}: the {where} picture has no clean green screen; using the plain {thing} frame")
             if found is None:
                 bg_png = last_frame(background, build / f"bg_{n:02d}.png", label) if background else None
-                found = screen_window(lambda pic, to: compose_phone_mockup(pic, bg_png, to, w, h), build, n, _video_size(recording))
+                found = screen_window(lambda pic, to: plain(pic, bg_png, to, w, h), build, n, _video_size(recording))
             if found is not None:
                 begin = app_clip_start(shot, recording, duration)
                 if begin:
@@ -474,14 +566,14 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
                                        start=begin)
                 _push_in(raw, out, frames, float(asm["app_screen_zoom_end"]), asm, label, video=True)
                 return out
-            print(f"  shot {n}: could not place the recording on the phone; showing the still")
+            print(f"  shot {n}: could not place the recording on the {thing}; showing the still")
         if hand.is_file():
-            mock = phone_hand.compose(hand, app_screen_file(shot), build / f"app_{n:02d}.png", w, h)
+            mock = in_hand(app_screen_file(shot), build / f"app_{n:02d}.png")
             if mock is None:
-                print(f"  shot {n}: the hand picture has no clean green screen; using the plain phone frame")
+                print(f"  shot {n}: the {where} picture has no clean green screen; using the plain {thing} frame")
         if mock is None:
             bg_png = last_frame(background, build / f"bg_{n:02d}.png", label) if background else None
-            mock = compose_phone_mockup(app_screen_file(shot), bg_png, build / f"app_{n:02d}.png", w, h)
+            mock = plain(app_screen_file(shot), bg_png, build / f"app_{n:02d}.png", w, h)
         _push_in(mock, out, frames, float(asm["app_screen_zoom_end"]), asm, label)
         return out
 
@@ -928,7 +1020,8 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
             big = ""
             if item["shot"].get("app_screen") and asm.get("label_under_phone", True) is not False:
                 # The label of an app screen belongs to the phone: under it, and large.
-                ly, size = app_label_place(run_dir, asm, w, h)
+                import app_assets
+                ly, size = app_label_place(run_dir, asm, w, h, wide=app_assets.is_wide(str(item["shot"]["app_screen"])))
                 big = f"\\fs{size}\\bord{max(6, size // 4)}"
             lines.append(f"Dialogue: 1,{_ass_time(item['start'])},{_ass_time(item['start'] + item['duration'])},"
                          f"Label,,0,0,0,,{{\\an8\\pos({w // 2},{ly}){big}{box}}}{_ass_escape(wrap + tag + wrap)}")

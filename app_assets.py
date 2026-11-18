@@ -13,6 +13,10 @@ A screen can MOVE. Put a recording next to the picture with the same name (strea
 streak.mp4) and the video plays the recording on the phone instead of showing the still; the
 picture stays as its thumbnail and as the fallback. A recording dropped into mine/ on its own
 gets its picture made from one of its frames.
+
+A screen can be WIDE. A picture that is wider than it is tall (the web app, a showreel) is
+shown on a laptop the hero is watching instead of on the phone (laptop_desk.py). Nothing has
+to be set: the shape of the picture decides.
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ MAX_UPLOAD_BYTES = 12 * 1024 * 1024
 MAX_CLIP_UPLOAD_BYTES = 80 * 1024 * 1024
 MAX_CLIP_SECONDS = 12.0               # a longer recording of your own is cut to this
 MAX_SIDE = 3000                       # the largest phone screenshots are 1320 x 2868
+WIDE_NOTE = "a wide video, not a phone screen: it plays on a laptop the hero is watching, so the shot is him at his computer, not on his phone"
 MAX_PICKS = 6
 
 # Groups, in the order a video meets them. The UI shows the library under these headings.
@@ -89,12 +94,36 @@ def clip_seconds(clip: Path) -> float | None:
     return _SECONDS[key]
 
 
+_WIDE: dict[tuple[str, int], bool] = {}
+
+
+def is_wide(rel: str) -> bool:
+    """True when a screen's picture is wider than it is tall: it is shown on a laptop, not on
+    the phone. False for a missing or unreadable picture."""
+    if not isinstance(rel, str) or not rel.strip():
+        return False
+    pic = Path(rel) if Path(rel).is_absolute() else ROOT / rel
+    try:
+        key = (str(pic), pic.stat().st_mtime_ns)
+    except OSError:
+        return False
+    if key not in _WIDE:
+        try:
+            from PIL import Image
+            with Image.open(pic) as im:
+                _WIDE[key] = im.width > im.height
+        except (OSError, ValueError):
+            _WIDE[key] = False
+    return _WIDE[key]
+
+
 def _motion(entry: dict) -> dict:
-    """Add "clip" (repo path of the recording, or None) and "seconds" to a library entry."""
+    """Add "clip" (repo path of the recording, or None), "seconds" and "wide" to a library entry."""
     clip = clip_for(entry["path"])
     seconds = clip_seconds(clip) if clip else None
     entry["clip"] = _rel(clip) if clip and seconds else None
     entry["seconds"] = seconds if clip and seconds else None
+    entry["wide"] = is_wide(entry["path"])
     return entry
 
 
@@ -264,7 +293,8 @@ def _free_name(title: str) -> str:
 
 def add_clip(title: str, shows: str, data: bytes) -> dict:
     """Save a screen recording of yours: re-encoded to a plain silent mp4 (so any phone's
-    recording assembles the same way), cut to MAX_CLIP_SECONDS, with a picture made from it."""
+    recording assembles the same way), cut to MAX_CLIP_SECONDS, with a picture made from it.
+    A wide recording (a computer screen) is kept wide and plays on a laptop in the video."""
     from media import has_video_stream, probe_duration, require_ffmpeg, run_ffmpeg
     title, shows = _clean_text(title, shows)
     require_ffmpeg()
@@ -279,14 +309,11 @@ def add_clip(title: str, shows: str, data: bytes) -> dict:
                 if not has_video_stream(raw):
                     raise unreadable
                 run_ffmpeg(["-i", str(raw), "-an", "-t", f"{MAX_CLIP_SECONDS}",
-                            "-vf", "fps=30,scale='min(1080,iw)':-2:flags=lanczos,setsar=1",
+                            "-vf", "fps=30,scale='min(if(gt(iw,ih),1280,1080),iw)':-2:flags=lanczos,setsar=1",
                             "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
                             "-movflags", "+faststart", str(clip)], "your recording")
             except StepError:
                 raise unreadable from None
-            size = _video_size(clip)
-            if size and size[0] > size[1]:
-                raise StepError("that recording is wider than it is tall; use an upright phone screen recording")
             if probe_duration(clip) < 0.5:
                 raise StepError("that recording is shorter than half a second")
             if not _poster(clip, pic):
@@ -321,10 +348,8 @@ def add(title: str, shows: str, data: bytes) -> dict:
         img.load()
     except (UnidentifiedImageError, OSError, ValueError) as e:
         raise StepError(f"that file is not a picture VidGen can read ({e})") from None
-    if img.width < 200 or img.height < 300:
-        raise StepError(f"that picture is too small ({img.width} x {img.height}); use a full phone screenshot")
-    if img.width > img.height:
-        raise StepError("that picture is wider than it is tall; use an upright phone screenshot")
+    if min(img.size) < 200 or max(img.size) < 300:
+        raise StepError(f"that picture is too small ({img.width} x {img.height}); use a full screenshot")
     if img.mode in ("RGBA", "LA", "P"):
         flat = Image.new("RGB", img.size, (0, 0, 0))
         rgba = img.convert("RGBA")

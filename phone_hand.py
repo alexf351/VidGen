@@ -67,10 +67,11 @@ def cache_path(config: dict, script: dict | None = None) -> Path:
 
 # ----------------------------------------------------------- finding the screen ----
 
-def find_screen(img):
+def find_screen(img, wide: bool = False):
     """(box, mask) for the green screen in a hand picture, or None when there is no clean one.
     `box` is (left, top, right, bottom); `mask` is an "L" image the size of `img`, white where
-    the screenshot goes."""
+    the screenshot goes. `wide`: look for a laptop's screen (wider than tall, laptop_desk.py)
+    instead of a phone's."""
     from PIL import ImageChops, ImageFilter
     rgb = img.convert("RGB")
     r, g, b = rgb.split()
@@ -85,7 +86,10 @@ def find_screen(img):
     left, top, right, bottom = box
     bw, bh = right - left, bottom - top
     w, h = rgb.size
-    if bw < w * 0.28 or bh < h * 0.30 or not (1.35 <= bh / bw <= 2.6):
+    if wide:
+        if bw < w * 0.50 or bh < h * 0.13 or not (1.25 <= bw / bh <= 2.3):
+            return None                                    # too small, or not laptop-shaped
+    elif bw < w * 0.28 or bh < h * 0.30 or not (1.35 <= bh / bw <= 2.6):
         return None                                        # too small, or not phone-shaped
     filled = sum(1 for v in core.crop(box).getdata() if v) / float(bw * bh)
     if filled < 0.80:
@@ -100,11 +104,11 @@ def find_screen(img):
     return box, full.filter(ImageFilter.GaussianBlur(1.2))
 
 
-def usable(path: Path) -> bool:
+def usable(path: Path, wide: bool = False) -> bool:
     try:
         from PIL import Image
         with Image.open(path) as im:
-            return find_screen(im) is not None
+            return find_screen(im, wide) is not None
     except (OSError, ValueError):
         return False
 
@@ -119,12 +123,12 @@ def _framed(template: Path, w: int, h: int):
     return hand.crop((left, top, left + w, top + h))
 
 
-def screen_shape(template: Path, w: int, h: int) -> tuple[int, int] | None:
+def screen_shape(template: Path, w: int, h: int, wide: bool = False) -> tuple[int, int] | None:
     """(width, height) of the phone's screen in the hand picture at w x h, or None when it has
     no clean one. A screen drawn for the phone (phone_texts.py) is made in this shape, so none
     of it is cropped away: a drawn phone is rarely as tall as a real screenshot."""
     try:
-        found = find_screen(_framed(template, w, h))
+        found = find_screen(_framed(template, w, h), wide)
     except (OSError, ValueError):
         return None
     if found is None:
@@ -133,17 +137,17 @@ def screen_shape(template: Path, w: int, h: int) -> tuple[int, int] | None:
     return box[2] - box[0], box[3] - box[1]
 
 
-def screen_bottom(template: Path, w: int, h: int) -> int | None:
+def screen_bottom(template: Path, w: int, h: int, wide: bool = False) -> int | None:
     """The y of the bottom edge of the phone's screen in the hand picture at w x h, or None
     when it has no clean screen. A label that belongs to the phone goes just under it."""
     try:
-        found = find_screen(_framed(template, w, h))
+        found = find_screen(_framed(template, w, h), wide)
     except (OSError, ValueError):
         return None
     return None if found is None else int(found[0][3])
 
 
-def compose(template: Path, screenshot: Path, out: Path, w: int, h: int) -> Path | None:
+def compose(template: Path, screenshot: Path, out: Path, w: int, h: int, wide: bool = False) -> Path | None:
     """The screenshot on the phone in the hand picture, at w x h. None when the hand picture
     has no clean green screen (the caller then uses the plain phone frame)."""
     try:
@@ -152,7 +156,7 @@ def compose(template: Path, screenshot: Path, out: Path, w: int, h: int) -> Path
         raise StepError("app_screen shots need Pillow: pip install -r requirements.txt") from None
     lanczos = Image.Resampling.LANCZOS
     hand = _framed(template, w, h)
-    found = find_screen(hand)
+    found = find_screen(hand, wide)
     if found is None:
         return None
     box, mask = found

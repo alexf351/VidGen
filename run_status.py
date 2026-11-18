@@ -35,11 +35,18 @@ def app_preview(run_dir: Path, n: int, shot: dict) -> Path | None:
                 return src                 # no hand yet: the screen on its own
         else:
             src = ROOT / str(shot.get("app_screen") or "")
+        wide = False
+        if not shot.get("texts"):
+            import app_assets
+            import laptop_desk
+            wide = app_assets.is_wide(str(shot.get("app_screen") or ""))
+            if wide:
+                hand = laptop_desk.run_path(run_dir)     # a wide screen is on the laptop, not the phone
         if not hand.is_file() or not src.is_file():
             return None
         out = run_dir / "app" / f"preview_{n:02d}_{src.stem}.jpg"
         if not out.is_file() or out.stat().st_mtime < max(hand.stat().st_mtime, src.stat().st_mtime):
-            if phone_hand.compose(hand, src, out, 540, 960) is None:
+            if phone_hand.compose(hand, src, out, 540, 960, wide=wide) is None:
                 return None
         return out
     except Exception:          # a preview must never break the run page
