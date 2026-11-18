@@ -702,7 +702,9 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             tag = ""
         tag = " ".join(tag.split())
         if tag:
-            if not rules.get("labels"):
+            # A label under the phone belongs to the app shot, so an app screen may carry one in
+            # every format; a label on a drawn shot is for the formats that use them.
+            if not rules.get("labels") and not is_app:
                 errors.append(f"{label}: this format has no on-screen labels, so leave out \"label\"")
             elif is_card:
                 errors.append(f"{label}: a card shot cannot carry a label")
@@ -780,7 +782,7 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 shot["app_still"] = True        # show the still even though the screen has a recording
             else:
                 shot.pop("app_still", None)
-            if tag and rules.get("labels"):
+            if tag:
                 shot["label"] = tag.upper()
             normalized_shots.append(shot)
             continue

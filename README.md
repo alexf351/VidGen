@@ -322,6 +322,8 @@ marks them `[moves, 4s]`.
 A label on an app screen shot (`"label": "OPENS IRO"`) is drawn right under the phone at
 80 px (`assemble.label_app_size`), not at the top of the frame at 50 px like other labels,
 where it was too small to read on a phone; `assemble.label_under_phone: false` puts it back.
+An app screen shot may carry a label in every format, also one whose rules have no `labels`
+(Pixar Arc): the label belongs to the phone. A label on a drawn shot still needs `labels: true`.
 
 A screen moves when a recording with the same name sits beside its picture (`streak.jpg` +
 `streak.mp4`). The picture is its thumbnail and the fallback. An app screen shot with a
