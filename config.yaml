@@ -77,7 +77,9 @@ clip_sound:
 review:
   enabled: false
   auto_fix: false
-  max_fixes: 2
+  max_fixes: 2                  # new takes per picture at most
+  max_clip_fixes: 1             # new takes per clip at most (a clip costs far more than a picture)
+  max_fix_share: 0.34           # more than this share flagged (and 4 or more): nothing is redone, you decide on the page
   model: "claude-sonnet-5-5"
   effort: "medium"              # low | medium | high
   frames: 8                     # frames of a clip the reviewer sees

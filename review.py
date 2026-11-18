@@ -52,7 +52,9 @@ TIMELINE = "build/timeline.json"            # written by the assemble step: wher
 DEFAULTS = {
     "enabled": False,          # check every new video as it is made
     "auto_fix": False,         # and make what it flags again (costs a picture or a clip each time)
-    "max_fixes": 2,            # new takes per shot at most
+    "max_fixes": 2,            # new takes per picture at most
+    "max_clip_fixes": 1,       # new takes per clip at most (a clip costs far more than a picture)
+    "max_fix_share": 0.34,     # more than this share flagged = the review is too strict: redo nothing, ask
     "pictures": True,
     "clips": True,
     "final": True,
@@ -78,6 +80,8 @@ def settings(config: dict) -> dict:
     block = config.get("review") if isinstance(config.get("review"), dict) else {}
     s = {**DEFAULTS, **{k: v for k, v in block.items() if v is not None}}
     s["max_fixes"] = max(0, min(5, int(s["max_fixes"])))
+    s["max_clip_fixes"] = max(0, min(5, int(s["max_clip_fixes"])))
+    s["max_fix_share"] = max(0.05, min(1.0, float(s["max_fix_share"])))
     s["frames"] = max(4, min(12, int(s["frames"])))
     s["workers"] = max(1, min(8, int(s["workers"])))
     return s
@@ -349,10 +353,14 @@ def clean_problems(data: dict, keep_at: bool = False) -> list[dict]:
 BRIEF = (
     "You check one shot of a short vertical video (9:16, watched once on a phone) before it goes into the cut. "
     "You have seen none of the work behind it: you stand in for a stranger. Report only what you can see in "
-    "the pictures, each problem tied to something specific in them. A kind verdict is useless, and so is a "
-    "harsh one that names nothing visible. Never invent a problem to have something to say.\n\n"
-    "What cannot change, so never ask for it: the drawing style of the video, the story and what the script "
-    "asks for. Judge the shot against its own description.\n\n")
+    "the pictures, each problem tied to something specific in them. Never invent a problem to have "
+    "something to say.\n\n"
+    "Most shots are fine. A redo costs the maker money and minutes, so ask for one only for something a "
+    "stranger would notice at normal speed on a phone and take for a mistake. When you are not sure, it is "
+    "minor.\n\n"
+    "The description says what the shot is meant to show. It is a guide, not a checklist: a shot that tells "
+    "the same moment a little differently (another pose, another expression, a detail left out or added) is "
+    "fine. What cannot change, so never ask for it: the drawing style of the video and the story.\n\n")
 
 PICTURE_RULES = (
     "Severity \"redo\" is for a problem a viewer would notice that a new picture fixes:\n"
@@ -361,8 +369,11 @@ PICTURE_RULES = (
     "or they wear someone else's clothes (ignore the sheet's plain grey clothes and background: those are placeholders)\n"
     "- it contradicts the earlier shot of the same scene: people or things on the other side, a car facing the "
     "other way or moved, the place or the time of day changed, different clothes\n"
-    "- what the description says is not shown or is shown wrong: sitting vs standing, inside vs outside a car, "
-    "who is where, who holds what, which way someone looks\n"
+    "- the picture tells a different moment from the one described, so the story or the clip that starts from "
+    "it breaks: someone inside a car who should be outside it (or the other way round), the wrong person "
+    "doing the thing the shot is about, the thing the shot is about missing. A different pose for the same "
+    "moment (standing where the text says sitting, an arm somewhere else, another expression, looking a "
+    "slightly different way) is minor, never a redo\n"
     "- broken anatomy: extra or fused fingers or limbs, a melted or doubled face, eyes looking two ways\n"
     "- writing, letters, a logo or a watermark nobody asked for; borders, or a picture that is not tall\n"
     "Anything else (a small detail, a matter of taste) is \"minor\".\n\n"
@@ -381,9 +392,10 @@ CLIP_RULES = (
     "- someone fades, flickers, turns see-through, vanishes, appears from nowhere, or turns into someone else\n"
     "- a face or hands melt, warp or double; a body bends the wrong way\n"
     "- the clip jumps: a cut to another angle or place, or a sudden change of the scene\n"
-    "- something that should stay put moves (a parked car rolls, a wall shifts), or the motion the shot asks "
-    "for does not happen or goes the wrong way (the car drives off the wrong side, someone walks off instead of "
-    "sitting down)\n"
+    "- something that should stay put clearly moves (a parked car rolls away, a wall shifts), or the WRONG thing "
+    "happens (the wrong car drives off, someone walks out who should stay, someone gets into a car who should "
+    "not). You see only a few frames of a short clip: a movement the shot asks for that is smaller than "
+    "described, only partly done, or hard to make out in these frames is minor, never a redo\n"
     "- writing or subtitles appear\n"
     "Only judge the green frames for these, unless a grey frame shows the action the shot needs.\n"
     "When what the shot needs happens in the clip but outside the green part (the car only drives off after "
@@ -926,16 +938,31 @@ def fix(run_dir: Path, config: dict, shots: list[int], what: str, recheck: bool 
 
 
 def auto_fix_round(run_dir: Path, config: dict, what: str, only: set[int] | None = None) -> list[int]:
-    """Make again what the review flagged, up to max_fixes takes per shot. Returns the shots
-    still flagged when it stops."""
+    """Make again what the review flagged: up to max_fixes takes per picture, max_clip_fixes per
+    clip. Returns the shots still flagged when it stops.
+
+    When more than max_fix_share of what was checked is flagged (and at least four), nothing is
+    made again: that many flags mean the review is too strict, not that the shots are bad, and
+    redoing them all costs as much as the video did. The person decides on the page instead."""
     from steps.images import image_cost
     key = "pictures" if what == "picture" else "clips"
-    limit = settings(config)["max_fixes"]
+    cfg = settings(config)
+    limit = int(cfg["max_fixes"] if what == "picture" else cfg["max_clip_fixes"])
+    share = float(cfg["max_fix_share"])
     for _ in range(limit):
         data = load(run_dir)
-        todo = [n for n in flagged(run_dir, key, only) if int((data[key].get(str(n)) or {}).get("fixes") or 0) < limit]
+        now = flagged(run_dir, key, only)
+        todo = [n for n in now if int((data[key].get(str(n)) or {}).get("fixes") or 0) < limit]
         if not todo:
             break
+        checked = sum(1 for k in data[key] if k.isdigit() and (only is None or int(k) in only))
+        if len(now) >= 4 and len(now) > share * max(checked, 1):
+            each = image_cost(config) if what == "picture" else clip_cost(config)
+            print(f"\n[review] {len(now)} of {checked} {what}s are flagged. That many usually means the review is being "
+                  f"too strict, so none is made again automatically (it would cost about ${each * len(todo):.2f}). "
+                  f"Look at them on the video's page: press \"Redo with fix\" on the ones you agree with and "
+                  f"\"Leave it\" on the rest.")
+            return now
         if what == "picture":
             price = f"about ${image_cost(config) * len(todo):.2f}"
         else:

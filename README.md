@@ -1149,8 +1149,19 @@ Self-review panel, with the review's cost so far.
 Switch it on for a video when you make it (**Self-review** on the create screen, or `new
 --review`), on the video's page, or for every video with `review.enabled: true` in
 config.local.yaml. **Check and redo** (`--auto-fix`) also makes a flagged picture or clip again
-with the reviewer's fix added to its prompt, at most `review.max_fixes` (2) times a shot, and
-checks it again; each new take costs what a picture or clip costs, and is said before it is made.
+with the reviewer's fix added to its prompt, and checks it again: a picture at most
+`review.max_fixes` (2) times, a clip at most `review.max_clip_fixes` (1) time. Each new take
+costs what a picture or clip costs, and is said before it is made.
+
+**It never redoes most of a video.** When more than a third of the pictures or clips it checked
+are flagged (`review.max_fix_share`, and at least four of them), it makes none of them again and
+says so: that many flags mean the review is being too strict, not that the shots are bad, and
+redoing them would cost as much as the video did. The flags stay on the shot cards, and you
+press **Redo with fix** on the ones you agree with and **Leave it** on the rest. The first real
+video with Check and redo on (The livestream, on Seedance 2.5) had 19 of its 26 clips flagged,
+mostly for small differences from the script such as standing where it said sitting, and was
+remaking all of them; the reviewer now treats a different pose for the same moment, and a
+movement it cannot make out in a few frames, as minor.
 
 Each check is one request to Claude (`review.model`, Sonnet 5.5 by default) with small pictures,
 on your `ANTHROPIC_API_KEY`: about 1 to 3 cents, so a 34-shot video is roughly $1 to $2 for

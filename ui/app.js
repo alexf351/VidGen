@@ -1570,7 +1570,7 @@ function renderCreate(formatName) {
   const revSec = h("section", { class: "card-sec" }, h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Self-review")),
     chips([["off", "Off"], ["check", "Check every shot", "flags what looks wrong"], ["fix", "Check and redo", "makes flagged shots again"]],
       st.review, (v) => { st.review = v; try { localStorage.setItem("vidgen.review", v); } catch { /* private mode */ } }, "Self-review"),
-    h("div", { class: "field-note" }, "Claude looks at each picture before its clip is made, at each clip as it lands and at the finished cut, and flags what a viewer would notice: missing or extra people, a face that is not the character, people on the wrong side, fading, melting, a car that rolls away. About 2 cents a check (your Anthropic key). Check and redo also makes a flagged shot again with the fix, at most twice a shot, at the price of the picture or clip."));
+    h("div", { class: "field-note" }, "Claude looks at each picture before its clip is made, at each clip as it lands and at the finished cut, and flags what a viewer would notice: missing or extra people, a face that is not the character, people on the wrong side, fading, melting, a car that rolls away. About 2 cents a check (your Anthropic key). Check and redo also makes a flagged shot again with the fix (a picture at most twice, a clip once), at the price of the picture or clip. If it flags more than a third of the shots it redoes none of them and leaves the choice to you."));
   const scrSec = screensSection(f, st);
   // Short, Standard or Long (video_length.py): the format's own length first, then longer ones.
   const lenNote = h("div", { class: "field-note" });
