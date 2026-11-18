@@ -791,6 +791,7 @@ the premise fills in; pick "Write my own" to go back to Claude writing it.
 
 | Format          | Script           | Story                                                                    |
 | --------------- | ---------------- | ------------------------------------------------------------------------ |
+| `pixar_arc`     | `the_livestream` | called an idiot and fired on the company's live stream; thirty days later the stream opens with him |
 | `pixar_mirror`  | `the_standup`    | laughed at in the Monday meeting; six months later they bring him coffee |
 | `pixar_mirror`  | `two_minute_fix` | sent to another table in a coffee shop; later she slides him the laptop   |
 | `pixar_mirror`  | `the_wingman`    | she makes him her wingman at a party; later he makes her his              |

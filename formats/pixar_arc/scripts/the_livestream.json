@@ -1,0 +1,272 @@
+{
+ "title": "The livestream",
+ "premise": "The whole company is watching a live-streamed meeting. Marcus is mid-presentation when Tyler takes over the screen, redoes his three weeks of work with AI and calls him an idiot. The boss fires him on the stream and Jess walks out with Tyler. Marcus says \"give me thirty days.\" Thirty days later the same stream opens with the company's new consultant, paid more than the boss: Marcus.",
+ "shots": [
+  {
+   "characters": [
+    "tyler",
+    "marcus"
+   ],
+   "image_prompt": "tight medium two shot, a grey and blue company meeting room under cold strip lights, a low stage with a wooden podium on its right side, a huge wall screen behind the stage lit with a plain glowing blue bar chart with no words or numbers on it and a stream of yellow laughing emoji floating up its right edge, a small broadcast camera on a tripod with a red light at the bottom left corner. On the right at the podium, {marcus}, in a white button-down shirt with a blue company lanyard and dark grey trousers, eyes huge and wet, lip trembling, jaw clenched, recoiling from the podium with both hands gripping its edge. On the left, {tyler}, in a slim charcoal suit over a white open-collar shirt, head thrown back laughing with his mouth wide open mid-sentence, jabbing a presentation clicker at the man on the right. Nobody else is in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Tyler laughs through the line with his mouth moving, jabbing the clicker at Marcus. Marcus's face crumples and he flinches back, knuckles whitening on the podium, as the camera pushes fast into his wet eyes.",
+   "vo_line": "We've been paying this idiot for that?",
+   "speaker": "tyler",
+   "sfx": "impact"
+  },
+  {
+   "characters": [
+    "boss"
+   ],
+   "image_prompt": "close shot, chest up, a grey and blue company meeting room under cold strip lights, a low stage with a wooden podium on its right side, a huge wall screen behind the stage lit with a plain glowing blue bar chart with no words or numbers on it and a stream of yellow laughing emoji floating up its right edge, {boss}, in a navy three-piece suit with a dark red tie, standing at the foot of the stage turned toward the right of the frame, looking at someone just off camera, one arm stretched out with an open palm waiting for a badge, brow low, mouth open mid-sentence, cold and flat. Nobody else is in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "The boss says the line with his mouth moving, flat and cold, and snaps his open fingers twice for the badge. He does not blink. Slow push-in on his face.",
+   "vo_line": "Marcus, you're fired. Hand in your badge.",
+   "speaker": "boss",
+   "same_scene": true
+  },
+  {
+   "characters": [
+    "jess",
+    "tyler"
+   ],
+   "image_prompt": "medium two shot, a grey and blue company meeting room under cold strip lights, a low stage with a wooden podium on its right side, a huge wall screen behind the stage lit with a plain glowing blue bar chart with no words or numbers on it and a stream of yellow laughing emoji floating up its right edge, at the exit door on the left side of the room. {jess}, in a fitted emerald green blouse and a black pencil skirt, her arm hooked through his, looking back over her shoulder toward the right of the frame at someone just off camera, nose wrinkled, one eyebrow raised, mouth open mid-word; {tyler}, in a slim charcoal suit over a white open-collar shirt, beside her on the left, smirking, one hand pushing the door open. Nobody else is in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Jess throws the line back over her shoulder with her mouth moving, rolls her eyes and turns away; Tyler pushes the door open and they walk out through it arm in arm. The camera holds on the swinging door.",
+   "vo_line": "I'm with Tyler now. Loser.",
+   "speaker": "jess",
+   "same_scene": true
+  },
+  {
+   "characters": [
+    "marcus"
+   ],
+   "image_prompt": "medium shot, a grey and blue company meeting room under cold strip lights, a low stage with a wooden podium on its right side, a huge wall screen behind the stage lit with a plain glowing blue bar chart with no words or numbers on it and a stream of yellow laughing emoji floating up its right edge, the wall screen now flooded with yellow laughing emoji. On the right at the podium, {marcus}, in a white button-down shirt with a blue company lanyard and dark grey trousers, shoulders dropped, eyes wet, staring at the lanyard badge crushed in his fist, mouth open mid-mutter; along the bottom edge of the frame two raised phones in coworkers' hands filming him. Nobody else's face is in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Marcus mutters the line to himself with his mouth moving, pulls the lanyard over his head and lets it drop on the podium. The phones at the bottom edge keep filming as the camera pulls slowly back.",
+   "vo_line": "Three weeks of work. Gone in two minutes.",
+   "speaker": "marcus",
+   "same_scene": true
+  },
+  {
+   "characters": [
+    "marcus",
+    "iro"
+   ],
+   "image_prompt": "low-angle medium shot, a dark small apartment at night lit by one streetlight through the blinds, a cardboard box of desk things on the floor. On the right, {marcus}, in an old grey hoodie and black joggers, slumped on the floor against a worn sofa, knees up, head tipped back, eyes red and hollow. On the left, {iro}, standing on the low coffee table in front of him, pointing one flipper straight at him, eyes bright, beak open mid-sentence, its orange core lighting the room. Nobody else is in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Iro says the line with its beak moving, stern and warm, jabbing a flipper at Marcus. Marcus lifts his head off the sofa and his eyes focus. Slow push-in on the two of them.",
+   "vo_line": "Get up. Let's lock in with AI.",
+   "speaker": "iro"
+  },
+  {
+   "characters": [
+    "marcus",
+    "iro"
+   ],
+   "image_prompt": "close medium shot, a dark small apartment at night lit by one streetlight through the blinds, {marcus}, in an old grey hoodie and black joggers, sitting up straight on the floor against a worn sofa on the right, holding a phone in both hands with its back toward the camera, the cool glow of it on his face, jaw set, eyes narrowed with new focus, mouth open mid-word; {iro}, on the left at his shoulder, leaning in to look, nodding. Nobody else is in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Marcus says the line with his mouth moving, wipes his eyes with the back of one hand and starts typing with his thumbs; Iro nods beside him. A small push-in on the glow on his face.",
+   "vo_line": "Okay. Fix my prompts.",
+   "speaker": "marcus",
+   "same_scene": true
+  },
+  {
+   "app_screen": "assets/screens/prompt_fix.jpg"
+  },
+  {
+   "characters": [
+    "tyler",
+    "jess",
+    "marcus"
+   ],
+   "image_prompt": "wide shot, a grey cloudy morning street outside a glass office tower, wet pavement, a silver convertible with its roof down parked at the kerb on the left of the frame. In the driver's seat of the silver convertible, {tyler}, in a slim charcoal suit over a white open-collar shirt, one arm hanging over the door, leaning out toward the right, laughing with his mouth open mid-sentence; in the passenger seat beside him, {jess}, in a cream trench coat over a black roll-neck top, smirking over her sunglasses. On the right of the frame on the pavement, {marcus}, in an old grey hoodie and black joggers, hugging the cardboard box of desk things to his chest, jaw tight, glaring at them. The three of them are the only people in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Tyler says the line with his mouth moving, laughing, and slaps the outside of the car door; Jess laughs beside him. Marcus stands still, gripping the box. The silver car stays parked the whole time. Slow push-in.",
+   "vo_line": "AI replaced you. You'll be a bum in a month.",
+   "speaker": "tyler"
+  },
+  {
+   "characters": [
+    "marcus"
+   ],
+   "image_prompt": "close shot, chest up, a grey cloudy morning street outside a glass office tower, wet pavement, a silver convertible with its roof down parked at the kerb on the left of the frame, {marcus}, in an old grey hoodie and black joggers, on the right of the frame turned toward the left, the cardboard box under one arm, the other arm pointing hard at someone just off camera, chin up, eyes burning, teeth showing, mouth open mid-sentence. Nobody else is in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Marcus says the line through his teeth with his mouth moving and jabs his finger once toward the left. His glare never drops. Fast push-in on his eyes.",
+   "vo_line": "Give me thirty days.",
+   "speaker": "marcus",
+   "same_scene": true
+  },
+  {
+   "card": "10 DAYS LATER"
+  },
+  {
+   "characters": [
+    "marcus",
+    "iro"
+   ],
+   "image_prompt": "medium shot, a dark small apartment at night, three holographic panels floating over a cluttered desk, each glowing red with a big red cross and no words, and a glowing holographic counter floating at the top that reads 'DAY 10'. {marcus}, in an old grey hoodie and black joggers, in the middle of the frame at the desk, both hands dragging down his face, dark circles under his eyes, mouth open in a groan; {iro}, on the left on the desk, arms folded, one eyebrow plate raised, beak open mid-sentence. Nobody else is in the picture. Vertical composition, no text in the image except the counter.",
+   "motion_prompt": "Iro says the line with its beak moving, dry and firm, and taps the desk. Marcus drops his hands, groans, shakes his head and reaches back into the red panels. Slow push-in.",
+   "vo_line": "Day ten. Still Bronze. Run it again.",
+   "speaker": "iro"
+  },
+  {
+   "characters": [
+    "marcus",
+    "iro"
+   ],
+   "image_prompt": "wide shot, a modern glass office high over the city in bright daylight, holographic panels floating around him glowing green, two small glowing cards with green ticks floating up beside him, and a glowing holographic counter at the top that reads 'DAY 15'. {marcus}, in a plain black crew-neck tee and dark jeans, in the middle of the frame, on his feet, swiping a panel aside with one arm, eyebrows up, a stunned grin breaking out; {iro}, on the left on the glass desk, both flippers thrown up, beak open mid-shout. Nobody else is in the picture. Vertical composition, no text in the image except the counter.",
+   "motion_prompt": "Iro shouts the line with its beak moving and both flippers up. Marcus swipes a panel away, sees the green cards rise and laughs out loud, punching the air once. The camera swings around him.",
+   "vo_line": "Silver! Two clients already. Keep going.",
+   "speaker": "iro",
+   "sfx": "pop"
+  },
+  {
+   "characters": [
+    "marcus",
+    "iro"
+   ],
+   "image_prompt": "medium shot, a rooftop terrace at sunset over the city, warm orange light, holographic panels floating around him glowing gold, and a glowing holographic counter at the top that reads '$20K'. {marcus}, in a fitted navy polo shirt, cream chinos and a steel watch, in the middle of the frame, leaning back in a lounge chair with his hands behind his head, laughing with his eyes shut; {iro}, on the left on the arm of the chair, holding one flipper up like a trophy, beak open mid-sentence. Nobody else is in the picture. Vertical composition, no text in the image except the counter.",
+   "motion_prompt": "Iro announces the line with its beak moving, proud, flipper raised. Marcus opens his eyes, looks at the gold counter and lets out a long laugh, shaking his head. Slow pull-back over the city.",
+   "vo_line": "Day twenty. Gold. Twenty thousand this month.",
+   "speaker": "iro"
+  },
+  {
+   "card": "DAY 30"
+  },
+  {
+   "characters": [
+    "marcus",
+    "iro"
+   ],
+   "image_prompt": "wide shot, the terrace of a luxury villa at sunrise, a blue pool and the sea behind, warm golden light, and a glowing holographic counter floating at the top that reads 'DAY 30'. {marcus}, in a perfectly fitted black suit over a black shirt with the collar open and a slim steel watch, in the middle of the frame, straightening his cuff with a calm sure smile, chin up; {iro}, on the left on the stone railing, pointing one flipper toward the horizon, eyes bright, beak open mid-sentence. Nobody else is in the picture. Vertical composition, no text in the image except the counter.",
+   "motion_prompt": "Iro says the line with its beak moving, low and sure, pointing at the horizon. Marcus fastens his cuff, nods once and walks straight toward the camera. The camera pulls back ahead of him.",
+   "vo_line": "Diamond. Go collect what's yours.",
+   "speaker": "iro"
+  },
+  {
+   "characters": [
+    "marcus",
+    "boss"
+   ],
+   "image_prompt": "wide shot, a company meeting room with warm golden evening light pouring through tall windows, a low stage with a wooden podium on its right side, a huge wall screen behind the stage glowing soft gold with a stream of red heart and clapping-hands emoji floating up its right edge, a small broadcast camera on a tripod with a red light at the bottom left corner. On the right of the stage, {marcus}, in a perfectly fitted black suit over a black shirt with the collar open and a slim steel watch, striding in with one hand in his pocket, the other pointing down at the front row just off camera, a slow wide grin, eyebrows up, mouth open mid-sentence. On the left of the stage, {boss}, in a navy three-piece suit with a dark red tie, bent forward with both hands held out for a handshake, a nervous too-wide smile. The two of them are the only people in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Marcus says the line with his mouth moving, grinning, and strolls to the middle of the stage; the boss hurries over with both hands out and Marcus shakes one without looking at him. Fast push-in on Marcus.",
+   "vo_line": "Miss me? I'm your new consultant.",
+   "speaker": "marcus",
+   "sfx": "impact"
+  },
+  {
+   "characters": [
+    "tyler",
+    "jess"
+   ],
+   "image_prompt": "close two shot, a company meeting room with warm golden evening light pouring through tall windows, a low stage with a wooden podium on its right side, a huge wall screen behind the stage glowing soft gold with a stream of red heart and clapping-hands emoji floating up its right edge, in the front row of seats. On the left, {tyler}, in a slim charcoal suit over a white open-collar shirt, half out of his chair, jaw hanging open, eyes bulging, a vein standing out on his forehead, mouth open mid-shout; on the right beside him, {jess}, in a fitted emerald green blouse and a black pencil skirt, frozen with one hand over her mouth, eyes enormous. Both are turned toward the right of the frame, staring up at the stage just off camera. Nobody else is in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Tyler chokes the line out with his mouth moving, half rising from his chair and dropping back into it. Jess's hand slides slowly from her mouth as she stares at the stage. Fast push-in on the two faces.",
+   "vo_line": "Four hundred grand? That's more than the boss!",
+   "speaker": "tyler",
+   "same_scene": true
+  },
+  {
+   "characters": [
+    "marcus",
+    "iro",
+    "sofia"
+   ],
+   "image_prompt": "low-angle wide shot, the pavement outside a glass office tower at golden hour, warm low sun, a long gleaming black sports car parked at the kerb on the left of the frame, the tower's glass doors on the right of the frame. Leaning against the passenger door of the black car on the left, {sofia}, in a fitted black dress with sheer black sleeves and a black corset belt, arms folded, a small knowing smile. In the middle of the frame walking from the glass doors toward the car, {marcus}, in a perfectly fitted black suit over a black shirt with the collar open and a slim steel watch, tossing a car key and catching it, easy grin. Riding on his right shoulder, {iro}, one flipper on his head for balance, beak open mid-sentence, eyes crinkled. The three of them are the only ones in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Iro says the line with its beak moving, teasing, and pats Marcus's head. Marcus laughs, tosses the key and catches it as he walks toward the car; Sofia smiles and stays leaning on it. The black car never moves. Slow push-in.",
+   "vo_line": "Not bad for an idiot.",
+   "speaker": "iro"
+  },
+  {
+   "characters": [
+    "jess"
+   ],
+   "image_prompt": "medium shot, the pavement outside a glass office tower at golden hour, warm low sun, a long gleaming black sports car parked at the kerb on the left of the frame, the tower's glass doors on the right of the frame, {jess}, in a fitted emerald green blouse and a black pencil skirt, on the right of the frame bursting out of the glass doors, turned toward the left, one arm stretched out toward someone just off camera, the other hand pressed to her chest, eyes shining and pleading, eyebrows tilted up, mouth open mid-sentence. Nobody else is in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Jess hurries two steps forward and says the line with her mouth moving, breathless, her outstretched hand opening and closing. Her hopeful smile wobbles. The camera pushes in on her face.",
+   "vo_line": "I was wrong, Marcus. Take me back.",
+   "speaker": "jess",
+   "same_scene": true
+  },
+  {
+   "characters": [
+    "marcus",
+    "sofia"
+   ],
+   "image_prompt": "medium two shot, the pavement outside a glass office tower at golden hour, warm low sun, a long gleaming black sports car parked at the kerb on the left of the frame, the tower's glass doors on the right of the frame, beside the black car. On the right, {marcus}, in a perfectly fitted black suit over a black shirt with the collar open and a slim steel watch, turned toward the right of the frame, looking at someone just off camera with a calm half-smile, one palm raised in a small polite stop, mouth open mid-sentence. On the left, {sofia}, in a fitted black dress with sheer black sleeves and a black corset belt, slipping her arm through his, looking up at him with a slow smile. Nobody else is in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Marcus says the line with his mouth moving, calm and unbothered, lowers his palm and turns to Sofia; she hugs his arm and they both smile. The black car never moves. Slow push-in on the two of them.",
+   "vo_line": "I'm good. I'm with Sofia.",
+   "speaker": "marcus",
+   "same_scene": true
+  },
+  {
+   "characters": [
+    "iro"
+   ],
+   "image_prompt": "low-angle close shot, the pavement outside a glass office tower at golden hour, warm low sun, a long gleaming black sports car parked at the kerb on the left of the frame, the tower's glass doors on the right of the frame, {iro}, sitting on the bonnet of the black car, one flipper raised in a thumbs-up, eyes squeezed into happy crescents, beak open mid-sentence, the low sun flaring behind it. Nobody else is in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Iro says the line with its beak moving, warm and proud, and pumps its raised flipper once. Its orange core glows brighter. The black car never moves. Fast push-in on Iro.",
+   "vo_line": "That's my boy.",
+   "speaker": "iro",
+   "same_scene": true
+  },
+  {
+   "characters": [
+    "marcus"
+   ],
+   "image_prompt": "low wide shot, a coast road at sunset, {marcus}, in a fitted black tee and sunglasses, leaning on the open door of a long gleaming black sports car with one arm on the roof, grinning at the horizon. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Marcus taps the roof of the parked car twice and laughs as the sun flares behind him. Fast punch-in.",
+   "montage": true
+  },
+  {
+   "characters": [
+    "marcus"
+   ],
+   "image_prompt": "extreme close-up, warm golden light, the wrist of {marcus}, in a perfectly fitted black suit over a black shirt with the collar open and a slim steel watch, his other hand straightening the black cuff over the steel watch, a slight smile at the edge of the frame. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "His fingers tug the cuff straight and the watch catches the light with a bright glint. Fast punch-in on the watch.",
+   "montage": true
+  },
+  {
+   "characters": [
+    "marcus"
+   ],
+   "image_prompt": "low-angle wide shot, outside a glass tower at golden hour, {marcus}, in a perfectly fitted black suit over a black shirt with the collar open and a slim steel watch, walking straight toward the camera with one hand in his pocket, chin up, a calm sure smile. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Marcus walks toward the camera in long easy strides as the glass tower rises behind him. The camera tracks back ahead of him.",
+   "montage": true
+  },
+  {
+   "characters": [
+    "marcus",
+    "sofia"
+   ],
+   "image_prompt": "wide shot, a rooftop at night over the glittering city, {marcus}, in a perfectly fitted black suit over a black shirt with the collar open and a slim steel watch, on the right, and {sofia}, in a fitted black dress with sheer black sleeves and a black corset belt, on the left, clinking two glasses together, both laughing. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Their glasses clink and they both throw their heads back laughing while the city lights sparkle behind them. Fast punch-in.",
+   "montage": true
+  },
+  {
+   "characters": [
+    "marcus",
+    "iro"
+   ],
+   "image_prompt": "medium shot, a sleek dark office at night lit by neon, glowing gold holographic panels floating around him with no words on them, {marcus}, in a fitted black tee and a steel watch, in the middle of the frame conducting the panels with both hands, grinning; {iro}, on the left on the desk, cheering with both flippers up. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Marcus sweeps both hands apart and the gold panels fly open around him while Iro bounces on the desk. Fast punch-in.",
+   "montage": true
+  },
+  {
+   "characters": [
+    "marcus",
+    "sofia"
+   ],
+   "image_prompt": "wide shot, a beach at sunset, {marcus}, in an open white linen shirt and navy swim shorts, on the right, and {sofia}, in a black swimsuit with a sheer black cover-up, on the left, walking hand in hand along the waterline, laughing at each other. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "They walk hand in hand through the edge of the surf, laughing, as a small wave runs over their feet. Slow push-in.",
+   "montage": true
+  },
+  {
+   "characters": [
+    "marcus"
+   ],
+   "image_prompt": "tight close-up at golden hour, {marcus}, in a perfectly fitted black suit over a black shirt with the collar open and a slim steel watch, looking straight into the lens with one eyebrow raised and a slow lopsided smirk, warm light on one side of his face. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Marcus's smirk spreads slowly and he gives the smallest nod. Fast punch-in on his eyes.",
+   "montage": true
+  },
+  {
+   "characters": [
+    "marcus",
+    "iro"
+   ],
+   "image_prompt": "close-up, the terrace of a luxury villa at golden hour, the sea behind, {marcus}, in a perfectly fitted black suit over a black shirt with the collar open and a slim steel watch, holding a phone up beside his face with its back toward the camera, the glow of it on his cheek, smiling straight at the camera with one eyebrow raised; {iro}, on his left shoulder, pointing a flipper at the phone, eyes bright. Nobody else is in the picture. Vertical composition, no text anywhere in the image.",
+   "motion_prompt": "Marcus lifts the phone a little higher and taps its back twice with one finger, grinning; Iro nods and points at it. Slow push-in on the two of them.",
+   "caption": "SEARCH IRO AI"
+  }
+ ]
+}
