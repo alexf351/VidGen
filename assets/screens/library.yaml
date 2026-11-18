@@ -123,6 +123,16 @@ screens:
     shows: "certificates and achievement badges: one certificate earned, 'Bookworm: complete 25 lessons' almost done"
 
   # ---- more of the app
+  # Two short films about the app (made for the feed, not screen recordings), cut to their best
+  # five seconds. They play on the phone like any recording.
+  - file: prompt_fix.jpg
+    title: "Prompt fix: 4 to 10"
+    group: coach
+    shows: "a short film of the Prompt Lab at work: 'Practice. Get feedback. Iro fixes it.' A prompt for a client email scores 4 out of 10 (Rookie Operator), Iro rewrites it with who, when and length, and the same task scores 10 out of 10 (Elite Operator)"
+  - file: showreel.jpg
+    title: "Iro showreel"
+    group: more
+    shows: "a wide showreel playing on the phone: 'Level me up in AI' typed to Iro, a web of skills and AI tools lighting up around Iro the penguin, then the words 'Use AI. Look insanely competent at work.'"
   - file: create.jpg
     title: "Create a path"
     group: more
