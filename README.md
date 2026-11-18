@@ -1221,6 +1221,12 @@ question mark or an exclamation mark always ends a caption; at three words a com
 so "Wait, what?" is one caption. At three words the lettering is 16% smaller so a caption fits
 on one line. Like the style, it takes effect when the assemble step runs again.
 
+**Three words is the default.** A format that was drawn for one word at a time (Pixar Arc,
+Pixar Steps and the style formats) shows three by default, with the lettering a little smaller
+so they fit a line: `assemble.caption_words_default: 3` in `config.yaml`. A format that asks for
+two or more keeps its own, a video's own choice wins over both, and `caption_words_default: 1`
+in `config.local.yaml` puts those formats back to one word.
+
 **Size.** The Captions panel also has Small, Normal, Large and Extra large: 0.85, 1, 1.2 and 1.45
 times the format's own size (`"caption_size": 1.2` in `run.json`,
 `PUT /api/runs/{run_id}/caption-size`). `pixar_mirror` is 92 at Normal. A caption too wide for

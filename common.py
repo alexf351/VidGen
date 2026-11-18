@@ -226,7 +226,7 @@ def load_config(path: Path = CONFIG_PATH, local_path: Path | None = LOCAL_CONFIG
                          ("caption_font", "Montserrat Black Italic"),
                          ("caption_font_file", "assets/fonts/Montserrat-BlackItalic.ttf"),
                          ("caption_fallback_font", "Arial Black"), ("caption_size", 90),
-                         ("caption_y", 0.55), ("caption_max_words", 2),
+                         ("caption_y", 0.55), ("caption_max_words", 2), ("caption_words_default", 3),
                          ("caption_fill", "&H00FFFFFF"), ("caption_outline_color", "&H00E6C8FF"),
                          ("caption_outline", 5), ("caption_blur", 6),
                          ("caption_pop_from", 85), ("caption_pop_ms", 80),

@@ -149,7 +149,7 @@ WIDE_SIZE = 0.84
 
 def words_for_run(run_dir: Path, asm: dict) -> int:
     """How many words a caption shows at a time in this video: its own choice (run.json
-    "caption_words"), else the format's (captions.max_words)."""
+    "caption_words"), else the format's (captions.max_words), or the default for one-word formats."""
     from common import read_json
     try:
         saved = read_json(Path(run_dir) / "run.json").get("caption_words")
@@ -158,9 +158,15 @@ def words_for_run(run_dir: Path, asm: dict) -> int:
     if isinstance(saved, int) and not isinstance(saved, bool) and saved in WORDS:
         return saved
     try:
-        return max(1, int(asm.get("caption_max_words") or 1))
+        own = max(1, int(asm.get("caption_max_words") or 1))
     except (TypeError, ValueError):
-        return 1
+        own = 1
+    # A format drawn for one word at a time shows assemble.caption_words_default (3) instead,
+    # until the video picks its own. A format that asks for 2 or more keeps what it asks for.
+    default = asm.get("caption_words_default")
+    if own == 1 and isinstance(default, int) and not isinstance(default, bool) and default in WORDS:
+        return default
+    return own
 
 
 def set_words_for_run(run_dir: Path, words: int | None) -> int | None:

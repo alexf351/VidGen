@@ -42,6 +42,10 @@ assemble:
   # The caption look for new videos: classic | outline | yellow_pop | comic | headline | banner |
   # off. Empty = each format's own look. You can also pick one per video on the create screen.
   caption_style: ""
+  # Words a caption shows at a time in a format that was drawn for one word at a time (Pixar Arc,
+  # the style formats): 1, 2 or 3. A format that asks for 2 or more keeps its own, and a video
+  # can pick its own on its page. 1 = leave those formats at one word.
+  caption_words_default: 3
 
 # Every drawn shot becomes a video clip instead of a still with a slow zoom. Each format decides
 # (Pixar Arc: on). Uncomment to force it for every format (true) or to animate only the key
