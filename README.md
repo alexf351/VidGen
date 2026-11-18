@@ -948,6 +948,36 @@ and "Picture and motion" in the script panel has a checkbox to turn it on or off
 (then redo that shot's image and video). Redoing a scene's first shot prints which shots follow
 it, in case they need redoing too.
 
+**Continuity rules for every format.** A reference picture is not enough on its own: what the
+words leave open still comes back different from shot to shot (a black suit with a white shirt
+in one, a black shirt in the next; two cars swapping sides; the wrong car driving off). So every
+format's script writer gets the same four rules after its own prompt (`SCENE_NOTE` in
+`steps/script.py`), whatever its `script_prompt.md` says:
+
+- **Clothes**: one phrase straight after the person, every piece and its colour, word for word
+  in every shot of the scene; never "the same jacket".
+- **Things**: whatever stays in a scene is in its first picture, and every wide shot names it
+  again in the same words and says where it stands.
+- **People**: each keeps a side of the frame; a shot with three or more says where every one is
+  and that nobody else is in the picture.
+- **Movement**: starts from what the picture shows, says who or what moves and what stays put,
+  and nobody climbs onto something or gets into a car inside a movement.
+
+**The clothes check.** `clothes_drift` in `steps/script.py` reads a script and finds where one
+person's clothes are worded two ways inside one scene, or point at another shot ("the same
+white jacket"). It costs nothing and calls no model.
+
+- When Claude writes a script with such a place, it is sent back once with the exact shots
+  quoted. The second answer is taken as it is: a script is never refused over clothes.
+- A video's page shows what is left ("Clothes are worded differently in 2 places", each with
+  both wordings) and a button into the script, until the video is finished. Put the words right
+  before drawing the pictures; editing the script is free.
+- It is advice, not a rule: a ready-made script or one you edited is never stopped by it.
+
+For what words cannot catch (a face that changed, a hand with six fingers), turn on
+**Self-review** when you make the video: Claude looks at every picture beside the character
+sheets and the scene's first picture before any clip is made.
+
 The picture model copies the scene's first shot closely. A thing that first appears in a later
 wide shot of the scene (a second car pulling up) is usually not drawn, so write the scene's
 first shot with everything that stays in the scene already in it. And a picture is the first

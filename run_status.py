@@ -53,6 +53,16 @@ def app_preview(run_dir: Path, n: int, shot: dict) -> Path | None:
         return None
 
 
+def _continuity(run_dir: Path, script: dict | None) -> list[str]:
+    if not script or (run_dir / "final.mp4").is_file():
+        return []
+    try:
+        from steps.script import clothes_drift
+        return clothes_drift(script)
+    except Exception:          # advice must never break the run page
+        return []
+
+
 def file_url(path: Path) -> str | None:
     """/files/<path under the output dir>?v=<mtime>, or None if the file does not exist."""
     try:
@@ -336,6 +346,9 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             "voices": voices,
             "characters": characters, "shots": shots,
             "final_video": file_url(run_dir / "final.mp4"),
+            # clothes worded two ways inside a scene (steps/script.py clothes_drift): shown until
+            # the video is finished, while putting it right is still free
+            "continuity": _continuity(run_dir, script),
             "captions": file_url(run_dir / "build" / "captions.ass"),
             "caption_style": _caption_style(run_dir, config),
             "caption_words": _caption_words(run_dir, config),

@@ -118,7 +118,30 @@ a new angle (a conversation, a reaction, an answer). On every such shot after th
 visual reference, so the place, the light and everyone's clothes stay the same. In its
 image_prompt, describe the place and each character's outfit in the SAME words as the scene's
 first shot, and change only the framing and what the people do. Leave "same_scene" out on the
-first shot of a scene, whenever the place or the time changes, and on montage shots."""
+first shot of a scene, whenever the place or the time changes, and on montage shots.
+
+Each picture is drawn from its own words alone, and each clip from its picture and its
+movement. Whatever the words leave open comes back different in the next shot. So, in every
+shot of a scene:
+- CLOTHES. Write a person's clothes as one phrase straight after their description, starting
+  with "in": "..., in a black suit over a black shirt with the collar open, standing by the
+  car". Use that phrase WORD FOR WORD in every shot of the scene they are in. Name every piece
+  that shows and its colour ("a black suit over a black shirt", not "a black suit": the shirt
+  then comes back white in one shot and black in the next). Write it out in full every time,
+  never "the same jacket" or "his suit from before". When two people could be mixed up, say
+  what tells them apart in each shot ("the jacket is white, not a dark suit").
+- THINGS. A thing that stays in the scene (a car, a desk, a sign) is in the scene's FIRST
+  picture, also when it matters only later, and every wide shot of the scene names it again
+  in the same words and says where it stands (on the left, on the right, nearest the camera,
+  behind). When there are two alike, say in every shot which is which and where each is.
+- PEOPLE. Each person keeps one side of the frame for the whole scene. In a shot with three
+  or more people, say where every one of them is and what they are in or at ("at the wheel of
+  the black car"), and that nobody else is in the picture.
+- MOVEMENT. The picture is the first frame of the clip, and motion_prompt starts from what
+  the picture shows. Say who or what moves, and what stays put when the clip could get it
+  wrong ("the black car drives off; the red car never moves; the two of them stay standing").
+  Nobody climbs onto something or gets into a car inside a movement: put them where they
+  end up in the picture."""
 
 
 SFX_NOTE = """
@@ -130,6 +153,67 @@ physical hit or a shock (a door slams, a phone hits the floor, someone snaps awa
 that drops a jaw), "pop" for a small light beat (a notification, a number ticking up, an idea).
 Use it on at most {max} shots, and only where the picture shows the thing that makes the sound.
 Most shots carry no "sfx"."""
+
+
+CLOTHES_START = re.compile(r"^(now )?(in|wearing|dressed in)\b", re.I)
+CLOTHES_VAGUE = re.compile(r"\b(the same|from before|as before|from earlier|as earlier)\b", re.I)
+
+
+def _clothes_after(prompt: str, description: str) -> list[str] | None:
+    """The words of a person's clothes in a picture's text: what follows their description, up
+    to the first comma ("in a black suit over a black shirt"). None when the text does not say
+    what they wear (a close-up of the eyes), or does not show them."""
+    at = prompt.find(description)
+    if at < 0 or not description:
+        return None
+    tail = prompt[at + len(description):].lstrip(" ,;:")
+    if not CLOTHES_START.match(tail):
+        return None
+    return re.findall(r"[a-z0-9'-]+", re.split(r"[,;(.]", tail, maxsplit=1)[0].lower())
+
+
+def clothes_drift(script: dict) -> list[str]:
+    """Where a script words someone's clothes differently inside one scene. Each picture is drawn
+    from its own words, so "a black suit" in one shot and "a black suit over a black shirt" in
+    the next come back as two outfits. Returns one sentence per problem, for the writer (on its
+    retry) and for the run page; an empty list when the script is consistent.
+
+    This is advice, never a rule that stops a script: a person may change clothes in a scene."""
+    shots = script.get("shots") or []
+    people = [(c["id"], c["description"]) for c in script.get("characters") or []
+              if isinstance(c, dict) and c.get("id") and c.get("description")]
+    out = []
+    for i, shot in enumerate(shots):
+        prompt = str(shot.get("image_prompt") or "")
+        if not prompt:
+            continue
+        n = shot.get("n", i + 1)
+        anchor = scene_anchor(shots, i)
+        for cid, description in people:
+            here = _clothes_after(prompt, description)
+            if here is None:
+                continue
+            said = " ".join(here)
+            # "the same jacket" points at another shot; "the same silver jacket over a creased
+            # white shirt" is a full description with a word too many, and is left alone.
+            vague = CLOTHES_VAGUE.search(said)
+            if vague and (vague.group(1).lower() != "the same" or len(here) <= 6):
+                out.append(f'shot {n}: {cid}\'s clothes are "{said}". Each picture is drawn from its own words, '
+                           f"so name every piece and its colour in full instead of pointing at an earlier shot.")
+                continue
+            if anchor is None:
+                continue
+            for j in range(anchor, i):
+                first = _clothes_after(str(shots[j].get("image_prompt") or ""), description)
+                if first is None:
+                    continue
+                short, long_ = sorted((first, here), key=len)
+                if long_[:len(short)] != short:
+                    out.append(f'shot {n}: {cid}\'s clothes are worded differently from shot {shots[j].get("n", j + 1)} of the '
+                               f'same scene ("{" ".join(first)}" there, "{said}" here). Use the same words in every '
+                               f"shot of a scene, or the picture comes back with different clothes.")
+                break
+    return out
 
 
 def scene_anchor(shots: list[dict], i: int) -> int | None:
@@ -1019,8 +1103,15 @@ def generate_script(premise: str, config: dict, client=None, picks: list[str] | 
                               effort=config["script"].get("effort") or None)
         text = response_text(response)
         try:
-            return validate_and_normalize(parse_json(text), style, max_animated, locked, screens,
-                                          fmt["rules"], animate_all=animate_all, require_screens=required)
+            script = validate_and_normalize(parse_json(text), style, max_animated, locked, screens,
+                                            fmt["rules"], animate_all=animate_all, require_screens=required)
+            drift = clothes_drift(script)
+            if drift and attempt == 1:
+                # Worth one correction: clothes worded two ways in a scene are drawn two ways.
+                raise ValueError("\n".join(drift))
+            for line in drift:
+                print(f"[script] check before drawing: {line}")
+            return script
         except ValueError as e:
             last_error = e
             print(f"[script] attempt {attempt} failed validation:\n{e}")

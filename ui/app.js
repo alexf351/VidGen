@@ -427,6 +427,22 @@ function scriptUpdateNotice(run, busy) {
     h("button", { class: "btn small primary", type: "button", disabled: busy, onclick: go }, "Update this video"));
 }
 
+// Clothes worded two ways inside one scene (steps/script.py clothes_drift): the pictures would
+// come back with two outfits. Shown until the video is finished; fixing the words is free.
+function continuityNotice(run) {
+  const lines = run.continuity || [];
+  if (!lines.length) return null;
+  const drawn = run.shots.some((s) => s.image && drawsImage(s));
+  const short = (t) => t.replace(/ Use the same words in every shot of a scene, or the picture comes back with different clothes\.$/, "")
+    .replace(/ Each picture is drawn from its own words, so name every piece and its colour in full instead of pointing at an earlier shot\.$/, " Name every piece and its colour in full.");
+  return h("div", { class: "notice update-notice continuity-notice", role: "status" },
+    h("div", {}, h("b", {}, `Clothes are worded differently in ${lines.length === 1 ? "one place" : `${lines.length} places`}. `),
+      "Each picture is drawn from its own words, so the same person can come back in different clothes within one scene. "
+      + (drawn ? "Put the words right in the script, then redraw those shots." : "Put the words right before drawing the pictures: editing the script is free."),
+      h("ul", {}, lines.slice(0, 5).map((t) => h("li", {}, short(t).replace(/^s/, "S"))), lines.length > 5 ? h("li", {}, `and ${lines.length - 5} more`) : null)),
+    h("button", { class: "btn small primary", type: "button", onclick: () => { S.runTab[run.run_id] = "script"; renderMain(); } }, "Open the script"));
+}
+
 // Keyframes that came back in another shape than 9:16 (run_status.off_shape on the server).
 function shapeNotice(run, busy) {
   const off = run.shots.filter((s) => s.shape);
@@ -1862,6 +1878,7 @@ function renderRun() {
         `${active.action}${active.params.step ? ` ${active.params.step}` : ""} ${active.status}…`) : null),
     progressSlot(run.run_id, "full"),
     scriptUpdateNotice(run, busy),
+    continuityNotice(run),
     shapeNotice(run, busy),
     h("div", { class: "steps" }, stepBtns,
       h("span", { style: "flex:1" }),
