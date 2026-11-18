@@ -143,7 +143,7 @@
    ],
    "image_prompt": "wide shot, a company meeting room with warm golden evening light pouring through tall windows, a low stage with a wooden podium on its right side, a huge wall screen behind the stage glowing soft gold with a stream of red heart and clapping-hands emoji floating up its right edge, a small broadcast camera on a tripod with a red light at the bottom left corner. On the right of the stage, {marcus}, in a perfectly fitted black suit over a black shirt with the collar open and a slim steel watch, striding in with one hand in his pocket, the other pointing down at the front row just off camera, a slow wide grin, eyebrows up, mouth open mid-sentence. On the left of the stage, {boss}, in a navy three-piece suit with a dark red tie, bent forward with both hands held out for a handshake, a nervous too-wide smile. The two of them are the only people in the picture. Vertical composition, no text anywhere in the image.",
    "motion_prompt": "Marcus says the line with his mouth moving, grinning, and strolls to the middle of the stage; the boss hurries over with both hands out and Marcus shakes one without looking at him. Fast push-in on Marcus.",
-   "vo_line": "Miss me? I'm your new consultant.",
+   "vo_line": "Miss me? I'm your new consultant. Four hundred grand.",
    "speaker": "marcus",
    "sfx": "impact"
   },
@@ -154,7 +154,7 @@
    ],
    "image_prompt": "close two shot, a company meeting room with warm golden evening light pouring through tall windows, a low stage with a wooden podium on its right side, a huge wall screen behind the stage glowing soft gold with a stream of red heart and clapping-hands emoji floating up its right edge, in the front row of seats. On the left, {tyler}, in a slim charcoal suit over a white open-collar shirt, half out of his chair, jaw hanging open, eyes bulging, a vein standing out on his forehead, mouth open mid-shout; on the right beside him, {jess}, in a fitted emerald green blouse and a black pencil skirt, frozen with one hand over her mouth, eyes enormous. Both are turned toward the right of the frame, staring up at the stage just off camera. Nobody else is in the picture. Vertical composition, no text anywhere in the image.",
    "motion_prompt": "Tyler chokes the line out with his mouth moving, half rising from his chair and dropping back into it. Jess's hand slides slowly from her mouth as she stares at the stage. Fast push-in on the two faces.",
-   "vo_line": "Four hundred grand? That's more than the boss!",
+   "vo_line": "That's more than the boss makes!",
    "speaker": "tyler",
    "same_scene": true
   },
