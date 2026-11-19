@@ -36,6 +36,8 @@ import code_engine
 import video_length
 import video_model
 import progress
+import contrast
+import contrast_batch
 from common import (KEY_ENV, PROVIDERS, ROOT, STEP_ORDER, StepError, available_app_screens,
                     run_cast, run_engine, run_format, runs_dir, write_json)
 from format_loader import COVER_EXTS, DEFAULT_FORMAT, format_summaries, load_format
@@ -94,6 +96,38 @@ class CharacterIn(BaseModel):
 class DrawRequest(BaseModel):
     format: str = DEFAULT_FORMAT
     provider: ProviderChoice = None
+
+
+class ContrastNew(BaseModel):
+    name: str = ""
+    source: str = "starter"           # starter | write | scenes
+    count: int = 30                   # write: how many scenes to ask Claude for
+    about: str = ""                   # write: who the page is for
+    scenes: list[dict] | None = None  # scenes: your own list
+    end_tag: str | None = "SEARCH IRO AI"    # the words at the end; "" or null = none
+    render: bool = True
+
+
+class ContrastScene(BaseModel):
+    template: str | None = None
+    left: str | None = None
+    right: str | None = None
+    caption: str | None = None
+
+
+class ContrastRender(BaseModel):
+    only: list[int] | None = None
+    again: bool = False
+
+
+class ContrastVary(BaseModel):
+    of: list[int]
+    each: int = 10
+    render: bool = True
+
+
+class ContrastTag(BaseModel):
+    end_tag: str | None = None
 
 
 class CaptionSize(BaseModel):
@@ -1375,6 +1409,175 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             return {"description": bad_request(lib.describe_image, path, config_for())}
 
     # -------------------------------------------------------------- jobs --
+    # ------------------------------------------------------ contrast videos --
+    def contrast_job(batch_id: str):
+        """The job that is writing or drawing this batch right now, if any."""
+        for j in runner.list():
+            if j.action.startswith("contrast") and (j.params or {}).get("batch") == batch_id and j.status in ("queued", "running"):
+                return j
+        return None
+
+    def contrast_or_404(batch_id: str) -> dict:
+        try:
+            return contrast_batch.load(batch_id)
+        except (StepError, OSError, ValueError):
+            raise HTTPException(404, f"there is no Contrast batch called {batch_id}")
+
+    def contrast_free(batch_id: str) -> None:
+        j = contrast_job(batch_id)
+        if j:
+            raise HTTPException(409, f"this batch is being {'written' if j.action == 'contrast_write' else 'drawn'}; wait for it to finish")
+
+    def contrast_detail(batch_id: str) -> dict:
+        data = contrast_or_404(batch_id)
+        folder = contrast_batch.batch_dir(batch_id)
+        scenes = []
+        for s_ in data["scenes"]:
+            made = contrast_batch.is_made(batch_id, data, s_)
+            url = run_status.file_url(contrast_batch.video_path(batch_id, s_["n"])) if made else None
+            if url:
+                # two videos drawn in the same second have the same file time, and removing a
+                # scene renames the later ones: the key keeps the browser from showing the old one
+                url += "-" + str(data["made"].get(str(s_["n"])) or "")
+            scenes.append({**s_, "made": made, "video": url,
+                           "problems": data["checks"].get(str(s_["n"])) or []})
+        j = contrast_job(batch_id)
+        return {**contrast_batch.summary(data), "scenes": scenes, "skipped": data.get("skipped") or [],
+                "sheet": run_status.file_url(folder / "first_second.jpg"),
+                "folder": str(folder / "videos"),
+                "job": None if j is None else {"id": j.id, "action": j.action, "status": j.status}}
+
+    @app.get("/api/contrast")
+    def contrast_home() -> dict:
+        return {"templates": [{"id": k, "what": v} for k, v in contrast.TEMPLATES.items()],
+                "starter": len(contrast_batch.starter()), "default_tag": contrast_batch.DEFAULT_TAG,
+                "default_about": contrast_batch.DEFAULT_ABOUT, "max_write": contrast_batch.MAX_WRITE,
+                "seconds": contrast.SECONDS, "workers": contrast_batch.workers_default(),
+                "batches": [{**b, "busy": contrast_job(b["id"]) is not None} for b in contrast_batch.batches()]}
+
+    @app.post("/api/contrast", status_code=201)
+    def contrast_new(body: ContrastNew) -> dict:
+        """A new batch: the starter scenes, your own, or scenes Claude writes (one request).
+        Drawing the videos costs nothing."""
+        tag = body.end_tag if (body.end_tag or "").strip() else None
+        try:
+            if body.source == "write":
+                n = max(1, min(int(body.count), contrast_batch.MAX_WRITE))
+                data = contrast_batch.create_pending(body.name or "Written scenes", tag, {"count": n, "about": body.about})
+            elif body.source == "scenes":
+                data = contrast_batch.create(body.name or "My scenes", body.scenes or [], tag)
+            elif body.source == "starter":
+                data = contrast_batch.create(body.name or "Starter scenes", contrast_batch.starter(), tag)
+            else:
+                raise StepError("source must be starter, write or scenes")
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        batch_id = data["id"]
+        if body.source == "write":
+            n, about, draw = data["writing"]["count"], body.about, body.render
+
+            def fn(job):
+                try:
+                    print(f"[contrast] asking Claude for {n} scenes...")
+                    scenes = contrast_batch.write_scenes(n, about, load_config())
+                    contrast_batch.add_scenes(batch_id, scenes)
+                    contrast_batch.set_note(batch_id)
+                    print(f"[contrast] {len(scenes)} scenes written")
+                except Exception as e:
+                    contrast_batch.set_note(batch_id, error=str(e))
+                    raise
+                if draw:
+                    contrast_batch.render(batch_id)
+
+            job = runner.submit("contrast_write", None, {"batch": batch_id, "count": n}, fn)
+        elif body.render:
+            job = runner.submit("contrast_render", None, {"batch": batch_id}, lambda job: contrast_batch.render(batch_id))
+        else:
+            job = None
+        return {**contrast_detail(batch_id), "job_id": job.id if job else None}
+
+    @app.get("/api/contrast/{batch_id}")
+    def contrast_get(batch_id: str) -> dict:
+        return contrast_detail(batch_id)
+
+    @app.post("/api/contrast/{batch_id}/render", status_code=202)
+    def contrast_render(batch_id: str, body: ContrastRender) -> dict:
+        contrast_or_404(batch_id)
+        contrast_free(batch_id)
+        only = set(body.only) if body.only else None
+        job = runner.submit("contrast_render", None, {"batch": batch_id, "only": sorted(only) if only else None},
+                            lambda job: contrast_batch.render(batch_id, only=only, again=body.again))
+        return {"job_id": job.id, "status": job.status}
+
+    @app.post("/api/contrast/{batch_id}/vary", status_code=202)
+    def contrast_vary(batch_id: str, body: ContrastVary) -> dict:
+        """Claude writes variations of the scenes that did best (one request) and they are
+        added to the batch and drawn."""
+        data = contrast_or_404(batch_id)
+        contrast_free(batch_id)
+        of = sorted({int(n) for n in body.of})
+        have = {s_["n"] for s_ in data["scenes"]}
+        if not of or any(n not in have for n in of):
+            raise HTTPException(400, "choose scenes that are in this batch")
+        each = max(1, min(int(body.each), 20))
+        if len(of) * each > contrast_batch.MAX_WRITE:
+            raise HTTPException(400, f"that is {len(of) * each} new scenes; ask for at most {contrast_batch.MAX_WRITE} at a time")
+
+        def fn(job):
+            print(f"[contrast] asking Claude for {each} variations of {len(of)} scene(s)...")
+            new = contrast_batch.variations(batch_id, of, each, load_config())
+            _, left_out = contrast_batch.add_scenes(batch_id, new)
+            print(f"[contrast] {len(new) - len(left_out)} variations added")
+            if body.render:
+                contrast_batch.render(batch_id)
+
+        job = runner.submit("contrast_write", None, {"batch": batch_id, "of": of, "each": each}, fn)
+        return {"job_id": job.id, "status": job.status}
+
+    @app.put("/api/contrast/{batch_id}/scenes/{n}")
+    def contrast_edit(batch_id: str, n: int, body: ContrastScene) -> dict:
+        contrast_or_404(batch_id)
+        contrast_free(batch_id)
+        try:
+            contrast_batch.edit_scene(batch_id, n, {k: v for k, v in body.model_dump().items() if v is not None})
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        return contrast_detail(batch_id)
+
+    @app.delete("/api/contrast/{batch_id}/scenes/{n}")
+    def contrast_remove(batch_id: str, n: int) -> dict:
+        contrast_or_404(batch_id)
+        contrast_free(batch_id)
+        try:
+            contrast_batch.remove_scene(batch_id, n)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        return contrast_detail(batch_id)
+
+    @app.put("/api/contrast/{batch_id}/tag")
+    def contrast_tag(batch_id: str, body: ContrastTag) -> dict:
+        """The words at the end of every video in the batch. Changing them makes the videos out of date."""
+        contrast_or_404(batch_id)
+        contrast_free(batch_id)
+        contrast_batch.set_tag(batch_id, body.end_tag if (body.end_tag or "").strip() else None)
+        return contrast_detail(batch_id)
+
+    @app.delete("/api/contrast/{batch_id}")
+    def contrast_delete(batch_id: str) -> dict:
+        contrast_or_404(batch_id)
+        contrast_free(batch_id)
+        contrast_batch.delete(batch_id)
+        return {"deleted": batch_id}
+
+    @app.get("/api/contrast/{batch_id}/zip")
+    def contrast_zip(batch_id: str):
+        """Every finished video and the captions file in one zip."""
+        data = contrast_or_404(batch_id)
+        if not any(contrast_batch.is_made(batch_id, data, s_) for s_ in data["scenes"]):
+            raise HTTPException(400, "no video of this batch is made yet")
+        path = contrast_batch.export_zip(batch_id)
+        return FileResponse(path, media_type="application/zip", filename=f"{batch_id}.zip")
+
     @app.get("/api/jobs")
     def list_jobs(run_id: str | None = None) -> list[dict]:
         return [job_out(j) for j in runner.list() if run_id is None or j.run_id == run_id]

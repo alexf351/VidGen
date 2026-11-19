@@ -773,6 +773,309 @@ function renderScreens() {
 }
 
 
+// ------------------------------------------------------------ contrast videos
+// Ten-second "the hard way vs the Iro way" animations that VidGen draws by itself: no picture,
+// clip or voice model. A batch is a list of scenes and every scene becomes one video.
+const CT = { home: null, batch: null, picked: new Set(), editing: null, timer: null, each: 10, form: null, error: "", tiles: new Map() };
+
+function ctStop() { if (CT.timer) { clearTimeout(CT.timer); CT.timer = null; } }
+function ctOnBatch(id) { return location.hash === `#/contrast/${encodeURIComponent(id)}`; }
+
+// "LEFT | RIGHT | caption | template", one scene a line. A scene with no template gets the next one in turn.
+function ctParseList(text, templates) {
+  const scenes = [], bad = [];
+  text.split("\n").forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line) return;
+    const parts = line.split("|").map((p) => p.trim());
+    if (parts.length < 2 || !parts[0] || !parts[1]) { bad.push(`Line ${i + 1} needs two labels with a | between them.`); return; }
+    const named = (parts[3] || "").toLowerCase();
+    scenes.push({ left: parts[0], right: parts[1], caption: parts[2] || "",
+      template: templates.includes(named) ? named : templates[scenes.length % templates.length] });
+  });
+  return { scenes, bad };
+}
+
+async function renderContrast() {
+  ctStop();
+  const main = $("#main");
+  if (!CT.home) main.replaceChildren(h("div", { class: "empty" }, h("span", { class: "spin" }), "  Loading…"));
+  try { CT.home = await api("GET", "/api/contrast"); }
+  catch (e) { if (location.hash === "#/contrast") main.replaceChildren(h("div", { class: "empty" }, e.message)); return; }
+  if (location.hash !== "#/contrast") return;
+  const d = CT.home;
+  if (!CT.form) CT.form = { source: "starter", name: "", count: 30, about: "", list: "", tag: d.default_tag };
+  const f = CT.form;
+  const templates = d.templates.map((t) => t.id);
+  const extra = h("div", { class: "ct-extra" });
+  const note = h("div", { class: "field-note warn", role: "alert" });
+  const go = h("button", { class: "btn primary", type: "button" }, "Make the batch");
+  const cost = h("span", { class: "muted ct-cost" });
+  const drawExtra = () => {
+    note.textContent = "";
+    if (f.source === "starter") {
+      extra.replaceChildren(h("p", { class: "field-note" }, `${d.starter} scenes about using AI well, written already. A good first batch: post them and see which ones people watch.`));
+      cost.textContent = "Costs nothing.";
+    } else if (f.source === "write") {
+      extra.replaceChildren(
+        h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "How many scenes"),
+          h("input", { type: "number", min: 1, max: d.max_write, value: f.count, style: "width:110px",
+            oninput: (e) => { f.count = Math.max(1, Math.min(d.max_write, parseInt(e.target.value, 10) || 1)); } })),
+        h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Who the page is for"),
+          h("textarea", { rows: 3, placeholder: d.default_about, oninput: (e) => { f.about = e.target.value; } }, f.about)),
+        h("p", { class: "field-note" }, "Claude writes the scenes in one request, then VidGen draws them. Leave the box empty for the usual audience."));
+      cost.textContent = "One Claude request (a few cents). Drawing costs nothing.";
+    } else {
+      extra.replaceChildren(
+        h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Your scenes, one a line"),
+          h("textarea", { rows: 7, class: "ct-list", spellcheck: "false",
+            placeholder: "VAGUE PROMPTS | CLEAR PROMPTS | which one are you?\nCOPY PASTE | CHECKS THE ANSWER | be honest\nGUESSING | ASKING AI",
+            oninput: (e) => { f.list = e.target.value; } }, f.list)),
+        h("p", { class: "field-note" }, `The losing way, a |, the winning way, then the caption for the post if you want one. At most 3 words a label. You can end a line with | and one of: ${templates.join(", ")}.`));
+      cost.textContent = "Costs nothing.";
+    }
+  };
+  go.onclick = async () => {
+    note.textContent = "";
+    const body = { source: f.source, name: f.name.trim(), end_tag: f.tag.trim() || null };
+    if (f.source === "write") { body.count = f.count; body.about = f.about.trim(); }
+    if (f.source === "scenes") {
+      const { scenes, bad } = ctParseList(f.list, templates);
+      if (bad.length) { note.textContent = bad[0]; return; }
+      if (!scenes.length) { note.textContent = "Write at least one scene."; return; }
+      body.scenes = scenes;
+    }
+    go.disabled = true;
+    try {
+      const made = await api("POST", "/api/contrast", body);
+      CT.form = null; CT.home = null;
+      refreshJobs();
+      location.hash = `#/contrast/${encodeURIComponent(made.id)}`;
+    } catch (e) { note.textContent = e.message; go.disabled = false; }
+  };
+  drawExtra();
+  const batches = d.batches || [];
+  main.replaceChildren(h("div", { class: "view studio ct" },
+    h("div", { class: "studio-head" },
+      h("div", {}, h("h1", {}, "Contrast videos"),
+        h("p", { class: "lede" }, `Short animations of two ways to do something: one struggles, Iro wins. ${Math.round(d.seconds)} seconds each, no voice. VidGen draws them itself, so a batch of thirty costs nothing and takes a few minutes. Post many, see which ones people watch, then make more like those.`))),
+    h("section", { class: "card-sec ct-new" },
+      h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "New batch")),
+      chips([["starter", "Starter scenes", String(d.starter)], ["write", "Claude writes them"], ["scenes", "My own list"]], f.source,
+        (v) => { f.source = v; drawExtra(); }, "Where the scenes come from"),
+      extra,
+      h("div", { class: "ct-row" },
+        h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Name"),
+          h("input", { type: "text", maxlength: 60, placeholder: "For you to tell batches apart", value: f.name, oninput: (e) => { f.name = e.target.value; } })),
+        h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Words at the end"),
+          h("input", { type: "text", maxlength: 28, placeholder: "None", value: f.tag, oninput: (e) => { f.tag = e.target.value; } }))),
+      h("p", { class: "field-note" }, "The words at the end fade in under the winner in the last second and a half. Empty the box for none."),
+      note,
+      h("div", { class: "ct-actions" }, go, cost)),
+    h("div", { class: "ct-list-head" }, h("span", { class: "sec-label" }, "Your batches"), h("span", { class: "muted" }, batches.length ? `${batches.length} ${batches.length === 1 ? "batch" : "batches"}` : "")),
+    batches.length ? h("div", { class: "ct-batches" }, batches.map((b) =>
+      h("a", { class: "ct-batch", href: `#/contrast/${encodeURIComponent(b.id)}` },
+        h("span", { class: "ct-batch-name" }, b.name),
+        h("span", { class: "muted" }, b.busy ? h("span", {}, h("span", { class: "spin" }), b.writing ? " writing the scenes" : ` drawing, ${b.made} of ${b.scenes}`)
+          : b.error ? "stopped with a problem"
+          : `${b.made} of ${plural(b.scenes, "video")} made`),
+        h("span", { class: "muted ct-batch-when" }, when(b.created_at)))))
+      : h("div", { class: "empty ct-none" }, "No batch yet. Start with the starter scenes.")));
+  if (batches.some((b) => b.busy)) CT.timer = setTimeout(() => { if (location.hash === "#/contrast") renderContrast(); }, 3000);
+}
+
+async function ctLoad(id) {
+  CT.batch = await api("GET", `/api/contrast/${encodeURIComponent(id)}`);
+  return CT.batch;
+}
+
+async function renderContrastBatch(id) {
+  ctStop();
+  const main = $("#main");
+  if (!CT.batch || CT.batch.id !== id) {
+    CT.batch = null; CT.picked.clear(); CT.editing = null; CT.error = ""; CT.tiles.clear();
+    main.replaceChildren(h("div", { class: "empty" }, h("span", { class: "spin" }), "  Loading…"));
+  }
+  try { await ctLoad(id); }
+  catch (e) {
+    if (ctOnBatch(id)) main.replaceChildren(h("div", { class: "empty" }, `${e.message}. `, h("a", { href: "#/contrast", class: "muted" }, "Back to Contrast videos")));
+    return;
+  }
+  if (ctOnBatch(id)) ctDrawBatch();
+}
+
+// Do something to the open batch, then show it again. Problems are shown at the top of the page.
+async function ctDo(fn, { reload = true } = {}) {
+  const id = CT.batch.id;
+  CT.error = "";
+  try {
+    const out = await fn();
+    if (out && out.scenes) CT.batch = out; else if (reload) await ctLoad(id);
+    refreshJobs();
+  } catch (e) { CT.error = e.message; }
+  if (ctOnBatch(id)) ctDrawBatch();
+}
+
+function ctPlayer(b, s) {
+  const root = $("#modal-root");
+  const close = () => { root.replaceChildren(); document.removeEventListener("keydown", key); };
+  const key = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", key);
+  const shut = h("button", { class: "btn ghost", type: "button", onclick: close }, "Close");
+  root.replaceChildren(h("div", { class: "modal-back", onclick: (e) => e.target === e.currentTarget && close() },
+    h("div", { class: "modal ct-player", role: "dialog", "aria-modal": "true", "aria-label": `${s.left} vs ${s.right}` },
+      h("video", { src: s.video, controls: true, autoplay: true, loop: true, playsinline: true }),
+      h("div", { class: "actions" },
+        h("a", { class: "btn ghost", href: s.video, download: `${String(s.n).padStart(2, "0")}-${b.id}.mp4` }, icon("download", 14), "Download"), shut))));
+  shut.focus();
+}
+
+function ctTile(b, s, busy) {
+  const num = String(s.n).padStart(2, "0");
+  if (CT.editing === s.n) {
+    const draft = { template: s.template, left: s.left, right: s.right, caption: s.caption || "" };
+    const templates = (CT.home && CT.home.templates.map((t) => t.id)) || ["stairs", "blocks", "doors", "score"];
+    return h("form", { class: "ct-tile editing", onsubmit: (e) => { e.preventDefault(); ctDo(async () => {
+        const out = await api("PUT", `/api/contrast/${encodeURIComponent(b.id)}/scenes/${s.n}`, draft);
+        CT.editing = null;
+        if (!out.scenes.find((x) => x.n === s.n).made) await api("POST", `/api/contrast/${encodeURIComponent(b.id)}/render`, { only: [s.n] });
+        return null;
+      }); } },
+      h("span", { class: "sec-label" }, `Scene ${num}`),
+      h("label", { class: "ct-field" }, h("span", {}, "The losing way"), h("input", { type: "text", maxlength: 22, value: draft.left, oninput: (e) => { draft.left = e.target.value; } })),
+      h("label", { class: "ct-field" }, h("span", {}, "The winning way"), h("input", { type: "text", maxlength: 22, value: draft.right, oninput: (e) => { draft.right = e.target.value; } })),
+      h("label", { class: "ct-field" }, h("span", {}, "The picture"),
+        h("select", { onchange: (e) => { draft.template = e.target.value; } }, templates.map((t) => h("option", { value: t, selected: t === draft.template }, t)))),
+      h("label", { class: "ct-field" }, h("span", {}, "Caption for the post"), h("textarea", { rows: 3, maxlength: 180, oninput: (e) => { draft.caption = e.target.value; } }, draft.caption)),
+      h("div", { class: "ct-actions" },
+        h("button", { class: "btn primary small", type: "submit" }, "Save and draw"),
+        h("button", { class: "btn ghost small", type: "button", onclick: () => { CT.editing = null; ctDrawBatch(); } }, "Cancel")));
+  }
+  const on = CT.picked.has(s.n);
+  const pic = s.made
+    ? h("button", { class: "ct-pic", type: "button", "aria-label": `Play ${s.left} vs ${s.right}`, onclick: () => ctPlayer(b, s) },
+        h("video", { src: `${s.video}#t=0.4`, muted: true, playsinline: true, preload: "metadata", tabindex: "-1" }),
+        h("span", { class: "ct-play" }, icon("play", 16)))
+    : h("div", { class: "ct-pic waiting" }, busy ? h("span", { class: "spin" }) : h("span", { class: "muted" }, "not drawn"));
+  if (s.made) {
+    const v = pic.querySelector("video");
+    pic.addEventListener("mouseenter", () => { v.currentTime = 0; v.loop = true; v.play().catch(() => {}); });
+    pic.addEventListener("mouseleave", () => { v.pause(); v.currentTime = 0.4; });
+  }
+  const copy = !s.caption ? h("span", {}) : h("button", { class: "link-btn quiet", type: "button",
+    onclick: async () => { try { await navigator.clipboard.writeText(s.caption); toast("Caption copied", "ok"); } catch { toast("Could not copy from this page", "bad"); } } }, "Copy caption");
+  return h("div", { class: `ct-tile${on ? " on" : ""}` },
+    h("div", { class: "ct-pic-wrap" }, pic,
+      h("label", { class: "ct-pick", title: "Tick the ones that did well, then make more like them" },
+        h("input", { type: "checkbox", checked: on, "aria-label": `Scene ${num} did well`,
+          onchange: (e) => { if (e.target.checked) CT.picked.add(s.n); else CT.picked.delete(s.n); ctDrawBatch(); } }),
+        h("span", {}, num))),
+    h("div", { class: "ct-words" }, h("span", { class: "ct-left" }, s.left), h("span", { class: "muted" }, " vs "), h("span", { class: "ct-right" }, s.right)),
+    s.from ? h("div", { class: "ct-from muted" }, `like ${s.from}`) : null,
+    h("div", { class: "ct-caption" }, s.caption || h("span", { class: "muted" }, "No caption")),
+    (s.problems || []).length ? h("div", { class: "field-note warn" }, s.problems.join(" ")) : null,
+    h("div", { class: "ct-tile-foot" }, copy,
+      h("span", { class: "ct-tile-btns" },
+        h("button", { class: "link-btn quiet", type: "button", disabled: busy, onclick: () => { CT.editing = s.n; ctDrawBatch(); } }, "Edit"),
+        h("button", { class: "link-btn quiet", type: "button", disabled: busy || b.scenes.length < 2, "aria-label": `Remove scene ${num}`,
+          onclick: async () => {
+            if (!await confirmDialog({ title: `Remove scene ${num}?`, text: `${s.left} vs ${s.right}. Its video is deleted and the later ones move up one number.`, ok: "Remove", danger: true })) return;
+            CT.picked.clear();
+            ctDo(() => api("DELETE", `/api/contrast/${encodeURIComponent(b.id)}/scenes/${s.n}`));
+          } }, "Remove"))));
+}
+
+function ctDrawBatch() {
+  ctStop();
+  const b = CT.batch;
+  if (!b) return;
+  const id = encodeURIComponent(b.id);
+  const busy = !!b.job;
+  const writing = busy && b.job.action === "contrast_write";
+  const made = b.scenes.filter((s) => s.made).length;
+  const left = b.scenes.length - made;
+  const picked = b.scenes.filter((s) => CT.picked.has(s.n));
+  const tag = h("input", { type: "text", maxlength: 28, value: b.end_tag || "", placeholder: "None", disabled: busy, "aria-label": "Words at the end" });
+  const status = busy
+    ? h("div", { class: "notice info ct-status", role: "status" }, h("span", { class: "spin" }),
+        writing && !b.scenes.length ? " Claude is writing the scenes. This takes about a minute."
+          : writing && left === 0 ? " Claude is writing more scenes like the ones you ticked."
+          : ` Drawing the videos: ${made} of ${b.scenes.length} done. You can leave this page; it carries on.`)
+    : b.error ? h("div", { class: "notice bad", role: "alert" }, h("b", {}, "The scenes could not be written. "), b.error)
+    : left ? h("div", { class: "notice" }, `${plural(left, "video")} of this batch ${left === 1 ? "is" : "are"} not drawn yet. `,
+        h("button", { class: "link-btn", type: "button", onclick: () => ctDo(() => api("POST", `/api/contrast/${id}/render`, {})) }, "Draw them"))
+    : null;
+  const vary = picked.length ? h("div", { class: "ct-vary" },
+    h("span", {}, h("b", {}, plural(picked.length, "scene")), " ticked. Make more like ", picked.length === 1 ? "it" : "them", ":"),
+    chips([[5, "5 each"], [10, "10 each"], [20, "20 each"]], CT.each, (v) => { CT.each = v; ctDrawBatch(); }, "How many of each"),
+    h("button", { class: "btn primary small", type: "button", disabled: busy || picked.length * CT.each > 60,
+      onclick: async () => {
+        const n = picked.length * CT.each;
+        if (!await confirmDialog({ title: `Make ${n} more scenes?`,
+          text: `Claude writes ${CT.each} new scenes in the spirit of each one you ticked (one request, a few cents), and VidGen draws them. They are added to the end of this batch.`, ok: "Make them" })) return;
+        const of = picked.map((s) => s.n);
+        CT.picked.clear();
+        ctDo(() => api("POST", `/api/contrast/${id}/vary`, { of, each: CT.each }));
+      } }, `Make ${picked.length * CT.each} more`),
+    picked.length * CT.each > 60 ? h("span", { class: "field-note warn" }, "At most 60 new scenes at a time.") : null,
+    h("button", { class: "link-btn quiet", type: "button", onclick: () => { CT.picked.clear(); ctDrawBatch(); } }, "Untick all")) : null;
+  // A tile keeps its element while nothing about it changed, so its video does not load again
+  // every time the page is drawn (it is drawn every two seconds while a batch is being made).
+  const seen = new Set();
+  const tiles = b.scenes.map((s) => {
+    const key = JSON.stringify([s.video, s.template, s.left, s.right, s.caption, s.from, s.problems, busy, b.scenes.length < 2, CT.editing === s.n]);
+    seen.add(s.n);
+    let t = CT.tiles.get(s.n);
+    if (!t || t.key !== key) { t = { key, el: ctTile(b, s, busy) }; CT.tiles.set(s.n, t); }
+    const on = CT.picked.has(s.n), box = t.el.querySelector(".ct-pick input");
+    t.el.classList.toggle("on", on);
+    if (box) box.checked = on;
+    return t.el;
+  });
+  for (const n of [...CT.tiles.keys()]) if (!seen.has(n)) CT.tiles.delete(n);
+  const keepScroll = $("#main").scrollTop;
+  $("#main").replaceChildren(h("div", { class: "view studio ct" },
+    h("a", { class: "ct-back muted", href: "#/contrast" }, "‹ Contrast videos"),
+    h("div", { class: "studio-head" },
+      h("div", {}, h("h1", {}, b.name),
+        h("p", { class: "lede" }, `${plural(b.scenes.length, "scene")}, ${made} drawn. Tick the ones that do well once they are posted, then make more like them.`)),
+      h("div", { class: "ct-head-btns" },
+        made ? h("a", { class: "btn", href: `/api/contrast/${id}/zip`, download: "" }, icon("download", 14), "Download all") : null,
+        h("button", { class: "btn ghost", type: "button", disabled: busy,
+          onclick: async () => {
+            if (!await confirmDialog({ title: "Delete this batch?", text: `${b.name}: its ${plural(made, "video")} and its captions are deleted from this computer.`, ok: "Delete", danger: true })) return;
+            try { await api("DELETE", `/api/contrast/${id}`); CT.batch = null; CT.home = null; location.hash = "#/contrast"; }
+            catch (e) { CT.error = e.message; ctDrawBatch(); }
+          } }, icon("trash", 14), "Delete"))),
+    CT.error ? h("div", { class: "notice bad", role: "alert" }, CT.error) : null,
+    status,
+    (b.skipped || []).length ? h("details", { class: "notice ct-skipped" }, h("summary", {}, `${plural(b.skipped.length, "scene")} left out`),
+      h("ul", {}, b.skipped.map((t) => h("li", {}, t)))) : null,
+    vary,
+    b.scenes.length ? h("div", { class: "ct-grid" }, tiles) : null,
+    h("section", { class: "card-sec ct-set" },
+      h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "Words at the end")),
+      h("div", { class: "ct-row" }, tag,
+        h("button", { class: "btn small", type: "button", disabled: busy,
+          onclick: () => ctDo(async () => {
+            const out = await api("PUT", `/api/contrast/${id}/tag`, { end_tag: tag.value.trim() || null });
+            if (out.scenes.some((s) => !s.made)) await api("POST", `/api/contrast/${id}/render`, {});
+            return null;
+          }) }, "Save and draw again")),
+      h("p", { class: "field-note" }, "They fade in under the winner at the end of every video. Changing them draws the whole batch again, which costs nothing.")),
+    b.sheet ? h("details", { class: "card-sec ct-sheet" },
+      h("summary", {}, h("span", { class: "sec-label" }, "The first second of every video"), h("span", { class: "muted" }, "show")),
+      h("p", { class: "field-note" }, "What someone scrolling sees before they decide to stay. Both sides and both labels should be readable here."),
+      h("img", { src: b.sheet, alt: "One frame from the first second of each video in the batch", loading: "lazy" })) : null,
+    made ? h("p", { class: "field-note ct-where" }, "The files and a captions.csv are in ", h("code", {}, b.folder.replace(/[\\/]videos$/, ""))) : null));
+  $("#main").scrollTop = keepScroll;
+  if (busy) CT.timer = setTimeout(async () => {
+    if (!ctOnBatch(b.id) || CT.editing !== null) { if (ctOnBatch(b.id)) ctDrawBatch(); return; }
+    try { await ctLoad(b.id); } catch { /* shown on the next press */ }
+    if (ctOnBatch(b.id)) ctDrawBatch();
+  }, 2000);
+}
+
 // The ElevenLabs voice list (free, cached on the server). Loaded once; "refresh" asks again.
 async function loadVoices(refresh) {
   try {
@@ -861,12 +1164,13 @@ async function refreshJobs() {
 
 function onJobFinished(job) {
   if (job.run_id) S.stamps[job.run_id] = Date.now();
-  toast(`${job.action}${job.params && job.params.step ? ` ${job.params.step}` : ""} ${job.status === "done" ? "finished" : "failed"}${job.error ? `: ${job.error}` : ""}`,
+  toast(`${job.action.startsWith("contrast") ? jobLabel(job) : job.action}${job.params && job.params.step ? ` ${job.params.step}` : ""} ${job.status === "done" ? "finished" : "failed"}${job.error ? `: ${job.error}` : ""}`,
     job.status === "done" ? "ok" : "bad");
   if (job.run_id && job.run_id === S.runId) loadRun(S.runId);
   if (job.action === "draw_character") {
     loadChars().then(() => { if (location.hash.startsWith("#/characters")) route(); });
   }
+  if (job.action.startsWith("contrast") && location.hash.startsWith("#/contrast")) { CT.home = null; route(); }
 }
 
 let pollTimer = null;
@@ -3280,13 +3584,19 @@ function jobLabel(j) {
     : j.action === "review" ? `Self-review${j.params.what && j.params.what !== "all" ? ` · ${j.params.what}` : ""}`
     : j.action === "new" ? (j.params.dry_run ? (j.params.engine === "claude_code" ? "New video (story only)" : "New video (dry run)") : "New video")
     : j.action === "finish" ? "Finish the video"
-    : j.action === "draw_character" ? `Draw ${j.params.character}` : j.action.charAt(0).toUpperCase() + j.action.slice(1);
+    : j.action === "draw_character" ? `Draw ${j.params.character}`
+    : j.action === "contrast_render" ? "Contrast videos" : j.action === "contrast_write" ? "Contrast scenes"
+    : j.action.charAt(0).toUpperCase() + j.action.slice(1);
   return what;
 }
 function runPremise(runId) {
   if (!runId) return "characters";
   const r = S.runs.find((x) => x.run_id === runId);
   return r ? r.premise : runId;
+}
+
+function jobWhere(j) {
+  return j.params && j.params.batch ? "a contrast batch" : runPremise(j.run_id);
 }
 
 function renderDrawer() {
@@ -3296,7 +3606,7 @@ function renderDrawer() {
   const sum = $("#drawer-summary");
   if (running.length) {
     sum.replaceChildren(...[h("span", { class: "dot running" }), h("b", {}, jobLabel(running[0])),
-      h("span", { class: "muted" }, `· ${runPremise(running[0].run_id)}`),
+      h("span", { class: "muted" }, `· ${jobWhere(running[0])}`),
       queued.length ? h("span", { class: "muted" }, `· ${queued.length} queued`) : null].filter(Boolean));
   } else if (S.jobs.length) {
     const last = S.jobs[0];
@@ -3309,7 +3619,7 @@ function renderDrawer() {
     onclick: () => watchJob(j.id, true), onkeydown: (e) => e.key === "Enter" && watchJob(j.id, true) },
     h("span", { class: `dot ${j.status === "done" ? "done" : j.status}` }),
     h("span", { class: "what" }, jobLabel(j)),
-    h("span", { class: "when" }, `${runPremise(j.run_id)} · ${when(j.finished_at || j.started_at || j.created_at)}`),
+    h("span", { class: "when" }, `${jobWhere(j)} · ${when(j.finished_at || j.started_at || j.created_at)}`),
     j.status === "failed" && j.error ? h("span", { class: "error", title: j.error }, j.error) : null);
   $("#job-list").replaceChildren(...[
     running.length ? [h("div", { class: "job-group" }, "Running"), running.map(item)] : null,
@@ -3380,14 +3690,15 @@ async function watchJob(id, pinned) {
   const j = S.jobs.find((x) => x.id === id);
   const title = $("#log-title");
   const setTitle = (job) => title.replaceChildren(...[h("span", { class: `dot ${job.status === "done" ? "done" : job.status}` }),
-    h("b", {}, jobLabel(job)), h("span", {}, `· ${runPremise(job.run_id)} · ${job.status}`),
+    h("b", {}, jobLabel(job)), h("span", {}, `· ${jobWhere(job)} · ${job.status}`),
     h("button", { class: "link-btn quiet log-copy", type: "button", title: "Copy the log as plain text, to paste somewhere or send to someone",
       onclick: async () => {
         try { await navigator.clipboard.writeText(S.logText.join("\n")); toast("Log copied", "ok"); }
         catch { toast("Could not copy the log from this page", "bad"); }
       } }, "Copy log"),
     job.run_id ? h("a", { href: `#/run/${encodeURIComponent(job.run_id)}`, class: "muted" }, "Open video ›")
-      : job.action === "draw_character" ? h("a", { href: `#/characters/${encodeURIComponent(job.params.character)}`, class: "muted" }, "Open character ›") : null,
+      : job.action === "draw_character" ? h("a", { href: `#/characters/${encodeURIComponent(job.params.character)}`, class: "muted" }, "Open character ›")
+      : job.params && job.params.batch ? h("a", { href: `#/contrast/${encodeURIComponent(job.params.batch)}`, class: "muted" }, "Open batch ›") : null,
   ].filter(Boolean));
   if (j) setTitle(j);
   renderDrawer();
@@ -3435,6 +3746,9 @@ function route() {
   const nf = location.hash.match(/^#\/new\/(.+)$/);
   const ch = location.hash.match(/^#\/characters(?:\/(.+))?$/);
   const link = $("#screens-link"); if (link) link.classList.toggle("active", location.hash === "#/screens");
+  const ct = location.hash.match(/^#\/contrast(?:\/(.+))?$/);
+  const ctLink = $("#contrast-link"); if (ctLink) ctLink.classList.toggle("active", !!ct);
+  if (!ct) ctStop();
   if (runId) {
     if (!S.run) $("#main").replaceChildren(h("div", { class: "empty" }, h("span", { class: "spin" }), "  Loading…"));
     loadRun(runId);
@@ -3444,6 +3758,8 @@ function route() {
     if (ch[1]) renderCharEditor(decodeURIComponent(ch[1])); else renderChars();
   } else if (location.hash === "#/screens") {
     renderScreens();
+  } else if (ct) {
+    if (ct[1]) renderContrastBatch(decodeURIComponent(ct[1])); else renderContrast();
   } else {
     renderStudio();
   }

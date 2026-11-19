@@ -32,6 +32,7 @@ step, reroll and recast reuse the format the run was created with (saved in run.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -203,6 +204,28 @@ def build_parser() -> argparse.ArgumentParser:
     p_ui.add_argument("--no-browser", action="store_true", help="do not open a browser window")
     p_ui.set_defaults(func=None)
 
+    p_con = sub.add_parser("contrast", help="batches of ten second Contrast videos: two sides, two labels, "
+                                             "the right one wins (drawn by VidGen itself, no model calls)")
+    p_con.add_argument("action", choices=["new", "render", "list", "vary", "zip"],
+                       help="new: make a batch | render: draw what is missing | list: the batches | "
+                            "vary: variations of the scenes that did best | zip: videos and captions in one file")
+    p_con.add_argument("batch", nargs="?", default=None, help="the batch id (render, vary, zip)")
+    p_con.add_argument("--name", default="", help="new: a name for the batch")
+    p_con.add_argument("--write", type=int, default=0, metavar="N",
+                       help="new: have Claude write N scenes (a few cents) instead of using the starter set")
+    p_con.add_argument("--about", default="", help="new --write: who the page is for, in a sentence")
+    p_con.add_argument("--scenes", default=None, metavar="FILE",
+                       help="new: a JSON file with your own scenes ([{template, left, right, caption}, ...])")
+    p_con.add_argument("--tag", default=None, help="new: the words that fade in at the end (default SEARCH IRO AI)")
+    p_con.add_argument("--no-tag", action="store_true", help="new: no words at the end")
+    p_con.add_argument("--no-render", action="store_true", help="new, vary: only write the scenes, draw nothing yet")
+    p_con.add_argument("--only", default=None, metavar="N,N", help="render: only these scenes")
+    p_con.add_argument("--again", action="store_true", help="render: draw them again even if they are there")
+    p_con.add_argument("--workers", type=int, default=None, help="render: how many videos to draw at once")
+    p_con.add_argument("--of", default=None, metavar="N,N", help="vary: the scenes that did best")
+    p_con.add_argument("--each", type=int, default=10, help="vary: variations of each (default 10)")
+    p_con.set_defaults(func=cmd_contrast)
+
     p_imp = sub.add_parser("import-skill", help="turn a Claude skill folder into a video format")
     p_imp.add_argument("skill", help="path to the skill folder or its SKILL.md")
     p_imp.add_argument("--name", default=None, help="format name (default: from the skill)")
@@ -213,6 +236,74 @@ def build_parser() -> argparse.ArgumentParser:
                        help="skip the test run of the script step (saves one Claude call)")
     p_imp.set_defaults(func=cmd_import_skill)
     return p
+
+
+def _numbers(text: str | None) -> set[int] | None:
+    if not text:
+        return None
+    try:
+        return {int(x) for x in str(text).replace(" ", "").split(",") if x}
+    except ValueError:
+        raise StepError(f"give shot or scene numbers as 3,11,27, got {text!r}") from None
+
+
+def cmd_contrast(args, config) -> int:
+    import contrast
+    import contrast_batch as B
+    if args.action == "list":
+        rows = B.batches()
+        if not rows:
+            print("no Contrast batches yet. Make one:  python main.py contrast new")
+        for r in rows:
+            print(f"{r['id']}  {r['name']}: {r['made']}/{r['scenes']} videos"
+                  + (f", {r['problems']} to check" if r["problems"] else ""))
+        return 0
+    if args.action == "new":
+        if args.scenes:
+            try:
+                raw = json.loads(Path(args.scenes).read_text(encoding="utf-8"))
+            except (OSError, ValueError) as e:
+                raise StepError(f"could not read {args.scenes}: {e}") from None
+            scenes = raw.get("scenes") if isinstance(raw, dict) else raw
+        elif args.write:
+            print(f"[contrast] asking {config['script']['model']} for {args.write} scenes...")
+            scenes = B.write_scenes(args.write, args.about, config)
+        else:
+            scenes = B.starter()
+        tag = None if args.no_tag else (args.tag if args.tag is not None else B.DEFAULT_TAG)
+        data = B.create(args.name or ("Starter scenes" if not (args.scenes or args.write) else ""), scenes, tag)
+        print(f"created Contrast batch {data['id']}: {len(data['scenes'])} scenes")
+        for line in data.get("skipped") or []:
+            print(f"  left out: {line}")
+        for s in data["scenes"]:
+            print(f"  {s['n']:02d} [{s['template']}] {s['left']} vs {s['right']}")
+        if args.no_render:
+            print(f"draw them with:  python main.py contrast render {data['id']}")
+            return 0
+        result = B.render(data["id"], workers=args.workers)
+        return 1 if result["failed"] else 0
+    if not args.batch:
+        raise StepError(f"which batch? python main.py contrast {args.action} <batch id>  (see: python main.py contrast list)")
+    if args.action == "render":
+        result = B.render(args.batch, only=_numbers(args.only), workers=args.workers, again=args.again)
+        return 1 if result["failed"] else 0
+    if args.action == "zip":
+        print(f"wrote {B.export_zip(args.batch)}")
+        return 0
+    if args.action == "vary":
+        of = _numbers(args.of)
+        if not of:
+            raise StepError("say which scenes did best:  --of 3,11,27")
+        print(f"[contrast] asking {config['script']['model']} for {args.each} variations of {len(of)} scene(s)...")
+        new = B.variations(args.batch, sorted(of), args.each, config)
+        data, left_out = B.add_scenes(args.batch, new)
+        print(f"added {len(new) - len(left_out)} scenes to {args.batch}")
+        for line in left_out:
+            print(f"  left out: {line}")
+        if not args.no_render:
+            result = B.render(args.batch, workers=args.workers)
+            return 1 if result["failed"] else 0
+    return 0
 
 
 def cmd_import_skill(args, config) -> int:

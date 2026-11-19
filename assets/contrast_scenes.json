@@ -1,0 +1,185 @@
+{
+ "about": "people who want to get good at using AI at work",
+ "scenes": [
+  {
+   "template": "stairs",
+   "left": "WAITING",
+   "right": "STARTING",
+   "caption": "you don't need the whole plan, you need the first step. what are you still waiting to start?"
+  },
+  {
+   "template": "blocks",
+   "left": "PERFECT PROMPT",
+   "right": "TEN DRAFTS",
+   "caption": "nobody writes the perfect prompt first time, the good ones just write more of them. how many drafts do you allow yourself?"
+  },
+  {
+   "template": "doors",
+   "left": "ASKS ONCE",
+   "right": "ASKS AGAIN",
+   "caption": "the best answer is almost never the first one. do you ask a follow-up question?"
+  },
+  {
+   "template": "score",
+   "left": "VAGUE PROMPT",
+   "right": "CLEAR PROMPT",
+   "caption": "the answer is only as good as the ask. how clear was your last prompt?"
+  },
+  {
+   "template": "stairs",
+   "left": "SOMEDAY",
+   "right": "DAY ONE",
+   "caption": "someday never shows up on a calendar. what would your day one look like?"
+  },
+  {
+   "template": "blocks",
+   "left": "POLISHING",
+   "right": "SHIPPING",
+   "caption": "one is still fixing the first block, the other is standing on the wall. which one is you this week?"
+  },
+  {
+   "template": "doors",
+   "left": "FIRST ANSWER",
+   "right": "FOLLOW UP",
+   "caption": "the first answer is a draft, the follow-up is where it gets good. how often do you push back?"
+  },
+  {
+   "template": "score",
+   "left": "NO CONTEXT",
+   "right": "GIVES CONTEXT",
+   "caption": "ai can't read your mind, tell it who it is for and why. do you give it the background?"
+  },
+  {
+   "template": "stairs",
+   "left": "WATCHES TUTORIALS",
+   "right": "PRACTISES DAILY",
+   "caption": "watching someone use ai is not the same as using it. how much of your learning is watching?"
+  },
+  {
+   "template": "blocks",
+   "left": "OVERTHINKS",
+   "right": "BUILDS",
+   "caption": "you learn what works by building it, not by thinking about it. what have you been overthinking?"
+  },
+  {
+   "template": "doors",
+   "left": "GIVES UP",
+   "right": "REPHRASES",
+   "caption": "a bad answer usually means a bad question. do you quit or do you ask it another way?"
+  },
+  {
+   "template": "score",
+   "left": "ONE TRY",
+   "right": "KEEPS FIXING",
+   "caption": "a four becomes a ten one fix at a time. do you stop at the first try?"
+  },
+  {
+   "template": "stairs",
+   "left": "BIG GOAL",
+   "right": "SMALL STEPS",
+   "caption": "the goal is the same, only one of them is moving. what is your next small step?"
+  },
+  {
+   "template": "blocks",
+   "left": "ONE BIG PROMPT",
+   "right": "STEP BY STEP",
+   "caption": "ai does better with five small asks than one giant one. do you break your tasks down?"
+  },
+  {
+   "template": "doors",
+   "left": "ONE IDEA",
+   "right": "TEN IDEAS",
+   "caption": "ask for ten options and the third one is usually the keeper. how many do you ask for?"
+  },
+  {
+   "template": "score",
+   "left": "COPIES ANSWER",
+   "right": "CHECKS ANSWER",
+   "caption": "ai is confident even when it is wrong. do you check before you paste?"
+  },
+  {
+   "template": "stairs",
+   "left": "FEARS AI",
+   "right": "LEARNS AI",
+   "caption": "the people ai replaces are the ones who never learned to use it. which side are you on?"
+  },
+  {
+   "template": "blocks",
+   "left": "COLLECTS TOOLS",
+   "right": "MASTERS ONE",
+   "caption": "ten tools you opened once will not beat one tool you know well. which one do you actually know?"
+  },
+  {
+   "template": "doors",
+   "left": "WAITS FOR HELP",
+   "right": "ASKS AI",
+   "caption": "you can wait two days for a reply or get unstuck in two minutes. what are you waiting on right now?"
+  },
+  {
+   "template": "score",
+   "left": "NO EXAMPLE",
+   "right": "SHOWS EXAMPLE",
+   "caption": "one example of what you want is worth a paragraph of explaining. do you show it what good looks like?"
+  },
+  {
+   "template": "stairs",
+   "left": "PLANS FOREVER",
+   "right": "TRIES TODAY",
+   "caption": "a rough try today teaches more than a perfect plan next month. what could you try today?"
+  },
+  {
+   "template": "blocks",
+   "left": "TWEAKS THE FONT",
+   "right": "FINISHES THE JOB",
+   "caption": "done and decent beats perfect and missing. what are you tweaking right now?"
+  },
+  {
+   "template": "doors",
+   "left": "TAKES NO",
+   "right": "ASKS WHY",
+   "caption": "when it says it can't, ask why, there is usually a way around. do you stop at no?"
+  },
+  {
+   "template": "score",
+   "left": "TRUSTS IT",
+   "right": "TESTS IT",
+   "caption": "trusting ai blindly is how mistakes reach your boss. how do you test what it tells you?"
+  },
+  {
+   "template": "stairs",
+   "left": "WANTS A COURSE",
+   "right": "FIVE MINUTES DAILY",
+   "caption": "five minutes a day beats the course you never finish. could you spare five minutes?"
+  },
+  {
+   "template": "blocks",
+   "left": "STARTS OVER",
+   "right": "KEEPS BUILDING",
+   "caption": "every restart throws away what you learned. what would happen if you just kept going?"
+  },
+  {
+   "template": "doors",
+   "left": "SAME QUESTION",
+   "right": "NEW ANGLE",
+   "caption": "asking the same thing louder does not work on people or on ai. what is another way to ask it?"
+  },
+  {
+   "template": "score",
+   "left": "SKIPS FEEDBACK",
+   "right": "USES FEEDBACK",
+   "caption": "tell it what was wrong and it fixes it, say nothing and you get the same again. do you tell it?"
+  },
+  {
+   "template": "stairs",
+   "left": "TOO LATE",
+   "right": "STARTS ANYWAY",
+   "caption": "everyone who is good at this started behind someone. what makes you think it is too late?"
+  },
+  {
+   "template": "score",
+   "left": "MAKE IT GOOD",
+   "right": "SAYS HOW",
+   "caption": "good is not an instruction, shorter, friendlier, for a client is. what does good mean to you?"
+  }
+ ]
+}

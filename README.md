@@ -562,6 +562,64 @@ python main.py import-skill path/to/my-skill --no-dry-run
 Imported formats are always 9:16 (the image and video models are called at 9:16) and use no
 app screenshots. A skill's `{{VARIABLES}}` that VidGen does not fill are written as `<VARIABLES>`.
 
+## Contrast videos
+
+A second kind of video, made a different way: ten seconds, no voice, two ways of doing something
+side by side. The one on the left struggles, Iro on the right wins, and the last second and a
+half shows `SEARCH IRO AI` under the winner. VidGen draws these itself (Pillow and ffmpeg), so
+**no picture, clip or voice model is called and a batch costs nothing**. The idea is volume:
+make thirty, post them, see which ones people watch, then make more like those.
+
+```bash
+python main.py contrast new                      # the 30 starter scenes, drawn (a few minutes)
+python main.py contrast new --write 30 --about "students who use AI for homework"
+python main.py contrast new --scenes mine.json --name "My list" --no-tag
+python main.py contrast list
+python main.py contrast render <batch> --only 3,7    # draw what is missing; --again draws all of it
+python main.py contrast vary <batch> --of 3,11 --each 10   # ten more like scenes 3 and 11
+python main.py contrast zip <batch>
+```
+
+In the web UI it is the **Contrast videos** page in the side bar: make a batch, watch it draw,
+play each video, copy its caption, edit or remove a scene, tick the ones that did well and press
+**Make more**.
+
+**A scene** is four things:
+
+```json
+{"template": "stairs", "left": "WAITING", "right": "STARTING",
+ "caption": "nobody feels ready at the start. what are you putting off?"}
+```
+
+- `left` is the habit that loses and `right` the one that wins: one to three words, at most 22
+  letters, shown in capitals. A label too wide to read on a phone is refused.
+- `template` is the little story that plays: `stairs` (one stands at the foot looking up, Iro
+  climbs), `blocks` (one keeps nudging a single block, Iro builds a wall), `doors` (one waits at
+  a closed door, Iro knocks on door after door until one opens), `score` (one tries once and
+  stays low, Iro tries again until the score is 10).
+- `caption` is the text for the post, not shown in the video. It is written to the captions file.
+
+The starter scenes are in `assets/contrast_scenes.json`; they are about using AI well and no
+caption names the app. Your own file is a list of scenes like the one above, or
+`{"scenes": [...]}`. In the web UI you can type them one a line: `WAITING | STARTING | caption`.
+
+**What a batch leaves on disk** (`<output folder>/_contrast/<batch id>/`):
+
+| File | What it is |
+| --- | --- |
+| `videos/01.mp4` ... | 1080 by 1920, 30 frames a second, H.264 with a silent sound track, so every app takes it and you can put a sound on top when you post |
+| `captions.csv`, `captions.txt` | every video's number, labels and caption, for pasting or for a scheduler |
+| `first_second.jpg` | one frame from the first second of every video, side by side. If a label is cut off or a side has nothing on it, you see it here, and that video's tile carries a note |
+| `batch.json` | the scenes and which videos are made |
+
+Only two things cost money, a few cents each, and both are one request to Claude: `--write`
+(Claude writes the scenes for the audience you describe) and `vary` (Claude writes variations of
+the scenes you name: the same contrast in new words, for another everyday situation). Drawing is
+always free and several videos are drawn at once (`--workers`, at most six).
+
+The words at the end are a setting of the batch: `--tag "FOLLOW FOR MORE"` for your own,
+`--no-tag` for none. Changing them in the web UI draws the batch again.
+
 ## Local web UI and HTTP API
 
 ```bash
@@ -677,6 +735,12 @@ that was running or queued when the server stopped is marked failed on the next 
 | `POST /api/runs/{run_id}/shots` `{after, shot}` | adds a shot after shot `after` (0 = first); `shot` is the form's answers, `{kind: scene / texts / card, ...}`. 422 with the reason when an answer is missing or the format's rules refuse it |
 | `DELETE /api/runs/{run_id}/shots/{n}` | removes shot `n` with its files; the later shots move up |
 | `PUT /api/runs/{run_id}/script` | saves an edited script.json after validating it with the run's format (422 with the errors otherwise; 409 while a job is working on that run) |
+| `GET /api/contrast`, `POST /api/contrast` | the Contrast batches; a new one (`{"source": "starter" \| "write" \| "scenes", "name", "count", "about", "scenes", "end_tag", "render"}`). Drawing and writing run as jobs with `params.batch` |
+| `GET /api/contrast/{id}`, `DELETE /api/contrast/{id}` | one batch: its scenes, which videos are made, the job it is busy with; delete it |
+| `POST /api/contrast/{id}/render` | draw what is missing (`{"only": [3, 7], "again": false}`) |
+| `POST /api/contrast/{id}/vary` | Claude writes more scenes like the ones named (`{"of": [3, 11], "each": 10, "render": true}`) |
+| `PUT /api/contrast/{id}/scenes/{n}`, `DELETE .../scenes/{n}` | edit a scene (`template`, `left`, `right`, `caption`) or take it out |
+| `PUT /api/contrast/{id}/tag`, `GET /api/contrast/{id}/zip` | the words at the end; every finished video and the captions in one zip |
 | `GET /api/jobs`, `GET /api/jobs/{id}?since=N` | job status and log (from line N) |
 | `GET /api/jobs/{id}/stream` | Server-Sent Events: `log` events (one per line, `id` = line number, resumable with `Last-Event-ID`) and `status` events; ends when the job does |
 | `GET /files/<run_id>/...` | images, clips, audio, captions, final.mp4 from the output folder (supports Range for video seeking) |

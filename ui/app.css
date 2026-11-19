@@ -1275,3 +1275,75 @@ input[type=text], input[type=number], input[type=search], select, textarea { bor
 .review-final { margin: 8px 0; }
 .review-panel .trip-btns { margin-top: 10px; }
 .review-note .trip-btns .btn.small { height: auto; min-height: 26px; white-space: normal; text-align: left; line-height: 1.25; padding: 4px 9px; }
+
+/* ---------------------------------------------------------------- Contrast videos */
+.ct .lede { max-width: 760px; }
+.ct-new { display: flex; flex-direction: column; gap: 12px; max-width: 760px; }
+.ct-new .sec-head { margin-bottom: 0; }
+.ct-extra { display: flex; flex-direction: column; gap: 10px; }
+.ct-extra .field-note, .ct-new > .field-note { margin: 0; }
+.ct-field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; font-size: 12.5px; color: var(--muted); }
+.ct-field textarea, .ct-field input[type=text] { width: 100%; }
+.ct-list { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.ct-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.ct-row > input[type=text] { flex: 1; min-width: 180px; max-width: 320px; }
+.ct-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ct-cost { font-size: 12.5px; }
+.ct-list-head { display: flex; justify-content: space-between; align-items: baseline; margin: 26px 0 10px; max-width: 760px; }
+.ct-batches { display: flex; flex-direction: column; gap: 8px; max-width: 760px; }
+.ct-batch { display: grid; grid-template-columns: 1fr auto auto; gap: 16px; align-items: center; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--text); text-decoration: none; font-size: 13.5px; transition: border-color .15s, background .15s; }
+.ct-batch:hover { border-color: var(--line-3); background: var(--panel-2); }
+.ct-batch:focus-visible { outline: none; box-shadow: var(--ring); }
+.ct-batch-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-batch-when { font-size: 12.5px; min-width: 64px; text-align: right; }
+.ct-none { border: 1px dashed var(--line-2); border-radius: 12px; max-width: 760px; padding: 28px 24px; }
+.ct-back { display: inline-block; margin-bottom: 10px; font-size: 13px; text-decoration: none; }
+.ct-back:hover { color: var(--text); }
+.ct-head-btns { display: flex; gap: 8px; flex-shrink: 0; }
+.ct .notice { margin-bottom: 14px; }
+.ct-status .spin { margin-right: 4px; }
+.ct-skipped summary { cursor: pointer; font-weight: 600; }
+.ct-vary { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 14px; border-radius: 12px;
+  border: 1px solid var(--accent); background: var(--accent-bg); font-size: 13.5px; position: sticky; top: 8px; z-index: 5; }
+.ct-vary .chip { height: 30px; padding: 0 10px; font-size: 12.5px; }
+.ct-vary .field-note { margin: 0; }
+.ct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; margin-bottom: 22px; }
+.ct-tile { display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 10px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); min-width: 0; }
+.ct-tile.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.ct-tile.editing { gap: 10px; padding: 12px; }
+.ct-tile.editing select { width: 100%; }
+.ct-pic-wrap { position: relative; }
+.ct-pic { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 9 / 16; padding: 0; border: 0; border-radius: 9px; overflow: hidden;
+  background: #0b0d14; cursor: pointer; }
+.ct-pic.waiting { cursor: default; border: 1px dashed var(--line-2); background: transparent; font-size: 12.5px; }
+.ct-pic video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.ct-pic:focus-visible { outline: none; box-shadow: var(--ring); }
+.ct-play { position: absolute; left: 8px; bottom: 8px; width: 30px; height: 30px; border-radius: 999px; display: grid; place-items: center;
+  background: rgba(8, 9, 13, .7); color: #fff; opacity: 0; transition: opacity .15s; }
+.ct-pic:hover .ct-play, .ct-pic:focus-visible .ct-play { opacity: 1; }
+.ct-pick { position: absolute; top: 6px; left: 6px; display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px 0 7px; border-radius: 999px;
+  background: rgba(8, 9, 13, .78); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }
+.ct-pick input { margin: 0; cursor: pointer; }
+.ct-words { font-size: 12.5px; font-weight: 700; line-height: 1.3; letter-spacing: .01em; margin-top: 2px; overflow-wrap: anywhere; }
+.ct-left { color: var(--muted); }
+.ct-from { font-size: 11.5px; }
+.ct-caption { font-size: 12.5px; line-height: 1.4; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.8em; }
+.ct-tile-foot { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; margin-top: auto; }
+.ct-tile-btns { display: flex; gap: 10px; }
+.ct-set { max-width: 760px; margin-bottom: 14px; }
+.ct-set .field-note { margin: 8px 0 0; }
+.ct-set .ct-row { align-items: center; }
+.ct-tile.editing .ct-actions { flex-wrap: nowrap; gap: 6px; }
+.ct-tile.editing .btn.small { padding: 0 9px; }
+.ct-sheet { margin-bottom: 14px; }
+.ct-sheet img { width: 100%; border-radius: 9px; margin-top: 10px; display: block; }
+.ct-sheet .field-note { margin: 8px 0 0; }
+.ct-where code { font-size: 12px; overflow-wrap: anywhere; }
+.modal.ct-player { width: auto; max-width: 92vw; padding: 14px; }
+.ct-player video { display: block; height: min(74vh, 720px); aspect-ratio: 9 / 16; border-radius: 10px; background: #000; }
+@media (max-width: 640px) {
+  .ct-batch { grid-template-columns: 1fr auto; }
+  .ct-batch-when { display: none; }
+  .ct-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
