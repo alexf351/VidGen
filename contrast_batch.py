@@ -384,8 +384,10 @@ def sheet(batch_id: str) -> Path | None:
         x, y = (i % cols) * tw, (i // cols) * th
         out.paste(tile, (x, y))
         flagged = bool(data["checks"].get(str(s["n"])))
-        d.rectangle([x + 6, y + 6, x + 46, y + 34], fill=(200, 60, 70) if flagged else (20, 26, 52))
-        d.text((x + 26, y + 20), f"{s['n']:02d}", font=font, fill=(255, 255, 255), anchor="mm")
+        # the number sits at the foot of the tile: at the top it would cover the left label,
+        # and the labels are the thing this sheet is for
+        d.rectangle([x + 6, y + th - 34, x + 46, y + th - 6], fill=(200, 60, 70) if flagged else (20, 26, 52))
+        d.text((x + 26, y + th - 20), f"{s['n']:02d}", font=font, fill=(255, 255, 255), anchor="mm")
     path = batch_dir(batch_id) / "first_second.jpg"
     out.save(path, quality=86)
     return path
