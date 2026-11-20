@@ -38,6 +38,8 @@ import video_model
 import progress
 import contrast
 import contrast_batch
+import stickstory
+import story_series
 from common import (KEY_ENV, PROVIDERS, ROOT, STEP_ORDER, StepError, available_app_screens,
                     run_cast, run_engine, run_format, runs_dir, write_json)
 from format_loader import COVER_EXTS, DEFAULT_FORMAT, format_summaries, load_format
@@ -128,6 +130,40 @@ class ContrastVary(BaseModel):
 
 class ContrastTag(BaseModel):
     end_tag: str | None = None
+
+
+class StoryNew(BaseModel):
+    name: str = ""
+    starter: str | None = None        # one of the stories that ship
+    premise: str = ""                 # your own; Claude writes episode 1 from it
+    script: dict | None = None        # or the script of episode 1 itself
+    iro: bool = True
+    end_tag: str | None = "SEARCH IRO AI"
+    voice_id: str = ""
+    render: bool = True
+
+
+class StoryNext(BaseModel):
+    choice: str                       # "a" or "b": which choice won the vote
+    script: dict | None = None
+    render: bool = True
+
+
+class StoryRender(BaseModel):
+    episode: int | None = None        # default: the newest
+    again: bool = False
+    voice: bool = True
+
+
+class StoryScript(BaseModel):
+    script: dict
+
+
+class StoryUpdate(BaseModel):
+    name: str | None = None
+    end_tag: str | None = None
+    voice_id: str | None = None
+    iro: bool | None = None
 
 
 class CaptionSize(BaseModel):
@@ -1577,6 +1613,183 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             raise HTTPException(400, "no video of this batch is made yet")
         path = contrast_batch.export_zip(batch_id)
         return FileResponse(path, media_type="application/zip", filename=f"{batch_id}.zip")
+
+    # -------------------------------------------------------- choice stories --
+    def story_job(series_id: str):
+        for j in runner.list():
+            if j.action.startswith("story") and (j.params or {}).get("series") == series_id and j.status in ("queued", "running"):
+                return j
+        return None
+
+    def story_or_404(series_id: str) -> dict:
+        try:
+            return story_series.load(series_id)
+        except StepError as e:
+            raise HTTPException(404, str(e)) from e
+
+    def story_free(series_id: str) -> None:
+        j = story_job(series_id)
+        if j is not None:
+            raise HTTPException(409, f"this series is busy ({'writing an episode' if j.action == 'story_write' else 'making a video'}); wait for it to finish")
+
+    def story_detail(series_id: str) -> dict:
+        data = story_or_404(series_id)
+        episodes = []
+        for n in range(1, data["episodes"] + 1):
+            try:
+                st = story_series.episode_state(series_id, n, data)
+            except StepError:
+                continue
+            folder = Path(st.pop("folder"))
+            st["video"] = run_status.file_url(folder / "final.mp4") if (st["made"] or st["stale"]) else None
+            st["cover"] = run_status.file_url(folder / "cover.jpg")
+            episodes.append(st)
+        j = story_job(series_id)
+        return {**story_series.summary(data), "episode_list": episodes, "folder": str(story_series.series_dir(series_id)),
+                "job": None if j is None else {"id": j.id, "action": j.action, "status": j.status}}
+
+    def story_produce(series_id: str, n: int, again: bool = False, voice: bool = True) -> None:
+        story_series.produce(series_id, n, load_config(), voice=voice, again=again)
+
+    @app.get("/api/stories")
+    def stories_home() -> dict:
+        return {"starters": [{"id": s["id"], "name": s["name"], "premise": s["premise"], "ready": bool(s["episode"])}
+                             for s in story_series.starters()],
+                "default_tag": story_series.DEFAULT_TAG, "has_voice_key": bool(os.environ.get("ELEVENLABS_API_KEY")),
+                "sets": list(stickstory.SETS), "lights": list(stickstory.LIGHTS), "poses": list(stickstory.POSES),
+                "events": list(stickstory.EVENTS),
+                "series": [{**s, "busy": story_job(s["id"]) is not None} for s in story_series.all_series()]}
+
+    @app.post("/api/stories", status_code=201)
+    def stories_new(body: StoryNew) -> dict:
+        """A new series and its first episode: a starter's, your own script, or one Claude writes
+        from the premise (one request). Drawing the video costs nothing."""
+        starter = None
+        if body.starter:
+            starter = next((s for s in story_series.starters() if s["id"] == body.starter), None)
+            if starter is None:
+                raise HTTPException(400, f"there is no starter story called {body.starter}")
+        premise = body.premise.strip() or (starter["premise"] if starter else "")
+        if not premise and not body.script:
+            raise HTTPException(400, "give the story a premise, or pick one of the starters")
+        tag = body.end_tag if (body.end_tag or "").strip() else None
+        data = story_series.create(body.name or (starter["name"] if starter else ""), premise, iro=body.iro, end_tag=tag, voice_id=body.voice_id)
+        series_id = data["id"]
+        script = body.script or (starter["episode"] if starter and starter["episode"] and not body.premise.strip() else None)
+        if script is not None:
+            try:
+                story_series.add_episode(series_id, script)
+            except StepError as e:
+                story_series.delete(series_id)
+                raise HTTPException(400, str(e)) from e
+            job = runner.submit("story_render", None, {"series": series_id, "episode": 1},
+                                lambda job: story_produce(series_id, 1)) if body.render else None
+        else:
+            story_series.set_note(series_id, writing={"episode": 1})
+            draw = body.render
+
+            def fn(job):
+                try:
+                    print("[story] asking Claude for episode 1...")
+                    story_series.add_episode(series_id, story_series.write_first(story_series.load(series_id), load_config()))
+                    story_series.set_note(series_id)
+                except Exception as e:
+                    story_series.set_note(series_id, error=str(e))
+                    raise
+                if draw:
+                    story_produce(series_id, 1)
+
+            job = runner.submit("story_write", None, {"series": series_id, "episode": 1}, fn)
+        return {**story_detail(series_id), "job_id": job.id if job else None}
+
+    @app.get("/api/stories/{series_id}")
+    def stories_get(series_id: str) -> dict:
+        return story_detail(series_id)
+
+    @app.put("/api/stories/{series_id}")
+    def stories_update(series_id: str, body: StoryUpdate) -> dict:
+        story_or_404(series_id)
+        story_free(series_id)
+        story_series.update(series_id, {k: v for k, v in body.model_dump().items() if v is not None})
+        return story_detail(series_id)
+
+    @app.post("/api/stories/{series_id}/next", status_code=202)
+    def stories_next(series_id: str, body: StoryNext) -> dict:
+        """The next episode: Claude writes it from the story so far and the choice that won (one
+        request), or you send its script. Then its video is made."""
+        data = story_or_404(series_id)
+        story_free(series_id)
+        choice = body.choice.strip().lower()
+        if choice not in ("a", "b"):
+            raise HTTPException(400, "say which choice won: a or b")
+        if data["episodes"] < 1:
+            raise HTTPException(400, "this series has no episode yet")
+        n = data["episodes"] + 1
+        draw = body.render
+        if body.script is not None:
+            last = story_series.load_episode(series_id, data["episodes"])
+            try:
+                story_series.add_episode(series_id, body.script, voted=last[choice])
+            except StepError as e:
+                raise HTTPException(400, str(e)) from e
+            job = runner.submit("story_render", None, {"series": series_id, "episode": n},
+                                lambda job: story_produce(series_id, n)) if draw else None
+            return {**story_detail(series_id), "job_id": job.id if job else None}
+        story_series.set_note(series_id, writing={"episode": n, "choice": choice})
+
+        def fn(job):
+            try:
+                print(f"[story] asking Claude for episode {n}...")
+                script, won = story_series.write_next(series_id, choice, load_config())
+                story_series.add_episode(series_id, script, voted=won)
+                story_series.set_note(series_id)
+            except Exception as e:
+                story_series.set_note(series_id, error=str(e))
+                raise
+            if draw:
+                story_produce(series_id, n)
+
+        job = runner.submit("story_write", None, {"series": series_id, "episode": n, "choice": choice}, fn)
+        return {**story_detail(series_id), "job_id": job.id}
+
+    @app.post("/api/stories/{series_id}/render", status_code=202)
+    def stories_render(series_id: str, body: StoryRender) -> dict:
+        data = story_or_404(series_id)
+        story_free(series_id)
+        n = body.episode or data["episodes"]
+        if not 1 <= n <= data["episodes"]:
+            raise HTTPException(400, f"this series has no episode {n}")
+        job = runner.submit("story_render", None, {"series": series_id, "episode": n},
+                            lambda job: story_produce(series_id, n, again=body.again, voice=body.voice))
+        return {"job_id": job.id, "status": job.status}
+
+    @app.put("/api/stories/{series_id}/episodes/{n}")
+    def stories_edit(series_id: str, n: int, body: StoryScript) -> dict:
+        story_or_404(series_id)
+        story_free(series_id)
+        try:
+            story_series.save_episode(series_id, n, body.script)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        return story_detail(series_id)
+
+    @app.delete("/api/stories/{series_id}/episodes/last")
+    def stories_drop_last(series_id: str) -> dict:
+        story_or_404(series_id)
+        story_free(series_id)
+        try:
+            story_series.delete_last_episode(series_id)
+        except StepError as e:
+            raise HTTPException(400, str(e)) from e
+        story_series.set_note(series_id)
+        return story_detail(series_id)
+
+    @app.delete("/api/stories/{series_id}")
+    def stories_delete(series_id: str) -> dict:
+        story_or_404(series_id)
+        story_free(series_id)
+        story_series.delete(series_id)
+        return {"deleted": series_id}
 
     @app.get("/api/jobs")
     def list_jobs(run_id: str | None = None) -> list[dict]:

@@ -1,0 +1,147 @@
+{
+ "about": "Stories that ship with VidGen. One has its first episode written; the others are premises for Claude to write from.",
+ "stories": [
+  {
+   "id": "the_knock",
+   "name": "The knock",
+   "premise": "At 3 a.m. something knocks on your bedroom window. You live on the fourth floor. Whatever it is can copy the voices of people you love, and it wants to be let in.",
+   "episode": {
+    "title": "The knock",
+    "question": "Do you open the door, or hide?",
+    "a": "OPEN",
+    "b": "HIDE",
+    "recap": "At 3 a.m. something knocked on your fourth-floor window, then on your bedroom door, and spoke in your mom's voice.",
+    "caption": "you live on the fourth floor. what would you do?",
+    "shots": [
+     {
+      "say": "Imagine you wake up at three a.m. to a knock on your window.",
+      "set": "bedroom",
+      "light": "moon",
+      "you": {
+       "pose": "lie",
+       "at": "bed"
+      },
+      "event": "knock",
+      "target": "window",
+      "banner": "3:07 AM"
+     },
+     {
+      "say": "You live on the fourth floor.",
+      "set": "bedroom",
+      "light": "moon",
+      "you": {
+       "pose": "sit",
+       "at": "bed",
+       "face": "right"
+      },
+      "iro": true,
+      "camera": "push"
+     },
+     {
+      "say": "Your phone lights up. No caller ID.",
+      "set": "bedroom",
+      "light": "dark",
+      "you": {
+       "pose": "stand",
+       "at": "center"
+      },
+      "iro": true,
+      "event": "phone_ring"
+     },
+     {
+      "say": "Iro, the AI in your pocket, whispers: there are two heartbeats in this room.",
+      "set": "bedroom",
+      "light": "dark",
+      "you": {
+       "pose": "phone",
+       "at": "center",
+       "face": "left"
+      },
+      "iro": true,
+      "event": "heartbeat",
+      "camera": "still"
+     },
+     {
+      "say": "Then the knocking moves. Now it's at your bedroom door.",
+      "set": "bedroom",
+      "light": "flicker",
+      "you": {
+       "pose": "listen",
+       "at": 0.36
+      },
+      "iro": true,
+      "event": "knock",
+      "target": "door"
+     },
+     {
+      "say": "A green light spills under it.",
+      "set": "bedroom",
+      "light": "green",
+      "you": {
+       "pose": "crouch",
+       "at": 0.3,
+       "face": "right"
+      },
+      "iro": true,
+      "target": "door"
+     },
+     {
+      "say": "A voice that sounds exactly like your mom says: open up. It's me.",
+      "set": "bedroom",
+      "light": "green",
+      "you": {
+       "pose": "reach",
+       "at": 0.4,
+       "face": "right"
+      },
+      "iro": true,
+      "target": "door",
+      "camera": "push"
+     },
+     {
+      "say": "But your mom is asleep down the hall.",
+      "set": "hallway",
+      "light": "dark",
+      "you": null,
+      "them": {
+       "kind": "shadow",
+       "pose": "stand",
+       "at": "door",
+       "eyes": "green",
+       "face": "left"
+      },
+      "event": "eyes"
+     },
+     {
+      "say": "Do you open the door, or hide?",
+      "set": "bedroom",
+      "light": "green",
+      "you": {
+       "pose": "stand",
+       "at": 0.36,
+       "face": "right"
+      },
+      "iro": true,
+      "target": "door",
+      "camera": "still"
+     }
+    ]
+   }
+  },
+  {
+   "id": "lights_out",
+   "name": "Lights out",
+   "premise": "Every light in your city goes out in the same second. Your phone has four percent left and one new message from an unknown number: do not look outside."
+  },
+  {
+   "id": "after_hours",
+   "name": "After hours",
+   "premise": "You stayed late at the office. The building has locked itself, and the elevator keeps opening on your floor with nobody inside."
+  },
+  {
+   "id": "two_came_back",
+   "name": "Two came back",
+   "premise": "You and your best friend are in the forest at night. Your friend walks off to check a noise. Ten minutes later, two of them walk back."
+  }
+ ]
+}

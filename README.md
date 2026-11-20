@@ -620,6 +620,81 @@ always free and several videos are drawn at once (`--workers`, at most six).
 The words at the end are a setting of the batch: `--tag "FOLLOW FOR MORE"` for your own,
 `--no-tag` for none. Changing them in the web UI draws the batch again.
 
+## Choice stories
+
+A third kind of video: a narrated serial where **the viewer is the hero**. It is told in the second
+person ("Imagine you wake up at 3 a.m. to a knock on your window"), every episode ends on a choice
+between two things to do, the comments vote, and the next episode opens with what they chose. The
+pictures are stick figures in dark flat rooms with one source of light, drawn by VidGen itself
+(Pillow and ffmpeg): **no picture or clip model is called**.
+
+```bash
+python main.py story starters                         # the stories that ship
+python main.py story new --starter the_knock          # its first episode is written: no Claude request
+python main.py story new --premise "Every light in the city goes out at once." --name "Lights out"
+python main.py story list                             # your series, and the vote each waits on
+python main.py story next <series> --choice b         # the comments chose b: write and make the next episode
+python main.py story render <series> --episode 2 --again
+```
+
+In the web UI it is the **Choice stories** page in the side bar: start a series, watch the episode
+being made, play it, copy its caption, edit its lines, and when the votes are in press the choice
+that won.
+
+**What costs money.** Drawing is free and takes about two minutes for a 35 second episode. Claude
+writes each episode in one request (a few cents); a starter's first episode is already written.
+The narrator is ElevenLabs, about 500 characters an episode, and is read once: making the video
+again with the same words and voice reuses it. With no `ELEVENLABS_API_KEY` the video is made
+without a narrator and the words on screen keep an even pace.
+
+**The series loop.**
+
+1. Post episode 1. It ends on a card with the two choices and `COMMENT YOUR CHOICE`.
+2. When the votes are in, tell VidGen which won (`--choice a` or the button on the page).
+3. Claude gets the story so far, every earlier vote, and the choice that won, and writes the next
+   episode. Its first line names the choice ("You chose to hide") and the first shots show what it
+   cost. The video opens with `PART 2 · YOU VOTED` and the winning word.
+
+**Iro in the story.** By default Iro is the hero's small glowing companion: it stands at their side
+in the picture and once an episode it notices something useful, never the answer. `--no-iro` (or
+the box on the page) makes a story without it. The words after the last line (`SEARCH IRO AI`) are
+a setting of the series: `--tag "FOLLOW FOR PART 2"`, `--no-tag`.
+
+**An episode's script** is JSON you can edit (on the page, or `episode.json`):
+
+```json
+{"title": "The knock", "question": "Do you open the door, or hide?", "a": "OPEN", "b": "HIDE",
+ "recap": "what is true now, for whoever writes the next episode",
+ "caption": "you live on the fourth floor. what would you do?",
+ "shots": [
+  {"say": "Imagine you wake up at three a.m. to a knock on your window.",
+   "set": "bedroom", "light": "moon", "you": {"pose": "lie", "at": "bed"},
+   "event": "knock", "target": "window", "banner": "3:07 AM"},
+  {"say": "But your mom is asleep down the hall.", "set": "hallway", "light": "dark", "you": null,
+   "them": {"kind": "shadow", "at": "door", "eyes": "green"}, "event": "eyes"}
+ ]}
+```
+
+| A shot says | It may be |
+| --- | --- |
+| `set` | bedroom, hallway, living_room, stairwell, basement, street, forest, office, rooftop, elevator |
+| `light` | lamp, moon, flashlight, red, green, flicker, dark, dawn |
+| `you`, `them` pose | stand, walk, run, crouch, sit, lie, reach, hands_up, hide, phone, point, knock, listen, wave, fall |
+| `them.kind` | shadow (tall, dark, lit eyes), crowd (`count` 2 to 6), stranger (grey, in a hat), friend (blue) |
+| `at`, `to` | far_left, left, center, right, far_right, off_left, off_right, door, window, a number from 0 to 1, and a set's own places (bed, couch, desk...) |
+| `event` | knock, door_open, door_close, lights_out, lights_on, eyes, phone_ring, shake, heartbeat (each has its own sound) |
+| `camera` | push (the default), still, pull, shake |
+
+An episode has 5 to 14 shots, a line of at most 24 words per shot, and two choices of one or two
+short words. The script is checked before anything is drawn, and the message names the shot.
+
+**What an episode leaves on disk** (`<output folder>/_stories/<series id>/ep01/`): `final.mp4`
+(1080 by 1920, 30 frames a second, the narrator over a low drone and the event sounds),
+`cover.jpg`, `caption.txt`, `episode.json`, and `voice.mp3` with the time of every word.
+
+The sound bed (drone, knocks, heartbeat, door) is made here from sine waves and noise; nothing is
+downloaded.
+
 ## Local web UI and HTTP API
 
 ```bash
@@ -741,6 +816,11 @@ that was running or queued when the server stopped is marked failed on the next 
 | `POST /api/contrast/{id}/vary` | Claude writes more scenes like the ones named (`{"of": [3, 11], "each": 10, "render": true}`) |
 | `PUT /api/contrast/{id}/scenes/{n}`, `DELETE .../scenes/{n}` | edit a scene (`template`, `left`, `right`, `caption`) or take it out |
 | `PUT /api/contrast/{id}/tag`, `GET /api/contrast/{id}/zip` | the words at the end; every finished video and the captions in one zip |
+| `GET /api/stories`, `POST /api/stories` | the Choice story series and the starters; a new series (`{"starter" \| "premise" \| "script", "name", "iro", "end_tag", "voice_id", "render"}`). Writing and video making run as jobs with `params.series` |
+| `GET /api/stories/{id}`, `PUT /api/stories/{id}`, `DELETE /api/stories/{id}` | one series with its episodes; change its name, end words, narrator or Iro; delete it |
+| `POST /api/stories/{id}/next` `{choice, script, render}` | the next episode from the choice that won (`a` or `b`): Claude writes it, or you send its script |
+| `POST /api/stories/{id}/render` `{episode, again, voice}` | make an episode's video (the newest by default) |
+| `PUT /api/stories/{id}/episodes/{n}` `{script}`, `DELETE /api/stories/{id}/episodes/last` | save an edited script (400 with the reasons if it cannot be drawn); take the newest episode out |
 | `GET /api/jobs`, `GET /api/jobs/{id}?since=N` | job status and log (from line N) |
 | `GET /api/jobs/{id}/stream` | Server-Sent Events: `log` events (one per line, `id` = line number, resumable with `Last-Event-ID`) and `status` events; ends when the job does |
 | `GET /files/<run_id>/...` | images, clips, audio, captions, final.mp4 from the output folder (supports Range for video seeking) |

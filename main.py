@@ -226,6 +226,28 @@ def build_parser() -> argparse.ArgumentParser:
     p_con.add_argument("--each", type=int, default=10, help="vary: variations of each (default 10)")
     p_con.set_defaults(func=cmd_contrast)
 
+    p_story = sub.add_parser("story", help="choice stories: a narrated stick-figure serial where every episode ends "
+                             "on a choice and the next one starts from the vote; drawn here, no picture or clip model")
+    p_story.add_argument("action", choices=["new", "next", "render", "list", "starters"],
+                         help="new: start a series and make episode 1 | next: write and make the next episode from the "
+                              "vote | render: make an episode's video (again) | list: your series | starters: the stories that ship")
+    p_story.add_argument("series", nargs="?", help="the series id (next, render)")
+    p_story.add_argument("--starter", help="new: one of the stories that ship (see: story starters)")
+    p_story.add_argument("--premise", help="new: your own premise; Claude writes episode 1 from it (one request)")
+    p_story.add_argument("--script", help="new / next: a JSON file with the episode's script, in place of Claude writing it")
+    p_story.add_argument("--name", help="new: a name for the series")
+    p_story.add_argument("--choice", choices=["a", "b"], help="next: which choice won the vote")
+    p_story.add_argument("--episode", type=int, help="render: which episode (default: the newest)")
+    p_story.add_argument("--no-iro", action="store_true", help="new: a story without Iro at the hero's side")
+    p_story.add_argument("--tag", help='new: the words at the very end (default "SEARCH IRO AI")')
+    p_story.add_argument("--no-tag", action="store_true", help="new: no words at the end")
+    p_story.add_argument("--voice", help="new: the ElevenLabs voice id of the narrator (default: the config's narrator)")
+    p_story.add_argument("--no-voice", action="store_true", help="make the video without the narrator")
+    p_story.add_argument("--no-render", action="store_true", help="write the script and stop before the video")
+    p_story.add_argument("--again", action="store_true", help="render: make the video again even if it is already made")
+    p_story.add_argument("--workers", type=int, help="how many frames to draw at once (default 4)")
+    p_story.set_defaults(func=cmd_story)
+
     p_imp = sub.add_parser("import-skill", help="turn a Claude skill folder into a video format")
     p_imp.add_argument("skill", help="path to the skill folder or its SKILL.md")
     p_imp.add_argument("--name", default=None, help="format name (default: from the skill)")
@@ -303,6 +325,97 @@ def cmd_contrast(args, config) -> int:
         if not args.no_render:
             result = B.render(args.batch, workers=args.workers)
             return 1 if result["failed"] else 0
+    return 0
+
+
+def cmd_story(args, config) -> int:
+    import story_series as SR
+
+    def read_script(path: str) -> dict:
+        try:
+            raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            raise StepError(f"could not read {path}: {e}") from None
+        if not isinstance(raw, dict):
+            raise StepError(f"{path} is not an episode script")
+        return raw
+
+    def show(ep: dict) -> None:
+        print(f"part {ep['part']}: {ep['title']}" + (f"  (the vote: {ep['voted']})" if ep.get("voted") else ""))
+        for k, s in enumerate(ep["shots"], 1):
+            print(f"  {k:02d} [{s['set']}, {s['light']}] {s['say']}")
+        print(f"  ends on: {ep['question']}  ({ep['a']} or {ep['b']})")
+
+    def make(series_id: str, n: int) -> int:
+        if args.no_render:
+            print(f"make the video with:  python main.py story render {series_id}")
+            return 0
+        SR.produce(series_id, n, config, voice=not args.no_voice, again=args.again, workers=args.workers or 4)
+        return 0
+
+    if args.action == "starters":
+        for s in SR.starters():
+            print(f"{s['id']}: {s['name']}" + ("  (episode 1 is written)" if s["episode"] else "") + f"\n    {s['premise']}")
+        return 0
+    if args.action == "list":
+        rows = SR.all_series()
+        if not rows:
+            print("no story series yet. Start one:  python main.py story new --starter the_knock")
+        for r in rows:
+            nxt = r["next_choice"]
+            print(f"{r['id']}  {r['name']}: {r['made']}/{r['episodes']} videos"
+                  + (f", waiting on the vote: {nxt['a']} or {nxt['b']}" if nxt else ""))
+        return 0
+    if args.action == "new":
+        starter = None
+        if args.starter:
+            starter = next((s for s in SR.starters() if s["id"] == args.starter), None)
+            if starter is None:
+                raise StepError(f"there is no starter called {args.starter} (see: python main.py story starters)")
+        premise = args.premise or (starter["premise"] if starter else "")
+        if not premise and not args.script:
+            raise StepError("give the story a premise:  --premise \"...\"  or pick one:  --starter the_knock")
+        tag = None if args.no_tag else (args.tag if args.tag is not None else SR.DEFAULT_TAG)
+        data = SR.create(args.name or (starter["name"] if starter else ""), premise, iro=not args.no_iro, end_tag=tag, voice_id=args.voice or "")
+        try:
+            if args.script:
+                script = read_script(args.script)
+            elif starter and starter["episode"] and not args.premise:
+                script = starter["episode"]
+            else:
+                print(f"[story] asking {config['script']['model']} for episode 1...")
+                script = SR.write_first(data, config)
+            ep = SR.add_episode(data["id"], script)
+        except StepError:
+            SR.delete(data["id"])
+            raise
+        print(f"created story series {data['id']}")
+        show(ep)
+        return make(data["id"], 1)
+    if not args.series:
+        raise StepError(f"which series? python main.py story {args.action} <series id>  (see: python main.py story list)")
+    if args.action == "next":
+        data = SR.load(args.series)
+        if args.script:
+            last = SR.load_episode(args.series, data["episodes"]) if data["episodes"] else None
+            if last and not args.choice:
+                raise StepError(f"say which choice won:  --choice a ({last['a']})  or  --choice b ({last['b']})")
+            ep = SR.add_episode(args.series, read_script(args.script), voted=(last["a"] if args.choice == "a" else last["b"]) if last else None)
+        else:
+            if not args.choice:
+                last = SR.load_episode(args.series, data["episodes"])
+                raise StepError(f"say which choice won:  --choice a ({last['a']})  or  --choice b ({last['b']})")
+            print(f"[story] asking {config['script']['model']} for episode {data['episodes'] + 1}...")
+            script, won = SR.write_next(args.series, args.choice, config)
+            ep = SR.add_episode(args.series, script, voted=won)
+        show(ep)
+        return make(args.series, ep["part"])
+    if args.action == "render":
+        data = SR.load(args.series)
+        n = args.episode or data["episodes"]
+        if n < 1:
+            raise StepError("this series has no episode yet")
+        SR.produce(args.series, n, config, voice=not args.no_voice, again=args.again, workers=args.workers or 4)
     return 0
 
 

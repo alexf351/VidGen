@@ -1076,6 +1076,247 @@ function ctDrawBatch() {
   }, 2000);
 }
 
+// ------------------------------------------------------------ choice stories
+// A narrated serial drawn by VidGen: the viewer is the hero, every episode ends on a choice, and
+// the next episode starts from what the comments chose.
+const ST = { home: null, series: null, timer: null, form: null, error: "", editing: null, cards: new Map() };
+
+function stStop() { if (ST.timer) { clearTimeout(ST.timer); ST.timer = null; } }
+function stOn(id) { return location.hash === `#/stories/${encodeURIComponent(id)}`; }
+
+async function renderStories() {
+  stStop();
+  const main = $("#main");
+  if (!ST.home) main.replaceChildren(h("div", { class: "empty" }, h("span", { class: "spin" }), "  Loading…"));
+  try { ST.home = await api("GET", "/api/stories"); }
+  catch (e) { if (location.hash === "#/stories") main.replaceChildren(h("div", { class: "empty" }, e.message)); return; }
+  if (location.hash !== "#/stories") return;
+  const d = ST.home;
+  if (!ST.form) ST.form = { starter: (d.starters[0] || {}).id || "", premise: "", name: "", iro: true, tag: d.default_tag };
+  const f = ST.form;
+  const note = h("div", { class: "field-note warn", role: "alert" });
+  const cost = h("span", { class: "muted ct-cost" });
+  const go = h("button", { class: "btn primary", type: "button" }, "Start the series");
+  const own = h("textarea", { rows: 3, maxlength: 600, placeholder: "Your own premise: where you are, what is wrong, and what it wants. Two or three sentences.",
+    "aria-label": "Your own premise", oninput: (e) => { f.premise = e.target.value; if (f.premise.trim()) { f.starter = ""; } drawPick(); } }, f.premise);
+  const picks = h("div", { class: "st-starters", role: "radiogroup", "aria-label": "A story to start from" });
+  const drawPick = () => {
+    picks.replaceChildren(...d.starters.map((s) => h("button", { type: "button", role: "radio", "aria-checked": String(f.starter === s.id && !f.premise.trim()),
+      class: `st-starter${f.starter === s.id && !f.premise.trim() ? " on" : ""}`,
+      onclick: () => { f.starter = s.id; f.premise = ""; own.value = ""; drawPick(); } },
+      h("span", { class: "st-starter-name" }, s.name, s.ready ? h("span", { class: "st-ready" }, "episode 1 written") : null),
+      h("span", { class: "st-starter-premise" }, s.premise))));
+    const s = d.starters.find((x) => x.id === f.starter);
+    const written = s && s.ready && !f.premise.trim();
+    cost.textContent = `${written ? "No Claude request: episode 1 is written." : "One Claude request for the script (a few cents)."} ${d.has_voice_key ? "The narrator is about 500 characters of ElevenLabs." : "No ElevenLabs key, so no narrator."} Drawing is free.`;
+  };
+  go.onclick = async () => {
+    note.textContent = "";
+    const body = { name: f.name.trim(), iro: f.iro, end_tag: f.tag.trim() || null };
+    if (f.premise.trim()) body.premise = f.premise.trim(); else if (f.starter) body.starter = f.starter;
+    else { note.textContent = "Pick a story or write a premise."; return; }
+    go.disabled = true;
+    try {
+      const made = await api("POST", "/api/stories", body);
+      ST.form = null; ST.home = null;
+      refreshJobs();
+      location.hash = `#/stories/${encodeURIComponent(made.id)}`;
+    } catch (e) { note.textContent = e.message; go.disabled = false; }
+  };
+  drawPick();
+  const list = d.series || [];
+  main.replaceChildren(h("div", { class: "view studio ct st" },
+    h("div", { class: "studio-head" },
+      h("div", {}, h("h1", {}, "Choice stories"),
+        h("p", { class: "lede" }, "A narrated serial where the viewer is the hero. Every episode ends on a choice, the comments vote, and the next episode starts from what they chose. Stick figures in dark rooms, drawn by VidGen itself: no picture or clip model."))),
+    h("section", { class: "card-sec ct-new" },
+      h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "New series")),
+      picks,
+      h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Or your own"), own),
+      h("div", { class: "ct-row" },
+        h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Name"),
+          h("input", { type: "text", maxlength: 60, placeholder: "For you to tell series apart", value: f.name, oninput: (e) => { f.name = e.target.value; } })),
+        h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Words at the end"),
+          h("input", { type: "text", maxlength: 28, placeholder: "None", value: f.tag, oninput: (e) => { f.tag = e.target.value; } }))),
+      h("label", { class: "st-check" }, h("input", { type: "checkbox", checked: f.iro, onchange: (e) => { f.iro = e.target.checked; } }),
+        h("span", {}, "Iro is in the story, at the hero's side"), h("span", { class: "muted" }, "the glowing penguin; it notices things, it never solves them")),
+      note,
+      h("div", { class: "ct-actions" }, go, cost)),
+    h("div", { class: "ct-list-head" }, h("span", { class: "sec-label" }, "Your series"), h("span", { class: "muted" }, list.length ? `${list.length} series` : "")),
+    list.length ? h("div", { class: "ct-batches" }, list.map((s) =>
+      h("a", { class: "ct-batch", href: `#/stories/${encodeURIComponent(s.id)}` },
+        h("span", { class: "ct-batch-name" }, s.name),
+        h("span", { class: "muted" }, s.busy ? h("span", {}, h("span", { class: "spin" }), s.writing ? " writing an episode" : " making a video")
+          : s.error ? "stopped with a problem"
+          : s.next_choice ? `${plural(s.episodes, "episode")} · the vote: ${s.next_choice.a} or ${s.next_choice.b}` : "no episode yet"),
+        h("span", { class: "muted ct-batch-when" }, when(s.created_at)))))
+      : h("div", { class: "empty ct-none" }, "No series yet. The knock has its first episode written: start there.")));
+  if (list.some((s) => s.busy)) ST.timer = setTimeout(() => { if (location.hash === "#/stories") renderStories(); }, 3000);
+}
+
+async function stLoad(id) {
+  ST.series = await api("GET", `/api/stories/${encodeURIComponent(id)}`);
+  return ST.series;
+}
+
+async function renderStorySeries(id) {
+  stStop();
+  const main = $("#main");
+  if (!ST.series || ST.series.id !== id) {
+    ST.series = null; ST.error = ""; ST.editing = null; ST.cards.clear();
+    main.replaceChildren(h("div", { class: "empty" }, h("span", { class: "spin" }), "  Loading…"));
+  }
+  try { await stLoad(id); }
+  catch (e) {
+    if (stOn(id)) main.replaceChildren(h("div", { class: "empty" }, `${e.message}. `, h("a", { href: "#/stories", class: "muted" }, "Back to Choice stories")));
+    return;
+  }
+  if (stOn(id)) stDraw();
+}
+
+async function stDo(fn) {
+  const id = ST.series.id;
+  ST.error = "";
+  try {
+    const out = await fn();
+    if (out && out.episode_list) ST.series = out; else await stLoad(id);
+    refreshJobs();
+  } catch (e) { ST.error = e.message; }
+  if (stOn(id)) stDraw();
+}
+
+function stEpisodeCard(s, e, busy, isLast) {
+  const id = encodeURIComponent(s.id);
+  const ep = e.episode;
+  const num = String(e.n).padStart(2, "0");
+  const copy = h("button", { class: "link-btn quiet", type: "button",
+    onclick: async () => { try { await navigator.clipboard.writeText(ep.caption || ""); toast("Caption copied", "ok"); } catch { toast("Could not copy from this page", "bad"); } } }, "Copy caption");
+  const pic = e.video
+    ? h("video", { class: "st-video", src: e.video, poster: e.cover || undefined, controls: true, playsinline: true, preload: "none" })
+    : h("div", { class: "st-video waiting" }, busy ? h("span", { class: "spin" }) : h("span", { class: "muted" }, "not made yet"));
+  let body;
+  if (ST.editing === e.n) {
+    const lines = ep.shots.map((sh) => sh.say);
+    const all = h("textarea", { class: "ct-list st-json", rows: 14, spellcheck: "false", "aria-label": "The whole script as JSON" }, JSON.stringify(ep, null, 1));
+    let useJson = false;
+    const adv = h("details", { class: "st-adv", ontoggle: (ev) => { useJson = ev.target.open; } },
+      h("summary", {}, "Sets, lights, poses and everything else (JSON)"),
+      h("p", { class: "field-note" }, "While this is open, saving uses what is written here and ignores the lines above."), all);
+    body = h("form", { class: "st-edit", onsubmit: (ev) => { ev.preventDefault(); stDo(async () => {
+        let script;
+        if (useJson) { try { script = JSON.parse(all.value); } catch (err) { throw new Error(`The JSON does not parse: ${err.message}`); } }
+        else script = { ...ep, shots: ep.shots.map((sh, k) => ({ ...sh, say: lines[k] })), question: lines[lines.length - 1] };
+        const out = await api("PUT", `/api/stories/${id}/episodes/${e.n}`, { script });
+        ST.editing = null;
+        return out;
+      }); } },
+      ep.shots.map((sh, k) => h("label", { class: "st-line-edit" }, h("span", { class: "st-line-n" }, String(k + 1)),
+        h("textarea", { rows: 2, "aria-label": `Line ${k + 1}`, oninput: (ev) => { lines[k] = ev.target.value; } }, sh.say))),
+      adv,
+      h("div", { class: "ct-actions" },
+        h("button", { class: "btn primary small", type: "submit" }, "Save the script"),
+        h("button", { class: "btn ghost small", type: "button", onclick: () => { ST.editing = null; stDraw(); } }, "Cancel"),
+        h("span", { class: "muted ct-cost" }, "Changed lines are read again by the narrator when you make the video.")));
+  } else {
+    body = h("div", { class: "st-script" },
+      h("ol", { class: "st-lines" }, ep.shots.map((sh) => h("li", {}, h("span", { class: "st-say" }, sh.say),
+        h("span", { class: "st-where" }, `${sh.set.replace("_", " ")} · ${sh.light}${sh.event !== "none" ? ` · ${sh.event.replace("_", " ")}` : ""}`)))),
+      h("div", { class: "st-ends" }, h("span", { class: "sec-label" }, "Ends on"), h("span", { class: "st-opt" }, ep.a), h("span", { class: "muted" }, "or"), h("span", { class: "st-opt" }, ep.b)),
+      ep.caption ? h("div", { class: "st-caption" }, h("span", { class: "sec-label" }, "Caption"), h("span", {}, ep.caption)) : null,
+      h("div", { class: "st-foot" },
+        ep.caption ? copy : null,
+        e.video ? h("a", { class: "link-btn quiet", href: e.video, download: `${s.id}-part-${num}.mp4` }, "Download") : null,
+        h("button", { class: "link-btn quiet", type: "button", disabled: busy, onclick: () => { ST.editing = e.n; stDraw(); } }, "Edit script"),
+        h("button", { class: "link-btn quiet", type: "button", disabled: busy,
+          onclick: () => stDo(() => api("POST", `/api/stories/${id}/render`, { episode: e.n, again: e.made })) }, e.made ? "Make the video again" : "Make the video"),
+        isLast ? h("button", { class: "link-btn quiet", type: "button", disabled: busy,
+          onclick: async () => {
+            if (!await confirmDialog({ title: `Remove part ${e.n}?`, text: "Its script and its video are deleted. The series goes back to waiting on the vote before it.", ok: "Remove", danger: true })) return;
+            stDo(() => api("DELETE", `/api/stories/${id}/episodes/last`));
+          } }, "Remove") : null));
+  }
+  return h("article", { class: "st-ep" },
+    h("div", { class: "st-ep-pic" }, pic),
+    h("div", { class: "st-ep-body" },
+      h("div", { class: "st-ep-head" }, h("span", { class: "st-part" }, `Part ${e.n}`), h("h2", {}, ep.title || `Part ${e.n}`),
+        ep.voted ? h("span", { class: "st-voted", title: "The choice that won the vote before this episode" }, `the vote: ${ep.voted}`) : null),
+      h("div", { class: "st-meta muted" }, [e.seconds ? `${Math.round(e.seconds)} seconds` : null, `${e.words} words`,
+        e.video ? (e.voiced ? "with the narrator" : "no narrator") : null, e.stale ? "the script changed since this video was made" : null].filter(Boolean).join(" · ")),
+      body));
+}
+
+function stDraw() {
+  stStop();
+  const s = ST.series;
+  if (!s) return;
+  const id = encodeURIComponent(s.id);
+  const busy = !!s.job;
+  const writing = busy && s.job.action === "story_write";
+  const eps = s.episode_list || [];
+  const last = eps[eps.length - 1];
+  const status = busy
+    ? h("div", { class: "notice info ct-status", role: "status" }, h("span", { class: "spin" }),
+        writing ? " Claude is writing the episode. This takes about a minute." : " Making the video: the narrator reads it, then VidGen draws it. About two minutes. You can leave this page.")
+    : s.error ? h("div", { class: "notice bad", role: "alert" }, h("b", {}, "The episode could not be written. "), s.error,
+        " ", !eps.length ? h("button", { class: "link-btn", type: "button", onclick: () => stRemoveSeries(s) }, "Delete this series") : null)
+    : null;
+  const vote = last && !busy && ST.editing === null ? h("section", { class: "st-vote" },
+    h("div", { class: "st-vote-q" }, h("span", { class: "sec-label" }, `Part ${last.n + 1}`), h("span", {}, "What did the comments choose?"),
+      h("span", { class: "muted" }, last.episode.question)),
+    h("div", { class: "st-vote-btns" }, [["a", last.episode.a], ["b", last.episode.b]].map(([key, words]) =>
+      h("button", { class: "btn st-vote-btn", type: "button",
+        onclick: async () => {
+          if (!await confirmDialog({ title: `Write part ${last.n + 1} from "${words}"?`,
+            text: "Claude writes the next episode from the story so far and this choice (one request, a few cents). Then the narrator reads it and VidGen draws it.", ok: "Write it" })) return;
+          stDo(() => api("POST", `/api/stories/${id}/next`, { choice: key }));
+        } }, words)))) : null;
+  const seen = new Set();
+  const cards = [...eps].reverse().map((e) => {
+    const key = JSON.stringify([e.episode, e.made, e.stale, e.video, e.voiced, busy, e === last, ST.editing === e.n]);
+    seen.add(e.n);
+    let c = ST.cards.get(e.n);
+    if (!c || c.key !== key) { c = { key, el: stEpisodeCard(s, e, busy, e === last) }; ST.cards.set(e.n, c); }
+    return c.el;
+  });
+  for (const n of [...ST.cards.keys()]) if (!seen.has(n)) ST.cards.delete(n);
+  const tag = h("input", { type: "text", maxlength: 28, value: s.end_tag || "", placeholder: "None", disabled: busy, "aria-label": "Words at the end" });
+  const voice = h("input", { type: "text", maxlength: 40, value: s.voice_id || "", placeholder: "The narrator in your settings", disabled: busy, "aria-label": "Narrator voice id", spellcheck: "false" });
+  const iro = h("input", { type: "checkbox", checked: s.iro, disabled: busy });
+  const keep = $("#main").scrollTop;
+  $("#main").replaceChildren(h("div", { class: "view studio ct st" },
+    h("a", { class: "ct-back muted", href: "#/stories" }, "‹ Choice stories"),
+    h("div", { class: "studio-head" },
+      h("div", {}, h("h1", {}, s.name), h("p", { class: "lede" }, s.premise || "A story from your own script.")),
+      h("div", { class: "ct-head-btns" },
+        h("button", { class: "btn ghost", type: "button", disabled: busy, onclick: () => stRemoveSeries(s) }, icon("trash", 14), "Delete"))),
+    ST.error ? h("div", { class: "notice bad", role: "alert" }, ST.error) : null,
+    status, vote,
+    cards.length ? h("div", { class: "st-eps" }, cards) : (!busy && !s.error ? h("div", { class: "empty ct-none" }, "No episode yet.") : null),
+    h("details", { class: "card-sec st-set" },
+      h("summary", {}, h("span", { class: "sec-label" }, "Series settings"), h("span", { class: "muted" }, "show")),
+      h("div", { class: "ct-row" },
+        h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Words at the end"), tag),
+        h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Narrator (ElevenLabs voice id)"), voice)),
+      h("label", { class: "st-check" }, iro, h("span", {}, "Iro is in the story"), h("span", { class: "muted" }, "applies to episodes written from now on")),
+      h("div", { class: "ct-actions" },
+        h("button", { class: "btn small", type: "button", disabled: busy,
+          onclick: () => stDo(() => api("PUT", `/api/stories/${id}`, { end_tag: tag.value.trim(), voice_id: voice.value.trim(), iro: iro.checked })) }, "Save"),
+        h("span", { class: "muted ct-cost" }, "New end words or a new narrator show after you make a video again."))),
+    eps.length ? h("p", { class: "field-note ct-where" }, "The files are in ", h("code", {}, s.folder)) : null));
+  $("#main").scrollTop = keep;
+  if (busy) ST.timer = setTimeout(async () => {
+    if (!stOn(s.id)) return;
+    try { await stLoad(s.id); } catch { /* shown on the next press */ }
+    if (stOn(s.id)) stDraw();
+  }, 2000);
+}
+
+async function stRemoveSeries(s) {
+  if (!await confirmDialog({ title: "Delete this series?", text: `${s.name}: every episode's script and video is deleted from this computer.`, ok: "Delete", danger: true })) return;
+  try { await api("DELETE", `/api/stories/${encodeURIComponent(s.id)}`); ST.series = null; ST.home = null; location.hash = "#/stories"; }
+  catch (e) { ST.error = e.message; stDraw(); }
+}
+
 // The ElevenLabs voice list (free, cached on the server). Loaded once; "refresh" asks again.
 async function loadVoices(refresh) {
   try {
@@ -1164,13 +1405,14 @@ async function refreshJobs() {
 
 function onJobFinished(job) {
   if (job.run_id) S.stamps[job.run_id] = Date.now();
-  toast(`${job.action.startsWith("contrast") ? jobLabel(job) : job.action}${job.params && job.params.step ? ` ${job.params.step}` : ""} ${job.status === "done" ? "finished" : "failed"}${job.error ? `: ${job.error}` : ""}`,
+  toast(`${job.action.startsWith("contrast") || job.action.startsWith("story") ? jobLabel(job) : job.action}${job.params && job.params.step ? ` ${job.params.step}` : ""} ${job.status === "done" ? "finished" : "failed"}${job.error ? `: ${job.error}` : ""}`,
     job.status === "done" ? "ok" : "bad");
   if (job.run_id && job.run_id === S.runId) loadRun(S.runId);
   if (job.action === "draw_character") {
     loadChars().then(() => { if (location.hash.startsWith("#/characters")) route(); });
   }
   if (job.action.startsWith("contrast") && location.hash.startsWith("#/contrast")) { CT.home = null; route(); }
+  if (job.action.startsWith("story") && location.hash.startsWith("#/stories")) { ST.home = null; route(); }
 }
 
 let pollTimer = null;
@@ -3586,6 +3828,7 @@ function jobLabel(j) {
     : j.action === "finish" ? "Finish the video"
     : j.action === "draw_character" ? `Draw ${j.params.character}`
     : j.action === "contrast_render" ? "Contrast videos" : j.action === "contrast_write" ? "Contrast scenes"
+    : j.action === "story_render" ? `Story video${j.params.episode ? ` · part ${j.params.episode}` : ""}` : j.action === "story_write" ? `Story script${j.params.episode ? ` · part ${j.params.episode}` : ""}`
     : j.action.charAt(0).toUpperCase() + j.action.slice(1);
   return what;
 }
@@ -3596,7 +3839,7 @@ function runPremise(runId) {
 }
 
 function jobWhere(j) {
-  return j.params && j.params.batch ? "a contrast batch" : runPremise(j.run_id);
+  return j.params && j.params.batch ? "a contrast batch" : j.params && j.params.series ? "a choice story" : runPremise(j.run_id);
 }
 
 function renderDrawer() {
@@ -3698,7 +3941,8 @@ async function watchJob(id, pinned) {
       } }, "Copy log"),
     job.run_id ? h("a", { href: `#/run/${encodeURIComponent(job.run_id)}`, class: "muted" }, "Open video ›")
       : job.action === "draw_character" ? h("a", { href: `#/characters/${encodeURIComponent(job.params.character)}`, class: "muted" }, "Open character ›")
-      : job.params && job.params.batch ? h("a", { href: `#/contrast/${encodeURIComponent(job.params.batch)}`, class: "muted" }, "Open batch ›") : null,
+      : job.params && job.params.batch ? h("a", { href: `#/contrast/${encodeURIComponent(job.params.batch)}`, class: "muted" }, "Open batch ›")
+      : job.params && job.params.series ? h("a", { href: `#/stories/${encodeURIComponent(job.params.series)}`, class: "muted" }, "Open series ›") : null,
   ].filter(Boolean));
   if (j) setTitle(j);
   renderDrawer();
@@ -3749,6 +3993,9 @@ function route() {
   const ct = location.hash.match(/^#\/contrast(?:\/(.+))?$/);
   const ctLink = $("#contrast-link"); if (ctLink) ctLink.classList.toggle("active", !!ct);
   if (!ct) ctStop();
+  const sto = location.hash.match(/^#\/stories(?:\/(.+))?$/);
+  const stLink = $("#stories-link"); if (stLink) stLink.classList.toggle("active", !!sto);
+  if (!sto) stStop();
   if (runId) {
     if (!S.run) $("#main").replaceChildren(h("div", { class: "empty" }, h("span", { class: "spin" }), "  Loading…"));
     loadRun(runId);
@@ -3760,6 +4007,8 @@ function route() {
     renderScreens();
   } else if (ct) {
     if (ct[1]) renderContrastBatch(decodeURIComponent(ct[1])); else renderContrast();
+  } else if (sto) {
+    if (sto[1]) renderStorySeries(decodeURIComponent(sto[1])); else renderStories();
   } else {
     renderStudio();
   }
