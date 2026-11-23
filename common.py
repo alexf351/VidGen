@@ -52,10 +52,28 @@ def _is_placeholder(value) -> bool:
             or text.lower() in ("changeme", "todo", "xxx"))
 
 
+_YAML_CACHE: dict = {}
+
+
+def load_yaml_file(path: Path):
+    """A YAML file, parsed. Parsing is slow and the web UI reads every format's file many times
+    over, so the parsed file is kept until the file changes (its time or its size). Every caller
+    gets its own copy. Raises OSError and yaml.YAMLError like reading it fresh would."""
+    import copy
+    path = Path(path)
+    st = path.stat()
+    key = (str(path.resolve()), st.st_mtime_ns, st.st_size)
+    hit = _YAML_CACHE.get(key[0])
+    if hit is None or hit[0] != key[1:]:
+        with open(path, "r", encoding="utf-8") as f:
+            hit = (key[1:], yaml.safe_load(f))
+        _YAML_CACHE[key[0]] = hit
+    return copy.deepcopy(hit[1])
+
+
 def _read_yaml(path: Path) -> dict:
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
+        data = load_yaml_file(path) or {}
     except yaml.YAMLError as e:
         raise StepError(f"{path.name} is not valid YAML: {e}") from e
     if not isinstance(data, dict):

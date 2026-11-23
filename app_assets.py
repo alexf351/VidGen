@@ -25,7 +25,7 @@ import io
 import re
 from pathlib import Path
 
-from common import ROOT, StepError, read_json, write_json
+from common import ROOT, StepError, load_yaml_file, read_json, write_json
 
 SCREENS_DIR = ROOT / "assets" / "screens"
 LIBRARY_FILE = SCREENS_DIR / "library.yaml"
@@ -145,7 +145,7 @@ def builtin() -> list[dict]:
         return []
     import yaml
     try:
-        raw = yaml.safe_load(LIBRARY_FILE.read_text(encoding="utf-8")) or {}
+        raw = load_yaml_file(LIBRARY_FILE) or {}
     except yaml.YAMLError as e:
         raise StepError(f"{_rel(LIBRARY_FILE)} is not valid YAML: {e}") from None
     out, seen = [], set()

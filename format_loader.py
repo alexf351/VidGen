@@ -26,7 +26,7 @@ from pathlib import Path
 
 import yaml
 
-from common import ROOT, StepError
+from common import ROOT, StepError, load_yaml_file
 
 FORMATS_DIR = ROOT / "formats"
 DEFAULT_FORMAT = "pixar_arc"
@@ -321,7 +321,7 @@ def _read_yaml(name: str) -> tuple[dict, Path, str]:
         have = ", ".join(installed_formats()) or "none"
         raise StepError(f"unknown format '{name}' (installed: {have}); see: python main.py formats")
     try:
-        f = yaml.safe_load((folder / "format.yaml").read_text(encoding="utf-8")) or {}
+        f = load_yaml_file(folder / "format.yaml") or {}
     except yaml.YAMLError as e:
         raise StepError(f"{where} is not valid YAML: {e}") from e
     if not isinstance(f, dict):
