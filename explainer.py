@@ -53,6 +53,7 @@ TITLE_TOP = 330
 CARD_TOP, CARD_BOTTOM = 650, 1130
 BUBBLE_TOP, BUBBLE_BOTTOM = 1160, 1296
 IRO_X, IRO_FEET, IRO_H = 226, 1596, 268
+NOTE_WIDTH = 540                       # how wide a note beside Iro may be
 TAIL = 1.3                             # the last picture holds this long after the last word
 
 CARDS = {
@@ -541,14 +542,14 @@ def _card(c: Canvas, card: dict, b: dict, t: float):
     elif kind == "rule":
         font = c.font(TITLE_FONT, 70)
         rows = c.wrap(card["text"].upper(), font, RIGHT - LEFT - 110)[:4]
-        height = 110 + len(rows) * 84
+        height = 110 + len(rows) * 84 + (58 if card.get("stamp") else 0)      # a strip under the words for the stamp
         y0 = (CARD_TOP + CARD_BOTTOM - height) / 2 + rise
         c.card(LEFT, y0, RIGHT - 30, y0 + height)
         c.box(LEFT + 5, y0 + 5, LEFT + 26, y0 + height - 5, fill=ORANGE, radius=0)
         for n, row in enumerate(rows):
             c.text(LEFT + 58, y0 + 124 + n * 84, row, font, INK)
         if card.get("stamp") and b.get("stamp") is not None and t >= b["stamp"]:
-            stamps.append((card["stamp"], RIGHT - 200, y0 + height - 6, span(t, b["stamp"], b["stamp"] + 0.2)))
+            stamps.append((card["stamp"], RIGHT - 200, y0 + height - 22, span(t, b["stamp"], b["stamp"] + 0.2)))
     elif kind == "number":
         y0 = CARD_TOP + 50 + rise
         c.card(LEFT, y0, RIGHT - 30, y0 + 380)
@@ -571,9 +572,8 @@ def _bubble(c: Canvas, timing: dict, t: float):
     c.card(60, BUBBLE_TOP, 950, BUBBLE_BOTTOM, radius=34, shadow=9)
     c.poly([(196, BUBBLE_BOTTOM - 4), (268, BUBBLE_BOTTOM - 4), (220, BUBBLE_BOTTOM + 46)], INK)
     c.poly([(204, BUBBLE_BOTTOM - 8), (258, BUBBLE_BOTTOM - 8), (222, BUBBLE_BOTTOM + 32)], CARD)
-    for g in timing["groups"]:
-        if not g["start"] <= t < g["end"]:
-            continue
+    said = [g for g in timing["groups"] if g["start"] <= t]
+    for g in said[-1:]:                                      # the words stay up through a pause and to the end
         words = [timing["words"][k] for k in g["words"]]
         shown = [stickstory._say(w["say"]) for w in words]
         if not any(shown):
@@ -717,9 +717,15 @@ def frame(raw: dict, t: float, timing: dict | None = None, end_tag: str = "SEARC
     # the notes: every point already made stays on the page beside Iro
     all_beats = beats(lesson, timing)
     notes = [(p["note"], all_beats[k + 1]["note"]) for k, p in enumerate(lesson["points"]) if p["note"]]
-    small = c.font(TEXT_FONT, 36)
     row = 0
     for words, at in notes[:4]:
+        size = 36                                            # a long note is set smaller, then cut, never off the page
+        small = c.font(TEXT_FONT, size)
+        while size > 28 and c.width(words, small) > NOTE_WIDTH:
+            size -= 2
+            small = c.font(TEXT_FONT, size)
+        while len(words) > 4 and c.width(words, small) > NOTE_WIDTH:
+            words = words[:-2].rstrip(" ,.;:") + "…"
         k = span(t, at, at + 0.22)
         if k <= 0:
             continue
@@ -727,7 +733,7 @@ def frame(raw: dict, t: float, timing: dict | None = None, end_tag: str = "SEARC
         x = 424 + (1 - back_out(k)) * 36
         c.dot(x + 20, y - 13, 20, TEAL, outline=INK, width=3)
         c.line([(x + 11, y - 12), (x + 18, y - 4), (x + 30, y - 21)], (255, 255, 255), 4.5)
-        c.text(x + 54, y, words[:24], small, _ink(k))
+        c.text(x + 54, y, words, small, _ink(k))
         row += 1
     # the change from one part to the next: a band of ink crosses the page
     for k, bb in enumerate(all_beats[1:], 1):
