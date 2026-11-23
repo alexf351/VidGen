@@ -37,7 +37,7 @@ DEFAULT_TAG = "SEARCH IRO AI"
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{2,80}$")
 MAX_EPISODES = 60
 PREMISE_MAX = 600
-RENDER_VERSION = 1                 # bump when the drawing changes enough that old videos should be made again
+RENDER_VERSION = 2                 # bump when the drawing changes enough that old videos should be made again
 
 
 def root() -> Path:
@@ -305,6 +305,11 @@ def produce(series_id: str, n: int, config: dict, voice: bool = True, again: boo
             write_json(voice_json, voice_data)
     elif voice:
         log(f"[story] part {n}: no ElevenLabs key, so this video has no narrator (the words on screen keep an even pace)")
+    spoken = voice_file                                   # the recording the video uses
+    if voice_data:
+        # long silences are cut down, so the story keeps moving (the cut is made when the video is)
+        _, tight_words, tight_duration = story_sound.tighten_plan(voice_data.get("words") or [], float(voice_data.get("duration") or 0))
+        raw_data, voice_data = voice_data, {**voice_data, "words": tight_words, "duration": tight_duration}
     timing = stickstory.plan(ep, voice_data)
     voiced = bool(voice_data) and timing["voiced"]
     if voice_data and not voiced:
@@ -315,7 +320,12 @@ def produce(series_id: str, n: int, config: dict, voice: bool = True, again: boo
         log(f"[story] part {n}: the video is already made")
         return {"n": n, "made": False, "seconds": _made(series_id, n).get("seconds"), "voiced": voiced}
     started = time.time()
-    sound = story_sound.mix(folder / "sound.wav", timing["total"], voice_file if voice_data else None, story_sound.cues(ep, timing))
+    if voice_data:
+        cut = story_sound.tighten(voice_file, raw_data, folder / "voice_tight.wav")
+        spoken = folder / "voice_tight.wav"
+        if cut["saved"] > 0.05:
+            log(f"[story] part {n}: {cut['saved']:.1f} seconds of silence cut from the narration")
+    sound = story_sound.mix(folder / "sound.wav", timing["total"], spoken if voice_data else None, story_sound.cues(ep, timing))
     log(f"[story] part {n}: drawing {timing['total']:.0f} seconds of video (no model is called; this is free)...")
     last = [0]
 
@@ -356,6 +366,7 @@ WHAT MAKES AN EPISODE WORK
 THE SCRIPT IS JSON
 {{"title": "two to four words",
   "shots": [ ... {shots_min} to {shots_max} shots ... ],
+  "hud": {{"day": "DAY 1", "time": "3:07 AM", "battery": 41}},
   "question": "the last line, the choice as a question",
   "a": "ONE OR TWO WORDS", "b": "ONE OR TWO WORDS",
   "recap": "one or two sentences: what is true now, for whoever writes the next episode",
@@ -370,7 +381,10 @@ A SHOT
            "eyes": "red" | "green" | "white" | "none"}}  (leave out when nobody else is there),
   "iro": true or false, "event": one of the events (at most one a shot), "target": "door" or "window",
   "door": "closed" or "open" (how the door is when the shot starts), "camera": "push" | "still" | "pull" | "shake",
-  "banner": "a few words at the top, like 3:07 AM or DAY 2 (optional, at most 18 letters)"}}
+  "time": "3:09 AM" (optional: the clock in the corner changes to this from this shot on),
+  "battery": 38 (optional: the phone's battery drains to this number during this shot),
+  "fact": "one true thing, shown on a card over this shot (optional, see below)",
+  "banner": "a few words under the corner display, like ONE HOUR LATER (optional, at most 18 letters)"}}
 
 SETS
 {sets}
@@ -401,11 +415,20 @@ RULES THE PROGRAM CHECKS
   {option_max} letters each.
 - Use two to four different sets across the episode, and change the light when the mood changes.
 - Only use the words listed above for set, light, pose, kind, event, camera and place.
+- "hud" is the display in the corner of every shot: the day, the clock and the battery of the hero's
+  phone when the episode opens. Move the clock forward with "time" on two or three shots, and drain
+  the battery with "battery" on two or three shots. The battery only ever goes down, a few percent
+  an episode, and a later episode starts where the last one ended.
+- One shot, never the last, carries a "fact": one true, checkable thing that makes the story
+  scarier or smarter because it is real (how voices are copied, how long eyes take to adjust to
+  the dark, what a phone does at one percent). At most {fact_words} words, plainly said. Only state
+  what you are sure is true; no made-up numbers. The narrator does not read it.
 {iro}
 
 Reply with the JSON only, no other words."""
 
-IRO_ON = """- Iro is the hero's small AI companion: a glowing robot penguin that stays at their side. Set
+IRO_ON = """- Iro is the hero's small AI companion: a glowing robot penguin that lives in their phone and
+  stays at their side, so the battery in the corner is Iro's too. Set
   "iro": true in the shots where the hero is in the picture. Once in the episode, and no more than
   twice, Iro notices something useful and says it ("Iro whispers: the footsteps stopped outside
   the door"). Iro never solves the problem and never says which choice is right."""
@@ -428,7 +451,8 @@ WORDS_MIN, WORDS_MAX = 60, 105
 
 def writer_prompt(iro: bool) -> str:
     return WRITER.format(shots_min=7, shots_max=11, say_max=18, words_min=WORDS_MIN, words_max=WORDS_MAX,
-                         option_max=stickstory.OPTION_MAX_CHARS, iro=IRO_ON if iro else IRO_OFF, **_vocab())
+                         option_max=stickstory.OPTION_MAX_CHARS, fact_words=stickstory.FACT_MAX_WORDS,
+                         iro=IRO_ON if iro else IRO_OFF, **_vocab())
 
 
 def story_problems(ep: dict) -> list[str]:
@@ -488,8 +512,16 @@ def story_so_far(series_id: str) -> str:
     for n in range(1, data["episodes"] + 1):
         ep = load_episode(series_id, n)
         told = " ".join(s["say"] for s in ep["shots"])
+        end = stickstory.hud_at(stickstory.clean_episode(ep), len(ep["shots"]) - 1)
+        corner = ""
+        if end:
+            bits = [end["day"], end["time"]] + ([f"battery {int(round(end['battery']))}%"] if end["battery"] is not None else [])
+            corner = "\nThe corner display when it ended: " + ", ".join(b for b in bits if b)
+        fact = next((s["fact"] for s in ep["shots"] if s.get("fact")), "")
         lines.append(f"EPISODE {n}: {ep.get('title', '')}\n" + (f"(the vote before it: {ep['voted']})\n" if ep.get("voted") else "")
-                     + f"Narration: {told}\nWhat is true after it: {ep.get('recap', '')}\nIt ended on: {ep['question']}  ({ep['a']} or {ep['b']})")
+                     + f"Narration: {told}\nWhat is true after it: {ep.get('recap', '')}" + corner
+                     + (f"\nIts fact card (do not repeat it): {fact}" if fact else "")
+                     + f"\nIt ended on: {ep['question']}  ({ep['a']} or {ep['b']})")
     return "\n\n".join(lines)
 
 

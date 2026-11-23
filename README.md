@@ -660,12 +660,26 @@ in the picture and once an episode it notices something useful, never the answer
 the box on the page) makes a story without it. The words after the last line (`SEARCH IRO AI`) are
 a setting of the series: `--tag "FOLLOW FOR PART 2"`, `--no-tag`.
 
+**What keeps people watching.** Three things borrowed from the pages that do this well:
+
+- **The corner display.** `"hud": {"day": "DAY 1", "time": "3:07 AM", "battery": 41}` puts the day, the
+  clock and the hero's phone battery in the corner of every shot. A shot can move the clock
+  (`"time": "3:09 AM"`) or drain the battery (`"battery": 38`, it counts down during that shot and
+  turns red when it is low). A later episode starts where the last one ended.
+- **A fact card.** One shot, never the last, can carry `"fact": "AI can copy a voice from a few
+  seconds of recorded speech."` It is shown on a card marked REAL FACT and not read aloud. Claude
+  is told to write only what it is sure of, but it is shown to viewers as true: **check it before
+  you post**. The page shows it under the script.
+- **No dead air.** Silences in the narration are cut down before the video is made: 0.24 seconds
+  between words, 0.45 after a sentence, a tenth of a second before the first word.
+
 **An episode's script** is JSON you can edit (on the page, or `episode.json`):
 
 ```json
 {"title": "The knock", "question": "Do you open the door, or hide?", "a": "OPEN", "b": "HIDE",
  "recap": "what is true now, for whoever writes the next episode",
  "caption": "you live on the fourth floor. what would you do?",
+ "hud": {"day": "DAY 1", "time": "3:07 AM", "battery": 41},
  "shots": [
   {"say": "Imagine you wake up at three a.m. to a knock on your window.",
    "set": "bedroom", "light": "moon", "you": {"pose": "lie", "at": "bed"},

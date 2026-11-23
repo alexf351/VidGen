@@ -101,6 +101,9 @@ CAMERAS = ("push", "still", "pull", "shake")
 SPOTS = {"off_left": -0.16, "far_left": 0.12, "left": 0.28, "center": 0.5, "right": 0.72,
          "far_right": 0.88, "off_right": 1.16}
 SAY_MAX_WORDS = 24
+HUD_DAY_MAX, HUD_TIME_MAX = 12, 9
+FACT_MAX_WORDS, FACT_MAX_CHARS, FACTS_MAX = 18, 110, 2
+FACT_LABEL = "REAL FACT"
 SHOTS_MIN, SHOTS_MAX = 5, 14
 OPTION_MAX_CHARS = 12
 
@@ -558,14 +561,35 @@ def clean_shot(raw: dict) -> dict:
            "door": str(s.get("door") or "closed").strip().lower()}
     if out["them"] is not None:
         out["them"].setdefault("kind", "shadow")
-    for key in ("target", "banner"):
+    for key in ("target", "banner", "time", "fact"):
         if s.get(key):
             out[key] = " ".join(str(s[key]).split())
     if "target" in out:
         out["target"] = out["target"].lower()
-    if "banner" in out:
-        out["banner"] = out["banner"].upper()
+    for key in ("banner", "time"):
+        if key in out:
+            out[key] = out[key].upper()
+    if s.get("battery") not in (None, ""):
+        out["battery"] = _number(s["battery"])
     return out
+
+
+def _number(v):
+    """A whole number if `v` is one, else `v` as it came (the check then says what is wrong)."""
+    try:
+        return int(round(float(v))) if not isinstance(v, bool) else v
+    except (TypeError, ValueError):
+        return v
+
+
+def clean_hud(raw) -> dict | None:
+    """The corner display: the day, the clock and the phone's battery when the episode opens."""
+    if not isinstance(raw, dict):
+        return None
+    out = {"day": " ".join(str(raw.get("day") or "").upper().split()), "time": " ".join(str(raw.get("time") or "").upper().split())}
+    if raw.get("battery") not in (None, ""):
+        out["battery"] = _number(raw["battery"])
+    return out if (out["day"] or out["time"] or "battery" in out) else None
 
 
 def clean_episode(raw: dict) -> dict:
@@ -581,7 +605,29 @@ def clean_episode(raw: dict) -> dict:
     for key in ("part", "voted"):
         if e.get(key):
             out[key] = int(e[key]) if key == "part" else " ".join(str(e[key]).upper().split())
+    hud = clean_hud(e.get("hud"))
+    if hud:
+        out["hud"] = hud
     return out
+
+
+def _battery_ok(v) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 100
+
+
+def hud_at(ep: dict, i: int, k: float = 1.0) -> dict | None:
+    """What the corner shows during shot `i` (0-based), `k` of the way through it (0 to 1): the
+    day, the clock, and the battery, which drains across a shot that names a lower number."""
+    hud = ep.get("hud")
+    if not hud:
+        return None
+    time, level = hud.get("time", ""), hud.get("battery")
+    for j, s in enumerate(ep["shots"][:i + 1]):
+        if s.get("time"):
+            time = s["time"]
+        if _battery_ok(s.get("battery")):
+            level = s["battery"] if (j < i or level is None) else lerp(level, s["battery"], clamp(k))
+    return {"day": hud.get("day", ""), "time": time, "battery": None if level is None else float(level)}
 
 
 def _spot_ok(v, info: dict) -> bool:
@@ -604,6 +650,19 @@ def check_episode(raw: dict) -> list[str]:
             out.append(f"choice {side.upper()} must be one or two short words (at most {OPTION_MAX_CHARS} letters), got {ep[side]!r}")
     if ep["a"] and ep["a"] == ep["b"]:
         out.append("the two choices are the same")
+    hud = ep.get("hud")
+    if hud:
+        if len(hud["day"]) > HUD_DAY_MAX:
+            out.append(f"the day in the corner is at most {HUD_DAY_MAX} letters, got {hud['day']!r}")
+        if len(hud["time"]) > HUD_TIME_MAX:
+            out.append(f"the clock in the corner is at most {HUD_TIME_MAX} letters, got {hud['time']!r}")
+        if "battery" in hud and not _battery_ok(hud["battery"]):
+            out.append(f"the battery is a number from 0 to 100, got {hud['battery']!r}")
+    facts = [n for n, s in enumerate(shots, 1) if s.get("fact")]
+    if len(facts) > FACTS_MAX:
+        out.append(f"an episode shows at most {FACTS_MAX} fact cards, this one has {len(facts)}")
+    if facts and facts[-1] == len(shots):
+        out.append("the last shot shows the two choices, so it cannot also show a fact card")
     if not ep["question"]:
         out.append("the question that ends the episode is missing")
     for n, s in enumerate(shots, 1):
@@ -628,6 +687,12 @@ def check_episode(raw: dict) -> list[str]:
             out.append(f"{where}: target is door or window, got {s['target']!r}")
         if s.get("banner") and len(s["banner"]) > 18:
             out.append(f"{where}: the banner is at most 18 letters, got {s['banner']!r}")
+        if s.get("time") and len(s["time"]) > HUD_TIME_MAX:
+            out.append(f"{where}: the clock is at most {HUD_TIME_MAX} letters, got {s['time']!r}")
+        if "battery" in s and not _battery_ok(s["battery"]):
+            out.append(f"{where}: the battery is a number from 0 to 100, got {s['battery']!r}")
+        if s.get("fact") and (len(s["fact"]) > FACT_MAX_CHARS or len(s["fact"].split()) > FACT_MAX_WORDS):
+            out.append(f"{where}: a fact card is at most {FACT_MAX_WORDS} words and {FACT_MAX_CHARS} letters")
         for who in ("you", "them"):
             a = s[who]
             if a is None:
@@ -1163,6 +1228,71 @@ def _pill(d, x: float, y: float, words: str, alpha: float, size: int = 38, gold:
     _tracked(d, x, y + size * 0.36, words, font, ((GOLD if gold else (255, 255, 255)) + (a,)), 6)
 
 
+def _wrap(d, words: str, font, max_w: float) -> list[str]:
+    lines, cur = [], ""
+    for w in words.split():
+        trial = f"{cur} {w}".strip()
+        if cur and d.textlength(trial, font=font) > max_w:
+            lines.append(cur)
+            cur = w
+        else:
+            cur = trial
+    return lines + ([cur] if cur else [])
+
+
+def _hud(d, state: dict, alpha: float, t: float):
+    """The corner display: day and clock on the left, the phone's battery on the right."""
+    a = int(255 * clamp(alpha))
+    if a < 4:
+        return
+    font = _font(SMALL_FONT, 42)
+    left = "  ".join(x for x in (state["day"], state["time"]) if x)
+    if left:
+        if state["time"] and ":" in state["time"] and int(t * 2) % 2:        # the colon ticks
+            left = left[::-1].replace(":", " ", 1)[::-1]
+        wd = d.textlength("  ".join(x for x in (state["day"], state["time"]) if x), font=font)
+        d.rounded_rectangle([40, BANNER_Y - 38, 40 + wd + 52, BANNER_Y + 38], 38, fill=(6, 8, 16, int(a * 0.7)))
+        d.text((66, BANNER_Y), left, font=font, fill=(255, 255, 255, a), anchor="lm")
+    level = state.get("battery")
+    if level is not None:
+        pct = int(round(level))
+        color = (96, 226, 120) if pct > 30 else (255, 190, 60) if pct >= 15 else (255, 84, 70)
+        if pct < 10 and int(t * 3) % 2:
+            color = (120, 40, 34)
+        label = f"{pct}%"
+        wd = d.textlength(label, font=font)
+        x1 = W - 40
+        x0 = x1 - (wd + 150)
+        d.rounded_rectangle([x0, BANNER_Y - 38, x1, BANNER_Y + 38], 38, fill=(6, 8, 16, int(a * 0.7)))
+        d.text((x0 + 26, BANNER_Y), label, font=font, fill=(255, 255, 255, a), anchor="lm")
+        bx0, bx1 = x1 - 110, x1 - 34
+        d.rounded_rectangle([bx0, BANNER_Y - 20, bx1, BANNER_Y + 20], 8, outline=(255, 255, 255, a), width=4)
+        d.rounded_rectangle([bx1 + 2, BANNER_Y - 8, bx1 + 9, BANNER_Y + 8], 2, fill=(255, 255, 255, a))
+        fill_w = max(5, (bx1 - bx0 - 14) * clamp(level / 100))
+        d.rounded_rectangle([bx0 + 7, BANNER_Y - 13, bx0 + 7 + fill_w, BANNER_Y + 13], 4, fill=color + (a,))
+
+
+def _fact(d, words: str, k_in: float, k_out: float):
+    """A card with one true thing on it, in the upper part of the picture."""
+    alpha = clamp(k_in) * (1 - clamp(k_out))
+    if alpha < 0.01:
+        return
+    a = int(255 * alpha)
+    font = _font(SMALL_FONT, 52)
+    lines = _wrap(d, words, font, 800)[:4]
+    height = 110 + len(lines) * 66
+    y0 = 430 - 30 * (1 - smooth(k_in))
+    d.rounded_rectangle([90, y0, 990, y0 + height], 26, fill=(8, 10, 20, int(a * 0.9)), outline=(255, 255, 255, int(a * 0.16)), width=2)
+    d.rounded_rectangle([90, y0, 102, y0 + height], 6, fill=GOLD + (a,))
+    label = _font(SMALL_FONT, 32)
+    x = 136
+    for ch in FACT_LABEL:
+        d.text((x, y0 + 60), ch, font=label, fill=GOLD + (a,), anchor="ls")
+        x += d.textlength(ch, font=label) + 6
+    for n, line in enumerate(lines):
+        d.text((136, y0 + 130 + n * 66), line, font=font, fill=(255, 255, 255, a), anchor="ls")
+
+
 def _overlays(pic, ep: dict, timing: dict, t: float, i: int, end_tag: str):
     """Everything written on top of the picture: the vote, the part, the banner, the words, the choice."""
     from PIL import Image, ImageDraw
@@ -1184,7 +1314,13 @@ def _overlays(pic, ep: dict, timing: dict, t: float, i: int, end_tag: str):
             _pill(d, W / 2, BANNER_Y, f"PART {part}", a, 38, gold=True)
     elif shot.get("banner") and t >= opener:
         s0 = timing["shots"][i]["start"]
-        _pill(d, W / 2, BANNER_Y, shot["banner"], smooth(span(t, max(s0, opener), max(s0, opener) + 0.25)), 38)
+        _pill(d, W / 2, BANNER_Y + (88 if ep.get("hud") else 0), shot["banner"], smooth(span(t, max(s0, opener), max(s0, opener) + 0.25)), 38)
+    s0, s1 = timing["shots"][i]["start"], timing["shots"][i]["end"]
+    if ep.get("hud") and t >= opener - 0.1:
+        _hud(d, hud_at(ep, i, (t - s0) / max(0.01, s1 - s0)), smooth(span(t, opener - 0.1, opener + 0.3)), t)
+    if shot.get("fact"):
+        f0 = max(s0 + 0.2, opener if i == 0 else 0.0)
+        _fact(d, shot["fact"], span(t, f0, f0 + 0.3), span(t, s1 - 0.25, s1 - 0.02))
     last = len(ep["shots"]) - 1
     said = timing["said_until"]
     if i == last and ep.get("a") and ep.get("b"):

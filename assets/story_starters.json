@@ -22,8 +22,7 @@
        "at": "bed"
       },
       "event": "knock",
-      "target": "window",
-      "banner": "3:07 AM"
+      "target": "window"
      },
      {
       "say": "You live on the fourth floor.",
@@ -46,7 +45,8 @@
        "at": "center"
       },
       "iro": true,
-      "event": "phone_ring"
+      "event": "phone_ring",
+      "battery": 40
      },
      {
       "say": "Iro, the AI in your pocket, whispers: there are two heartbeats in this room.",
@@ -71,7 +71,8 @@
       },
       "iro": true,
       "event": "knock",
-      "target": "door"
+      "target": "door",
+      "time": "3:09 AM"
      },
      {
       "say": "A green light spills under it.",
@@ -96,7 +97,9 @@
       },
       "iro": true,
       "target": "door",
-      "camera": "push"
+      "camera": "push",
+      "fact": "AI can copy a voice from a few seconds of recorded speech.",
+      "battery": 38
      },
      {
       "say": "But your mom is asleep down the hall.",
@@ -125,7 +128,12 @@
       "target": "door",
       "camera": "still"
      }
-    ]
+    ],
+    "hud": {
+     "day": "DAY 1",
+     "time": "3:07 AM",
+     "battery": 41
+    }
    }
   },
   {

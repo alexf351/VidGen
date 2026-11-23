@@ -194,6 +194,62 @@ def mix(out: Path, total: float, voice: Path | None, cue_list: list[tuple[float,
     return out
 
 
+PAUSE_CAP = 0.24                     # a silence between two words is cut down to this
+PAUSE_CAP_SENTENCE = 0.45            # after a full stop, a question or an exclamation: room for the line to land
+PAUSE_LEAD = 0.10                    # silence kept before the first word
+TIGHTEN_VERSION = 1
+
+
+def tighten_plan(words: list[dict], duration: float, cap: float = PAUSE_CAP, sentence_cap: float = PAUSE_CAP_SENTENCE,
+                 lead: float = PAUSE_LEAD) -> tuple[list[tuple[float, float]], list[dict], float]:
+    """Which stretches of the narration to keep so that no silence runs longer than its cap, and
+    when each word is said afterwards. Returns (stretches to keep, the words with new times, the
+    new length). A cut is made in the middle of a silence, never against a word."""
+    if not words:
+        return [(0.0, duration)], [], duration
+    cuts = []                                             # (from, to) stretches of silence to remove
+    first = float(words[0]["t"])
+    if first > lead:
+        cuts.append((0.0, first - lead))
+    for cur, nxt in zip(words, words[1:]):
+        limit = sentence_cap if str(cur["say"])[-1:] in ".!?" else cap
+        gap = float(nxt["t"]) - float(cur["end"])
+        if gap > limit + 0.02:
+            cuts.append((float(cur["end"]) + limit / 2, float(nxt["t"]) - limit / 2))
+    keep, at = [], 0.0
+    for a, b in cuts:
+        if a > at:
+            keep.append((at, a))
+        at = b
+    if duration > at:
+        keep.append((at, duration))
+
+    def moved(x: float) -> float:
+        return x - sum(min(x, b) - a for a, b in cuts if x > a)
+    out = [{**w, "t": round(moved(float(w["t"])), 3), "end": round(moved(float(w["end"])), 3)} for w in words]
+    return keep, out, round(moved(duration), 3)
+
+
+def tighten(voice: Path, voice_data: dict, out: Path) -> dict:
+    """The narration with its long silences cut down, written to `out` (a wav). Returns the
+    voice data for the tightened recording, with "saved": the seconds that were cut."""
+    import media
+    words, duration = voice_data.get("words") or [], float(voice_data.get("duration") or 0)
+    keep, new_words, new_duration = tighten_plan(words, duration)
+    saved = round(duration - new_duration, 3)
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [media.tool_path("ffmpeg"), "-y", "-loglevel", "error", "-i", str(voice)]
+    if saved > 0.02 and keep:
+        expr = "+".join(f"between(t,{a:.3f},{b:.3f})" for a, b in keep)
+        cmd += ["-af", f"aselect='{expr}',asetpts=N/SR/TB"]
+    cmd += ["-ar", "44100", "-ac", "1", str(out)]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    if r.returncode != 0:
+        raise StepError(f"ffmpeg could not tighten the narration: {r.stderr.strip()[-300:]}")
+    return {**voice_data, "words": new_words, "duration": new_duration, "saved": max(0.0, saved)}
+
+
 def narrate(raw: dict, config: dict, voice_id: str) -> tuple[bytes, dict]:
     """The narrator reading the whole episode (one ElevenLabs request). Returns the mp3 and
     {"words": [{"say", "t", "end"}, ...], "duration": seconds} for stickstory.plan()."""
