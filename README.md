@@ -709,6 +709,66 @@ short words. The script is checked before anything is drawn, and the message nam
 The sound bed (drone, knocks, heartbeat, door) is made here from sine waves and noise; nothing is
 downloaded.
 
+## Iro explains
+
+A fourth kind of video: a short lesson. Iro stands at the bottom of the screen and says every word
+in a speech bubble, three words at a time. Above him a giant title lands, then one card per point
+builds as he talks: a weak prompt typed out beside a strong one, a checklist ticked as each thing
+is said, a rule with a stamp. Every point leaves a note beside him, so by the end the page holds
+the whole lesson. It is drawn by VidGen itself (Pillow and ffmpeg): **no picture or clip model is
+called**.
+
+```bash
+python main.py explain starters                          # the lessons that ship
+python main.py explain new --starter the_missing_line    # written already: no Claude request
+python main.py explain new --topic "Why AI makes things up, and how to catch it" --must "ask for sources"
+python main.py explain list
+python main.py explain render <lesson> --again
+```
+
+In the web UI it is the **Iro explains** page in the side bar: pick a lesson or type a topic, watch
+it being made, play it, copy the caption, download the cover, edit the words, or have Claude write
+it again.
+
+**What costs money.** Drawing is free and takes about half a minute for a 38 second lesson. Claude
+writes a lesson from a topic in one request (a few cents); the three starters are already written.
+The voice is ElevenLabs, about 550 characters a lesson, read once and reused while the words and
+the voice stay the same. With no `ELEVENLABS_API_KEY` the video has no voice and the words keep an
+even pace. Long silences in the reading are cut down the same way as in Choice stories.
+
+**A lesson** is a hook, two to five points and a close, 70 to 135 words in all (about 30 to 50
+seconds). It is JSON you can edit (on the page, or `lesson.json`):
+
+```json
+{"title": "The missing line", "caption": "the one line most prompts are missing. do you add it?",
+ "hook": {"say": "Your prompts are missing one line, and it is why the answers feel generic.",
+          "kicker": "YOUR PROMPTS HAVE", "title": "ONE MISSING LINE", "stamp": "FIX THIS"},
+ "points": [
+  {"label": "THE PROBLEM", "title": "IT HAS TO GUESS", "accent": "GUESS", "note": "NO READER = GENERIC",
+   "say": "When you do not say who it is for, the AI writes for nobody.",
+   "card": {"type": "compare", "bad": "write a post about my bakery",
+            "good": "write a post about my bakery for parents planning a birthday"}}
+ ],
+ "close": {"say": "One line, every time. Search Iro AI.", "title": "SAY WHO IT IS FOR"}}
+```
+
+| A point's card | It shows |
+| --- | --- |
+| `compare` | a weak version typed out and crossed, then a strong one typed out and ticked: `bad`, `good` (and `bad_label`, `good_label`) |
+| `list` | two to four things, each ticked at the moment Iro says it: `items` |
+| `type` | one prompt typed into a chat box and sent: `text` (and `label`) |
+| `rule` | one sentence in big letters with a stamp: `text` (and `stamp`) |
+| `steps` | two to four single words in a row, lit one by one: `items` |
+| `number` | a number that counts up: `value`, `label` (and `suffix`). For a number that is part of the lesson, never a statistic |
+
+The lesson is checked before anything is drawn, and the message names the part. Claude is told to
+write no statistics and name no product, but a lesson is shown to viewers as true: **read it
+before you post**.
+
+**What a lesson leaves on disk** (`<output folder>/_lessons/<lesson id>/`): `final.mp4` (1080 by
+1920, 30 frames a second, the voice over small sounds on every reveal), `cover.jpg` (the hook's
+title with Iro under it), `caption.txt`, `lesson.json`, and `voice.mp3` with the time of every word.
+
 ## Local web UI and HTTP API
 
 ```bash
@@ -835,6 +895,10 @@ that was running or queued when the server stopped is marked failed on the next 
 | `POST /api/stories/{id}/next` `{choice, script, render}` | the next episode from the choice that won (`a` or `b`): Claude writes it, or you send its script |
 | `POST /api/stories/{id}/render` `{episode, again, voice}` | make an episode's video (the newest by default) |
 | `PUT /api/stories/{id}/episodes/{n}` `{script}`, `DELETE /api/stories/{id}/episodes/last` | save an edited script (400 with the reasons if it cannot be drawn); take the newest episode out |
+| `GET /api/lessons`, `POST /api/lessons` | the Iro explains lessons and the starters; a new lesson (`{"starter" \| "topic" \| "script", "must", "name", "end_tag", "voice_id", "render"}`). Writing and video making run as jobs with `params.lesson` |
+| `GET /api/lessons/{id}`, `PUT /api/lessons/{id}`, `DELETE /api/lessons/{id}` | one lesson with its script and video; change its name, end words or voice; delete it |
+| `PUT /api/lessons/{id}/script` `{script}` | save an edited lesson (422 with the reasons if it cannot be drawn) |
+| `POST /api/lessons/{id}/write` `{topic, must, render}`, `POST /api/lessons/{id}/render` `{again, voice}` | Claude writes the lesson again from its topic; make its video |
 | `GET /api/jobs`, `GET /api/jobs/{id}?since=N` | job status and log (from line N) |
 | `GET /api/jobs/{id}/stream` | Server-Sent Events: `log` events (one per line, `id` = line number, resumable with `Last-Event-ID`) and `status` events; ends when the job does |
 | `GET /files/<run_id>/...` | images, clips, audio, captions, final.mp4 from the output folder (supports Range for video seeking) |

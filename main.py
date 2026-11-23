@@ -248,6 +248,26 @@ def build_parser() -> argparse.ArgumentParser:
     p_story.add_argument("--workers", type=int, help="how many frames to draw at once (default 4)")
     p_story.set_defaults(func=cmd_story)
 
+    p_explain = sub.add_parser("explain", help="Iro explains: a short lesson video where Iro says every word and a title "
+                                               "and cards build above him. Drawn by VidGen itself (no picture or clip model)")
+    p_explain.add_argument("action", choices=["new", "render", "list", "starters"],
+                           help="new: a lesson (--starter, --topic or --script); render: make its video; "
+                                "list: your lessons; starters: the lessons that ship")
+    p_explain.add_argument("lesson", nargs="?", help="the lesson id (render)")
+    p_explain.add_argument("--starter", help="new: one of the lessons that ship (see: explain starters)")
+    p_explain.add_argument("--topic", help="new: what the lesson is about; Claude writes it (one request)")
+    p_explain.add_argument("--must", help="new, with --topic: something the lesson must mention")
+    p_explain.add_argument("--script", help="new: a JSON file with the lesson, in place of Claude writing it")
+    p_explain.add_argument("--name", help="new: a name for the lesson")
+    p_explain.add_argument("--tag", help='new: the words at the very end (default "SEARCH IRO AI")')
+    p_explain.add_argument("--no-tag", action="store_true", help="new: no words at the end")
+    p_explain.add_argument("--voice", help="new: the ElevenLabs voice id that reads it (default: the config's narrator)")
+    p_explain.add_argument("--no-voice", action="store_true", help="make the video without the voice")
+    p_explain.add_argument("--no-render", action="store_true", help="write the lesson and stop before the video")
+    p_explain.add_argument("--again", action="store_true", help="render: make the video again even if it is already made")
+    p_explain.add_argument("--workers", type=int, help="how many frames to draw at once (default 4)")
+    p_explain.set_defaults(func=cmd_explain)
+
     p_imp = sub.add_parser("import-skill", help="turn a Claude skill folder into a video format")
     p_imp.add_argument("skill", help="path to the skill folder or its SKILL.md")
     p_imp.add_argument("--name", default=None, help="format name (default: from the skill)")
@@ -416,6 +436,62 @@ def cmd_story(args, config) -> int:
         if n < 1:
             raise StepError("this series has no episode yet")
         SR.produce(args.series, n, config, voice=not args.no_voice, again=args.again, workers=args.workers or 4)
+    return 0
+
+
+def cmd_explain(args, config) -> int:
+    import explainer
+    import lessons as L
+
+    def show(lesson: dict) -> None:
+        print(f"{lesson['title']}")
+        for seg in explainer.segments(lesson):
+            print(f"  [{seg['kind']}] {seg['title']}: {seg['say']}")
+        if lesson.get("caption"):
+            print(f"  caption: {lesson['caption']}")
+
+    if args.action == "starters":
+        for s in L.starters():
+            print(f"{s['id']}: {s['name']}\n    {s['topic']}")
+        return 0
+    if args.action == "list":
+        rows = L.all_lessons()
+        if not rows:
+            print("no lessons yet. Make one:  python main.py explain new --starter the_missing_line")
+        for r in rows:
+            print(f"{r['id']}  {r['name']}: " + ("video made" if r["made"] else "script changed since the video" if r["stale"]
+                                                else "no video yet" if r["lesson"] else "no script yet"))
+        return 0
+    if args.action == "new":
+        tag = None if args.no_tag else (args.tag if args.tag is not None else L.DEFAULT_TAG)
+        if args.script:
+            try:
+                script = json.loads(Path(args.script).read_text(encoding="utf-8"))
+            except (OSError, ValueError) as e:
+                raise StepError(f"could not read {args.script}: {e}") from None
+            name, topic = args.name or "", args.topic or ""
+        elif args.starter:
+            starter = next((s for s in L.starters() if s["id"] == args.starter), None)
+            if starter is None:
+                raise StepError(f"there is no starter called {args.starter} (see: python main.py explain starters)")
+            script, name, topic = starter["lesson"], args.name or starter["name"], starter["topic"]
+        elif args.topic:
+            print(f"[lesson] asking {config['script']['model']} for a lesson...")
+            script = L.write(args.topic, config, must=args.must or "", end_tag=tag or "")
+            name, topic = args.name or "", args.topic
+        else:
+            raise StepError("say what the lesson is about:  --topic \"...\"  or pick one:  --starter the_missing_line")
+        data = L.create(script, name=name, topic=topic, end_tag=tag, voice_id=args.voice or "")
+        print(f"created lesson {data['id']}")
+        show(L.script(data["id"]))
+        if args.no_render:
+            print(f"make the video with:  python main.py explain render {data['id']}")
+            return 0
+        L.produce(data["id"], config, voice=not args.no_voice, workers=args.workers or 4)
+        return 0
+    if not args.lesson:
+        raise StepError("which lesson? python main.py explain render <lesson id>  (see: python main.py explain list)")
+    L.produce(args.lesson, config, voice=not args.no_voice, again=args.again, workers=args.workers or 4)
     return 0
 
 

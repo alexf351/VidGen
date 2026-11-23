@@ -292,12 +292,12 @@ input[type=checkbox] { accent-color: var(--accent); }
 @media (max-width: 760px) {
   #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto;
     grid-template-areas: "side" "main" "drawer"; }
-  #sidebar { flex-direction: row; align-items: center; gap: 8px; padding: 8px 10px;
-    border-right: 0; border-bottom: 1px solid var(--line); }
+  #sidebar { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px;
+    border-right: 0; border-bottom: 1px solid var(--line); min-width: 0; }
   .brand { padding: 0; font-size: 0; gap: 0; }
   #new-btn { width: auto; flex: none; }
   .side-head, #runs { display: none; }
-  #runs-select { display: block; flex: 1; min-width: 0; }
+  #runs-select { display: block; flex: 1 1 110px; min-width: 0; }
   #toasts { left: 12px; right: 12px; }
   .toast { max-width: none; }
   #drawer-body { grid-template-columns: 1fr; height: 300px; }
@@ -1386,6 +1386,14 @@ input[type=text], input[type=number], input[type=search], select, textarea { bor
 .st-foot { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; margin-top: 6px; }
 .st-foot a.link-btn { text-decoration: underline; text-underline-offset: 2px; color: var(--muted); }
 .st-edit { display: flex; flex-direction: column; gap: 8px; }
+.ex-parts { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.ex-part { display: flex; flex-direction: column; gap: 3px; font-size: 14px; line-height: 1.45; }
+.ex-part-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ex-title { font-weight: 700; font-size: 13.5px; letter-spacing: .01em; }
+.ex-part-edit { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 10px; align-items: start; }
+.ex-part-edit .st-part { grid-row: span 2; padding-top: 9px; overflow-wrap: anywhere; }
+.ex-part-edit input, .ex-part-edit textarea { width: 100%; }
+@media (max-width: 720px) { .ex-part-edit { grid-template-columns: 1fr; } .ex-part-edit .st-part { grid-row: auto; padding-top: 0; } }
 .st-line-edit { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: start; }
 .st-line-n { font-size: 12px; color: var(--muted); padding-top: 9px; text-align: right; }
 .st-line-edit textarea, .st-json { width: 100%; }

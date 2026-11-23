@@ -725,11 +725,12 @@ def _line_words(line: str) -> list[str]:
     return line.split()
 
 
-def plan(raw: dict, voice: dict | None = None) -> dict:
+def plan(raw: dict, voice: dict | None = None, tail: float | None = None) -> dict:
     """When every shot and every word happens. `voice` is {"words": [{"say", "t", "end"}, ...],
     "duration": seconds} from the narrator's recording; without it the narrator is taken to
     speak at an even pace, so a silent episode still reads well."""
     ep = clean_episode(raw)
+    tail = TAIL if tail is None else float(tail)
     lines = [_line_words(s["say"]) for s in ep["shots"]]
     count = sum(len(l) for l in lines)
     shots, words = [], []
@@ -744,7 +745,7 @@ def plan(raw: dict, voice: dict | None = None) -> dict:
         end = float(voice.get("duration") or vw[-1].get("end") or vw[-1]["t"] + 0.4)
         k = 0
         for i, l in enumerate(lines):
-            stop = starts[i + 1] if i + 1 < len(lines) else end + TAIL
+            stop = starts[i + 1] if i + 1 < len(lines) else end + tail
             shots.append({"start": round(starts[i], 3), "end": round(max(stop, starts[i] + 0.5), 3)})
             for w in l:
                 item = vw[k]
@@ -762,7 +763,7 @@ def plan(raw: dict, voice: dict | None = None) -> dict:
             shots.append({"start": round(t, 3), "end": round(t + dur, 3)})
             t += dur
         if shots:
-            shots[-1]["end"] = round(shots[-1]["end"] + TAIL, 3)
+            shots[-1]["end"] = round(shots[-1]["end"] + tail, 3)
         voiced = False
     # the words on screen: up to three at a time, never across a full stop, a comma or a cut
     groups, cur = [], []

@@ -40,6 +40,8 @@ import contrast
 import contrast_batch
 import stickstory
 import story_series
+import explainer
+import lessons
 from common import (KEY_ENV, PROVIDERS, ROOT, STEP_ORDER, StepError, available_app_screens,
                     run_cast, run_engine, run_format, runs_dir, write_json)
 from format_loader import COVER_EXTS, DEFAULT_FORMAT, format_summaries, load_format
@@ -164,6 +166,34 @@ class StoryUpdate(BaseModel):
     end_tag: str | None = None
     voice_id: str | None = None
     iro: bool | None = None
+
+
+class LessonNew(BaseModel):
+    name: str = ""
+    starter: str | None = None        # one of the lessons that ship
+    topic: str = ""                   # your own; Claude writes the lesson from it
+    must: str = ""                    # something the lesson must mention
+    script: dict | None = None        # or the lesson itself
+    end_tag: str | None = "SEARCH IRO AI"
+    voice_id: str = ""
+    render: bool = True
+
+
+class LessonWrite(BaseModel):
+    topic: str = ""                   # default: the lesson's own topic
+    must: str = ""
+    render: bool = True
+
+
+class LessonRender(BaseModel):
+    again: bool = False
+    voice: bool = True
+
+
+class LessonUpdate(BaseModel):
+    name: str | None = None
+    end_tag: str | None = None
+    voice_id: str | None = None
 
 
 class CaptionSize(BaseModel):
@@ -472,12 +502,13 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         """The lengths a video of this format can pick, each with the limits it would run to."""
         import copy
         out = []
+        animate_all = animate_all_for(f)                     # one config load a format, not one a length
         for item in video_length.describe(f):
             c = {"format": copy.deepcopy({k: f[k] for k in ("rules", "duration_target", "lengths", "name")}),
                  "max_animated_shots": f["overlay"].get("max_animated_shots")}
             video_length.apply(c, band=item["id"])
             out.append({**item, "duration_target": c["format"]["duration_target"],
-                        "limits": limits_of(c["format"]["rules"], c["max_animated_shots"], animate_all_for(f))})
+                        "limits": limits_of(c["format"]["rules"], c["max_animated_shots"], animate_all)})
         return out
 
     def animate_all_for(f: dict) -> bool:
@@ -1464,7 +1495,16 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         if j:
             raise HTTPException(409, f"this batch is being {'written' if j.action == 'contrast_write' else 'drawn'}; wait for it to finish")
 
+    def busy_ids(prefix: str, key: str) -> dict:
+        """The queued and running jobs of one kind, by the id of what they work on. Taken before a
+        list is read from disk, for the same reason as in the detail functions below."""
+        return {(j.params or {}).get(key): j for j in runner.list()
+                if j.action.startswith(prefix) and j.status in ("queued", "running") and (j.params or {}).get(key)}
+
     def contrast_detail(batch_id: str) -> dict:
+        # the job is looked up before the data is read: read the other way round, a job that ends in
+        # between leaves the page with old data and no job to wait for
+        j = contrast_job(batch_id)
         data = contrast_or_404(batch_id)
         folder = contrast_batch.batch_dir(batch_id)
         scenes = []
@@ -1477,7 +1517,6 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
                 url += "-" + str(data["made"].get(str(s_["n"])) or "")
             scenes.append({**s_, "made": made, "video": url,
                            "problems": data["checks"].get(str(s_["n"])) or []})
-        j = contrast_job(batch_id)
         return {**contrast_batch.summary(data), "scenes": scenes, "skipped": data.get("skipped") or [],
                 "sheet": run_status.file_url(folder / "first_second.jpg"),
                 "folder": str(folder / "videos"),
@@ -1485,11 +1524,12 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
 
     @app.get("/api/contrast")
     def contrast_home() -> dict:
+        busy = busy_ids("contrast", "batch")
         return {"templates": [{"id": k, "what": v} for k, v in contrast.TEMPLATES.items()],
                 "starter": len(contrast_batch.starter()), "default_tag": contrast_batch.DEFAULT_TAG,
                 "default_about": contrast_batch.DEFAULT_ABOUT, "max_write": contrast_batch.MAX_WRITE,
                 "seconds": contrast.SECONDS, "workers": contrast_batch.workers_default(),
-                "batches": [{**b, "busy": contrast_job(b["id"]) is not None} for b in contrast_batch.batches()]}
+                "batches": [{**b, "busy": b["id"] in busy} for b in contrast_batch.batches()]}
 
     @app.post("/api/contrast", status_code=201)
     def contrast_new(body: ContrastNew) -> dict:
@@ -1633,6 +1673,7 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             raise HTTPException(409, f"this series is busy ({'writing an episode' if j.action == 'story_write' else 'making a video'}); wait for it to finish")
 
     def story_detail(series_id: str) -> dict:
+        j = story_job(series_id)                             # before the data: see contrast_detail
         data = story_or_404(series_id)
         episodes = []
         for n in range(1, data["episodes"] + 1):
@@ -1644,7 +1685,6 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
             st["video"] = run_status.file_url(folder / "final.mp4") if (st["made"] or st["stale"]) else None
             st["cover"] = run_status.file_url(folder / "cover.jpg")
             episodes.append(st)
-        j = story_job(series_id)
         return {**story_series.summary(data), "episode_list": episodes, "folder": str(story_series.series_dir(series_id)),
                 "job": None if j is None else {"id": j.id, "action": j.action, "status": j.status}}
 
@@ -1653,12 +1693,13 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
 
     @app.get("/api/stories")
     def stories_home() -> dict:
+        busy = busy_ids("story", "series")
         return {"starters": [{"id": s["id"], "name": s["name"], "premise": s["premise"], "ready": bool(s["episode"])}
                              for s in story_series.starters()],
                 "default_tag": story_series.DEFAULT_TAG, "has_voice_key": bool(os.environ.get("ELEVENLABS_API_KEY")),
                 "sets": list(stickstory.SETS), "lights": list(stickstory.LIGHTS), "poses": list(stickstory.POSES),
                 "events": list(stickstory.EVENTS),
-                "series": [{**s, "busy": story_job(s["id"]) is not None} for s in story_series.all_series()]}
+                "series": [{**s, "busy": s["id"] in busy} for s in story_series.all_series()]}
 
     @app.post("/api/stories", status_code=201)
     def stories_new(body: StoryNew) -> dict:
@@ -1790,6 +1831,146 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         story_free(series_id)
         story_series.delete(series_id)
         return {"deleted": series_id}
+
+    # --------------------------------------------------------- Iro explains --
+    def lesson_job(lesson_id: str):
+        for j in runner.list():
+            if j.action.startswith("lesson") and (j.params or {}).get("lesson") == lesson_id and j.status in ("queued", "running"):
+                return j
+        return None
+
+    def lesson_or_404(lesson_id: str) -> dict:
+        try:
+            return lessons.load(lesson_id)
+        except StepError as e:
+            raise HTTPException(404, str(e)) from e
+
+    def lesson_free(lesson_id: str) -> None:
+        j = lesson_job(lesson_id)
+        if j is not None:
+            raise HTTPException(409, f"this lesson is busy ({'being written' if j.action == 'lesson_write' else 'making its video'}); wait for it to finish")
+
+    def lesson_out(st: dict, j) -> dict:
+        folder = Path(st.pop("folder"))
+        has_video = st["made"] or st["stale"]
+        st["video"] = run_status.file_url(folder / "final.mp4") if has_video else None
+        st["cover"] = run_status.file_url(folder / "cover.jpg") if has_video and (folder / "cover.jpg").is_file() else None
+        st["job"] = None if j is None else {"id": j.id, "action": j.action, "status": j.status}
+        return st
+
+    def lesson_detail(lesson_id: str) -> dict:
+        j = lesson_job(lesson_id)                            # before the data: see contrast_detail
+        data = lesson_or_404(lesson_id)
+        return lesson_out(lessons.state(lesson_id, data), j)
+
+    def lesson_produce(lesson_id: str, again: bool = False, voice: bool = True) -> None:
+        lessons.produce(lesson_id, load_config(), voice=voice, again=again)
+
+    def lesson_write_job(lesson_id: str, topic: str, must: str, render: bool):
+        lessons.set_note(lesson_id, writing=True)
+
+        def fn(job) -> None:
+            try:
+                print("[lesson] asking Claude for the lesson...")
+                data = lessons.load(lesson_id)
+                script = lessons.write(topic, load_config(), must=must, end_tag=data.get("end_tag", ""))
+                lessons.set_script(lesson_id, script)
+            except Exception as e:
+                lessons.set_note(lesson_id, error=str(e))
+                raise
+            if render:
+                lesson_produce(lesson_id)
+        return runner.submit("lesson_write", None, {"lesson": lesson_id}, fn)
+
+    @app.get("/api/lessons")
+    def lessons_home() -> dict:
+        busy = busy_ids("lesson", "lesson")
+        return {"starters": [{"id": s["id"], "name": s["name"], "topic": s["topic"]} for s in lessons.starters()],
+                "default_tag": lessons.DEFAULT_TAG, "has_voice_key": bool(os.environ.get("ELEVENLABS_API_KEY")),
+                "cards": sorted(explainer.CARDS),
+                "limits": {"words_min": explainer.WORDS_MIN, "words_max": explainer.WORDS_MAX,
+                           "points_min": explainer.POINTS_MIN, "points_max": explainer.POINTS_MAX},
+                "lessons": [lesson_out(st, busy.get(st["id"])) for st in lessons.all_lessons()]}
+
+    @app.post("/api/lessons", status_code=201)
+    def lessons_new(body: LessonNew) -> dict:
+        """A new lesson: one that ships, your own script, or a topic Claude writes a lesson about
+        (one request, a few cents). Drawing the video is free."""
+        tag = body.end_tag
+        if body.script is not None or body.starter:
+            starter = None
+            if body.script is None:
+                starter = next((s for s in lessons.starters() if s["id"] == body.starter), None)
+                if starter is None:
+                    raise HTTPException(400, f"there is no starter lesson called {body.starter}")
+            try:
+                data = lessons.create(body.script if body.script is not None else starter["lesson"],
+                                      name=body.name or (starter["name"] if starter else ""),
+                                      topic=body.topic or (starter["topic"] if starter else ""), end_tag=tag, voice_id=body.voice_id)
+            except StepError as e:
+                raise HTTPException(422, str(e)) from e
+            lesson_id = data["id"]
+            job = runner.submit("lesson_render", None, {"lesson": lesson_id}, lambda job: lesson_produce(lesson_id)) if body.render else None
+        else:
+            topic = " ".join(body.topic.split())
+            if not topic:
+                raise HTTPException(400, "say what the lesson is about, or pick one of the starters")
+            data = lessons.new(body.name, topic, end_tag=tag, voice_id=body.voice_id)
+            lesson_id = data["id"]
+            job = lesson_write_job(lesson_id, topic, body.must, body.render)
+        return {**lesson_detail(lesson_id), "job_id": job.id if job else None}
+
+    @app.get("/api/lessons/{lesson_id}")
+    def lessons_get(lesson_id: str) -> dict:
+        return lesson_detail(lesson_id)
+
+    @app.put("/api/lessons/{lesson_id}")
+    def lessons_update(lesson_id: str, body: LessonUpdate) -> dict:
+        lesson_or_404(lesson_id)
+        lesson_free(lesson_id)
+        lessons.update(lesson_id, {k: v for k, v in body.model_dump().items() if v is not None})
+        return lesson_detail(lesson_id)
+
+    @app.put("/api/lessons/{lesson_id}/script")
+    def lessons_edit(lesson_id: str, body: StoryScript) -> dict:
+        lesson_or_404(lesson_id)
+        lesson_free(lesson_id)
+        try:
+            lessons.set_script(lesson_id, body.script)
+        except StepError as e:
+            raise HTTPException(422, str(e)) from e
+        return lesson_detail(lesson_id)
+
+    @app.post("/api/lessons/{lesson_id}/write", status_code=202)
+    def lessons_write(lesson_id: str, body: LessonWrite) -> dict:
+        """Claude writes this lesson again (one request). The lesson it replaces is gone."""
+        data = lesson_or_404(lesson_id)
+        lesson_free(lesson_id)
+        topic = " ".join((body.topic or data.get("topic") or "").split())
+        if not topic:
+            raise HTTPException(400, "say what the lesson is about")
+        if topic != data.get("topic"):
+            data["topic"] = topic[:lessons.TOPIC_MAX]
+            lessons._save(lesson_id, data)
+        job = lesson_write_job(lesson_id, topic, body.must, body.render)
+        return {**lesson_detail(lesson_id), "job_id": job.id}
+
+    @app.post("/api/lessons/{lesson_id}/render", status_code=202)
+    def lessons_render(lesson_id: str, body: LessonRender) -> dict:
+        lesson_or_404(lesson_id)
+        lesson_free(lesson_id)
+        if lessons.script(lesson_id) is None:
+            raise HTTPException(400, "this lesson has no script yet")
+        job = runner.submit("lesson_render", None, {"lesson": lesson_id},
+                            lambda job: lesson_produce(lesson_id, again=body.again, voice=body.voice))
+        return {**lesson_detail(lesson_id), "job_id": job.id}
+
+    @app.delete("/api/lessons/{lesson_id}")
+    def lessons_delete(lesson_id: str) -> dict:
+        lesson_or_404(lesson_id)
+        lesson_free(lesson_id)
+        lessons.delete(lesson_id)
+        return {"deleted": lesson_id}
 
     @app.get("/api/jobs")
     def list_jobs(run_id: str | None = None) -> list[dict]:

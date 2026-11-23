@@ -24,11 +24,11 @@ from common import ROOT, StepError
 import stickstory
 
 RATE = 22050
-VERSION = 2                          # bump when a synthesized sound changes
+VERSION = 3                          # bump when a synthesized sound changes
 CACHE = ROOT / "cache" / "story_sound"
 MAX_CUES = 18                        # one ffmpeg input each; a handful is plenty for an episode
 DRONE_LEVEL = 0.20
-SOUNDS = ("knock", "thud", "heartbeat", "ring", "sting", "whoosh")
+SOUNDS = ("knock", "thud", "heartbeat", "ring", "sting", "whoosh", "pop", "swish")
 EVENT_SOUNDS = {"knock": "knock", "door_open": "whoosh", "door_close": "thud", "lights_out": "thud",
                 "eyes": "sting", "phone_ring": "ring", "shake": "thud", "heartbeat": "heartbeat"}
 
@@ -96,6 +96,22 @@ def _synth(name: str) -> list[float]:
             lo += f * (rnd() - lo - band * 0.6)
             band += f * lo
             out.append(band * math.sin(math.pi * t / 0.8) ** 2 * 1.4)
+        return out
+    if name == "pop":                                     # something landing on the page
+        n, out, ph = int(RATE * 0.12), [], 0.0
+        for i in range(n):
+            t = i / RATE
+            ph += two_pi * (520 + 520 * min(1.0, t / 0.05)) / RATE
+            out.append(math.sin(ph) * min(1.0, t / 0.004) * math.exp(-t * 38))
+        return out
+    if name == "swish":                                   # a page turning: one part of a lesson to the next
+        n, rnd, out, lo, band = int(RATE * 0.34), _rand(5), [], 0.0, 0.0
+        for i in range(n):
+            t = i / RATE
+            f = 0.10 + 0.30 * (t / 0.34)
+            lo += f * (rnd() - lo - band * 0.5)
+            band += f * lo
+            out.append(band * math.sin(math.pi * t / 0.34) ** 2)
         return out
     if name == "drone":                                   # eight seconds that loop without a seam
         n, out = RATE * 8, []

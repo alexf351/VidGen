@@ -1,0 +1,192 @@
+{
+ "about": "Lessons that ship with VidGen, ready to draw. Each teaches one thing about using AI well.",
+ "lessons": [
+  {
+   "id": "the_missing_line",
+   "name": "The missing line",
+   "topic": "Say what a good answer looks like",
+   "lesson": {
+    "title": "The missing line",
+    "caption": "most prompts are missing this one line. do you add it?",
+    "hook": {
+     "say": "Your prompts are missing one line. And it changes every answer you get.",
+     "kicker": "YOUR PROMPTS HAVE",
+     "title": "ONE MISSING LINE",
+     "stamp": "FIX THIS"
+    },
+    "points": [
+     {
+      "label": "the problem",
+      "title": "AI HAS TO GUESS",
+      "accent": "GUESS",
+      "note": "AI guesses",
+      "say": "You ask for an email. The AI has no idea who it's for or what you want back. So it guesses, and you get something generic.",
+      "card": {
+       "type": "compare",
+       "bad": "write me an email to my boss",
+       "good": "write a 3-line email to my boss asking for Friday off. friendly, no excuses.",
+       "bad_label": "VAGUE",
+       "good_label": "CLEAR"
+      }
+     },
+     {
+      "label": "the fix",
+      "title": "SAY WHAT GOOD LOOKS LIKE",
+      "accent": "GOOD",
+      "note": "say what good is",
+      "say": "Add one line that says what a good answer looks like. Who it's for, how long it should be, and the tone you want.",
+      "card": {
+       "type": "list",
+       "items": [
+        "Who it's for",
+        "How long",
+        "The tone"
+       ]
+      }
+     },
+     {
+      "label": "try it",
+      "title": "ONE LINE, EVERY TIME",
+      "accent": "ONE LINE,",
+      "note": "one line, every time",
+      "say": "Before you hit send, finish this sentence. A good answer is three lines, friendly, and ready to paste.",
+      "card": {
+       "type": "type",
+       "label": "ADD THIS",
+       "text": "A good answer is: 3 lines, friendly, ready to paste."
+      }
+     }
+    ],
+    "close": {
+     "say": "One line, and the AI stops guessing. Want more of these? Search Iro AI.",
+     "title": "STOP MAKING AI GUESS"
+    }
+   }
+  },
+  {
+   "id": "ask_again",
+   "name": "Ask again",
+   "topic": "The first answer is a draft: push back",
+   "lesson": {
+    "title": "Ask again",
+    "caption": "the first answer is a draft. how many times do you ask?",
+    "hook": {
+     "say": "The first answer AI gives you is its most average one. Here is how to get the good one.",
+     "kicker": "WITH AI, THE",
+     "title": "FIRST ANSWER IS A DRAFT",
+     "stamp": ""
+    },
+    "points": [
+     {
+      "label": "why",
+      "title": "IT PLAYS IT SAFE",
+      "accent": "SAFE",
+      "note": "it plays it safe",
+      "say": "With nothing to go on, AI gives you the safest answer it can. Fine, generic, and easy to forget.",
+      "card": {
+       "type": "rule",
+       "text": "The first answer is the average answer",
+       "stamp": "TRUE"
+      }
+     },
+     {
+      "label": "the move",
+      "title": "PUSH BACK",
+      "accent": "BACK",
+      "note": "push back",
+      "say": "So push back. Tell it what you liked, what was off, and what to change.",
+      "card": {
+       "type": "list",
+       "items": [
+        "What you liked",
+        "What was off",
+        "What to change"
+       ]
+      }
+     },
+     {
+      "label": "try it",
+      "title": "SAY IT LIKE THIS",
+      "accent": "THIS",
+      "note": "say it plainly",
+      "say": "Try this on your next one. Keep the first line, cut the rest in half, and make it sound like me.",
+      "card": {
+       "type": "type",
+       "label": "SAY THIS",
+       "text": "Keep the first line. Cut the rest in half. Make it sound like me."
+      }
+     }
+    ],
+    "close": {
+     "say": "The third message is where it gets good. Search Iro AI.",
+     "title": "DON'T STOP AT ONE"
+    }
+   }
+  },
+  {
+   "id": "give_it_a_role",
+   "name": "Give it a role",
+   "topic": "Tell the AI who to be before what to do",
+   "lesson": {
+    "title": "Give it a role",
+    "caption": "one sentence at the start changes the whole answer. do you use it?",
+    "hook": {
+     "say": "One sentence at the start of your prompt changes everything after it. Most people skip it.",
+     "kicker": "",
+     "title": "THE SENTENCE YOU SKIP",
+     "stamp": ""
+    },
+    "points": [
+     {
+      "label": "the idea",
+      "title": "GIVE IT A ROLE",
+      "accent": "ROLE",
+      "note": "give it a role",
+      "say": "Tell the AI who to be. A patient tutor, a blunt editor, a tough interviewer. It answers the way that person would.",
+      "card": {
+       "type": "list",
+       "items": [
+        "A patient tutor",
+        "A blunt editor",
+        "A tough interviewer"
+       ]
+      }
+     },
+     {
+      "label": "see it",
+      "title": "SAME QUESTION, NEW ANSWER",
+      "accent": "NEW",
+      "note": "same question, new answer",
+      "say": "Ask it to explain interest rates and you get a textbook. Ask it as a tutor for a ten year old and you get something you can use.",
+      "card": {
+       "type": "compare",
+       "bad_label": "PLAIN",
+       "good_label": "WITH A ROLE",
+       "bad": "explain interest rates",
+       "good": "you're a tutor for a 10-year-old. explain interest rates with one example."
+      }
+     },
+     {
+      "label": "the order",
+      "title": "ROLE, THEN TASK",
+      "accent": "ROLE,",
+      "note": "role first",
+      "say": "Put the role first, then the task, then how you want it back.",
+      "card": {
+       "type": "steps",
+       "items": [
+        "Role",
+        "Task",
+        "Format"
+       ]
+      }
+     }
+    ],
+    "close": {
+     "say": "One sentence, and it stops sounding like a robot. Search Iro AI.",
+     "title": "TELL IT WHO TO BE"
+    }
+   }
+  }
+ ]
+}

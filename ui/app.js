@@ -1321,6 +1321,261 @@ async function stRemoveSeries(s) {
   catch (e) { ST.error = e.message; stDraw(); }
 }
 
+// --------------------------------------------------------------- Iro explains
+// A short lesson video: Iro says every word, a title and one card per point build above him.
+const EX = { home: null, lesson: null, timer: null, form: null, error: "", editing: false, card: null };
+
+function exStop() { if (EX.timer) { clearTimeout(EX.timer); EX.timer = null; } }
+function exOn(id) { return location.hash === `#/lessons/${encodeURIComponent(id)}`; }
+function exState(l) {
+  return l.job ? h("span", {}, h("span", { class: "spin" }), l.job.action === "lesson_write" ? " being written" : " making the video")
+    : l.error && !l.lesson ? "could not be written"
+    : !l.lesson ? "no script yet"
+    : l.made ? `video made · ${Math.round(l.seconds || 0)} seconds`
+    : l.stale ? "the script changed since the video" : "no video yet";
+}
+function exCardText(card) {
+  if (!card) return "";
+  if (card.type === "compare") return `${card.bad_label}: ${card.bad}  →  ${card.good_label}: ${card.good}`;
+  if (card.type === "list" || card.type === "steps") return (card.items || []).join(" · ");
+  if (card.type === "number") return `${card.value}${card.suffix || ""} ${card.label || ""}`.trim();
+  return card.text || "";
+}
+const EX_CARD_NAMES = { compare: "weak and strong", list: "checklist", type: "typed prompt", rule: "rule", number: "number", steps: "steps" };
+
+async function renderLessons() {
+  exStop();
+  const main = $("#main");
+  if (!EX.home) main.replaceChildren(h("div", { class: "empty" }, h("span", { class: "spin" }), "  Loading…"));
+  try { EX.home = await api("GET", "/api/lessons"); }
+  catch (e) { if (location.hash === "#/lessons") main.replaceChildren(h("div", { class: "empty" }, e.message)); return; }
+  if (location.hash !== "#/lessons") return;
+  const d = EX.home;
+  if (!EX.form) EX.form = { starter: (d.starters[0] || {}).id || "", topic: "", must: "", name: "", tag: d.default_tag };
+  const f = EX.form;
+  const note = h("div", { class: "field-note warn", role: "alert" });
+  const cost = h("span", { class: "muted ct-cost" });
+  const go = h("button", { class: "btn primary", type: "button" }, "Make the lesson");
+  const own = h("textarea", { rows: 2, maxlength: 300, placeholder: "Your own topic: one thing about working with AI that people get wrong, and the fix.",
+    "aria-label": "Your own topic", oninput: (e) => { f.topic = e.target.value; if (f.topic.trim()) f.starter = ""; drawPick(); } }, f.topic);
+  const picks = h("div", { class: "st-starters", role: "radiogroup", "aria-label": "A lesson to start from" });
+  const drawPick = () => {
+    const typed = !!f.topic.trim();
+    picks.replaceChildren(...d.starters.map((s) => h("button", { type: "button", role: "radio", "aria-checked": String(f.starter === s.id && !typed),
+      class: `st-starter${f.starter === s.id && !typed ? " on" : ""}`,
+      onclick: () => { f.starter = s.id; f.topic = ""; own.value = ""; drawPick(); } },
+      h("span", { class: "st-starter-name" }, s.name, h("span", { class: "st-ready" }, "written")),
+      h("span", { class: "st-starter-premise" }, s.topic))));
+    cost.textContent = `${typed ? "One Claude request for the lesson (a few cents)." : "No Claude request: this lesson is written."} ${d.has_voice_key ? "The voice is about 550 characters of ElevenLabs." : "No ElevenLabs key, so no voice."} Drawing is free.`;
+  };
+  go.onclick = async () => {
+    note.textContent = "";
+    const body = { name: f.name.trim(), end_tag: f.tag.trim() || null };
+    if (f.topic.trim()) { body.topic = f.topic.trim(); body.must = f.must.trim(); }
+    else if (f.starter) body.starter = f.starter;
+    else { note.textContent = "Pick a lesson or write a topic."; return; }
+    go.disabled = true;
+    try {
+      const made = await api("POST", "/api/lessons", body);
+      EX.form = null; EX.home = null;
+      refreshJobs();
+      location.hash = `#/lessons/${encodeURIComponent(made.id)}`;
+    } catch (e) { note.textContent = e.message; go.disabled = false; }
+  };
+  drawPick();
+  const list = d.lessons || [];
+  main.replaceChildren(h("div", { class: "view studio ct st" },
+    h("div", { class: "studio-head" },
+      h("div", {}, h("h1", {}, "Iro explains"),
+        h("p", { class: "lede" }, "A 40 second lesson. Iro stands at the bottom and says every word; above him a giant title, then one card per point: a weak prompt beside a strong one, a checklist, a rule. Drawn by VidGen itself: no picture or clip model."))),
+    h("section", { class: "card-sec ct-new" },
+      h("div", { class: "sec-head" }, h("span", { class: "sec-label" }, "New lesson")),
+      picks,
+      h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Or your own topic"), own),
+      h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "It must mention"),
+        h("input", { type: "text", maxlength: 400, placeholder: "Optional. Used with your own topic", value: f.must, oninput: (e) => { f.must = e.target.value; } })),
+      h("div", { class: "ct-row" },
+        h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Name"),
+          h("input", { type: "text", maxlength: 60, placeholder: "For you to tell lessons apart", value: f.name, oninput: (e) => { f.name = e.target.value; } })),
+        h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Words at the end"),
+          h("input", { type: "text", maxlength: 28, placeholder: "None", value: f.tag, oninput: (e) => { f.tag = e.target.value; } }))),
+      note,
+      h("div", { class: "ct-actions" }, go, cost)),
+    h("div", { class: "ct-list-head" }, h("span", { class: "sec-label" }, "Your lessons"), h("span", { class: "muted" }, list.length ? plural(list.length, "lesson") : "")),
+    list.length ? h("div", { class: "ct-batches" }, list.map((l) =>
+      h("a", { class: "ct-batch", href: `#/lessons/${encodeURIComponent(l.id)}` },
+        h("span", { class: "ct-batch-name" }, l.name),
+        h("span", { class: "muted" }, exState(l)),
+        h("span", { class: "muted ct-batch-when" }, when(l.created_at)))))
+      : h("div", { class: "empty ct-none" }, "No lessons yet. Three are written and ready to draw: start with one of them.")));
+  if (list.some((l) => l.job)) EX.timer = setTimeout(() => { if (location.hash === "#/lessons") renderLessons(); }, 3000);
+}
+
+async function exLoad(id) {
+  EX.lesson = await api("GET", `/api/lessons/${encodeURIComponent(id)}`);
+  return EX.lesson;
+}
+
+async function renderLesson(id) {
+  exStop();
+  const main = $("#main");
+  if (!EX.lesson || EX.lesson.id !== id) {
+    EX.lesson = null; EX.error = ""; EX.editing = false; EX.card = null;
+    main.replaceChildren(h("div", { class: "empty" }, h("span", { class: "spin" }), "  Loading…"));
+  }
+  try { await exLoad(id); }
+  catch (e) {
+    if (exOn(id)) main.replaceChildren(h("div", { class: "empty" }, `${e.message}. `, h("a", { href: "#/lessons", class: "muted" }, "Back to Iro explains")));
+    return;
+  }
+  if (exOn(id)) exDraw();
+}
+
+async function exDo(fn) {
+  const id = EX.lesson.id;
+  EX.error = "";
+  try {
+    const out = await fn();
+    if (out && out.id === id) EX.lesson = out; else await exLoad(id);
+    refreshJobs();
+  } catch (e) { EX.error = e.message; }
+  if (exOn(id)) exDraw();
+}
+
+function exParts(lesson) {
+  return [{ kind: "hook", where: "Hook", ...lesson.hook },
+    ...lesson.points.map((p, k) => ({ kind: "point", where: p.label || `Point ${k + 1}`, k, ...p })),
+    { kind: "close", where: "Close", ...lesson.close }];
+}
+
+function exLessonCard(l, busy) {
+  const id = encodeURIComponent(l.id);
+  const lesson = l.lesson;
+  const pic = l.video
+    ? h("video", { class: "st-video", src: l.video, poster: l.cover || undefined, controls: true, playsinline: true, preload: "none" })
+    : h("div", { class: "st-video waiting" }, busy ? h("span", { class: "spin" }) : h("span", { class: "muted" }, "not made yet"));
+  const parts = exParts(lesson);
+  let body;
+  if (EX.editing) {
+    const edit = parts.map((p) => ({ title: p.title, say: p.say }));
+    const all = h("textarea", { class: "ct-list st-json", rows: 16, spellcheck: "false", "aria-label": "The whole lesson as JSON" }, JSON.stringify(lesson, null, 1));
+    let useJson = false;
+    const adv = h("details", { class: "st-adv", ontoggle: (ev) => { useJson = ev.target.open; } },
+      h("summary", {}, "Cards, notes, the stamp and the caption (JSON)"),
+      h("p", { class: "field-note" }, "While this is open, saving uses what is written here and ignores the fields above."), all);
+    body = h("form", { class: "st-edit", onsubmit: (ev) => { ev.preventDefault(); exDo(async () => {
+        let script;
+        if (useJson) { try { script = JSON.parse(all.value); } catch (err) { throw new Error(`The JSON does not parse: ${err.message}`); } }
+        else {
+          script = JSON.parse(JSON.stringify(lesson));
+          parts.forEach((p, k) => {
+            const into = p.kind === "hook" ? script.hook : p.kind === "close" ? script.close : script.points[p.k];
+            if (p.kind === "point" && into.accent && !edit[k].title.toUpperCase().includes(into.accent)) into.accent = "";
+            into.title = edit[k].title; into.say = edit[k].say;
+          });
+        }
+        const out = await api("PUT", `/api/lessons/${id}/script`, { script });
+        EX.editing = false;
+        return out;
+      }); } },
+      parts.map((p, k) => h("div", { class: "ex-part-edit" },
+        h("span", { class: "st-part" }, p.where),
+        h("input", { type: "text", maxlength: 40, "aria-label": `${p.where}: the title on screen`, value: p.title, oninput: (ev) => { edit[k].title = ev.target.value; } }),
+        h("textarea", { rows: 2, "aria-label": `${p.where}: what Iro says`, oninput: (ev) => { edit[k].say = ev.target.value; } }, p.say))),
+      adv,
+      h("div", { class: "ct-actions" },
+        h("button", { class: "btn primary small", type: "submit" }, "Save the lesson"),
+        h("button", { class: "btn ghost small", type: "button", onclick: () => { EX.editing = false; exDraw(); } }, "Cancel"),
+        h("span", { class: "muted ct-cost" }, "Changed words are read again when you make the video.")));
+  } else {
+    const copy = h("button", { class: "link-btn quiet", type: "button",
+      onclick: async () => { try { await navigator.clipboard.writeText(lesson.caption || ""); toast("Caption copied", "ok"); } catch { toast("Could not copy from this page", "bad"); } } }, "Copy caption");
+    body = h("div", { class: "st-script" },
+      h("ol", { class: "ex-parts" }, parts.map((p) => h("li", { class: "ex-part" },
+        h("div", { class: "ex-part-head" }, h("span", { class: "st-part" }, p.where), h("span", { class: "ex-title" }, p.title),
+          p.stamp ? h("span", { class: "st-voted" }, p.stamp) : null),
+        h("span", { class: "st-say" }, p.say),
+        p.card ? h("span", { class: "st-where" }, `${EX_CARD_NAMES[p.card.type] || p.card.type}: ${exCardText(p.card)}`) : null))),
+      lesson.caption ? h("div", { class: "st-caption" }, h("span", { class: "sec-label" }, "Caption"), h("span", {}, lesson.caption)) : null,
+      h("div", { class: "st-foot" },
+        lesson.caption ? copy : null,
+        l.video ? h("a", { class: "link-btn quiet", href: l.video, download: `${l.id}.mp4` }, "Download") : null,
+        l.cover ? h("a", { class: "link-btn quiet", href: l.cover, download: `${l.id}-cover.jpg` }, "Download cover") : null,
+        h("button", { class: "link-btn quiet", type: "button", disabled: busy, onclick: () => { EX.editing = true; exDraw(); } }, "Edit lesson"),
+        h("button", { class: "link-btn quiet", type: "button", disabled: busy,
+          onclick: () => exDo(() => api("POST", `/api/lessons/${id}/render`, { again: l.made })) }, l.made ? "Make the video again" : "Make the video"),
+        l.topic ? h("button", { class: "link-btn quiet", type: "button", disabled: busy, onclick: () => exRewrite(l) }, "Write it again") : null));
+  }
+  return h("article", { class: "st-ep" },
+    h("div", { class: "st-ep-pic" }, pic),
+    h("div", { class: "st-ep-body" },
+      h("div", { class: "st-ep-head" }, h("h2", {}, lesson.title || l.name)),
+      h("div", { class: "st-meta muted" }, [l.seconds ? `${Math.round(l.seconds)} seconds` : null, `${l.words} words`,
+        l.video ? (l.voiced ? "with the voice" : "no voice") : null, l.stale ? "the lesson changed since this video was made" : null].filter(Boolean).join(" · ")),
+      body));
+}
+
+async function exRewrite(l) {
+  if (!await confirmDialog({ title: "Write this lesson again?",
+    text: "Claude writes a new lesson about the same topic (one request, a few cents). The lesson here now is replaced, then the video is made again.", ok: "Write it again" })) return;
+  exDo(() => api("POST", `/api/lessons/${encodeURIComponent(l.id)}/write`, {}));
+}
+
+function exDraw() {
+  exStop();
+  const l = EX.lesson;
+  if (!l) return;
+  const id = encodeURIComponent(l.id);
+  const busy = !!l.job;
+  const writing = busy && l.job.action === "lesson_write";
+  const status = busy
+    ? h("div", { class: "notice info ct-status", role: "status" }, h("span", { class: "spin" }),
+        writing ? " Claude is writing the lesson. This takes about a minute." : " Making the video: the voice reads it, then VidGen draws it. About a minute. You can leave this page.")
+    : l.error ? h("div", { class: "notice bad", role: "alert" }, h("b", {}, "The lesson could not be written. "), l.error, " ",
+        l.topic ? h("button", { class: "link-btn", type: "button", onclick: () => exDo(() => api("POST", `/api/lessons/${id}/write`, {})) }, "Try again") : null)
+    : null;
+  let card = null;
+  if (l.lesson) {
+    const key = JSON.stringify([l.lesson, l.made, l.stale, l.video, l.voiced, busy, EX.editing]);
+    if (!EX.card || EX.card.key !== key) EX.card = { key, el: exLessonCard(l, busy) };
+    card = EX.card.el;
+  }
+  const tag = h("input", { type: "text", maxlength: 28, value: l.end_tag || "", placeholder: "None", disabled: busy, "aria-label": "Words at the end" });
+  const voice = h("input", { type: "text", maxlength: 40, value: l.voice_id || "", placeholder: "The narrator in your settings", disabled: busy, "aria-label": "Voice id", spellcheck: "false" });
+  const keep = $("#main").scrollTop;
+  $("#main").replaceChildren(h("div", { class: "view studio ct st" },
+    h("a", { class: "ct-back muted", href: "#/lessons" }, "‹ Iro explains"),
+    h("div", { class: "studio-head" },
+      h("div", {}, h("h1", {}, l.name), h("p", { class: "lede" }, l.topic || "A lesson from your own script.")),
+      h("div", { class: "ct-head-btns" },
+        h("button", { class: "btn ghost", type: "button", disabled: busy, onclick: () => exRemove(l) }, icon("trash", 14), "Delete"))),
+    EX.error ? h("div", { class: "notice bad", role: "alert" }, EX.error) : null,
+    status,
+    card ? h("div", { class: "st-eps" }, card) : (!busy && !l.error ? h("div", { class: "empty ct-none" }, "No script yet.") : null),
+    h("details", { class: "card-sec st-set" },
+      h("summary", {}, h("span", { class: "sec-label" }, "Lesson settings"), h("span", { class: "muted" }, "show")),
+      h("div", { class: "ct-row" },
+        h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Words at the end"), tag),
+        h("label", { class: "ct-field" }, h("span", { class: "sec-label" }, "Voice (ElevenLabs voice id)"), voice)),
+      h("div", { class: "ct-actions" },
+        h("button", { class: "btn small", type: "button", disabled: busy,
+          onclick: () => exDo(() => api("PUT", `/api/lessons/${id}`, { end_tag: tag.value.trim(), voice_id: voice.value.trim() })) }, "Save"),
+        h("span", { class: "muted ct-cost" }, "New end words or a new voice show after you make the video again."))),
+    l.lesson ? h("p", { class: "field-note ct-where" }, "The files are in ", h("code", {}, l.folder)) : null));
+  $("#main").scrollTop = keep;
+  if (busy) EX.timer = setTimeout(async () => {
+    if (!exOn(l.id)) return;
+    try { await exLoad(l.id); } catch { /* shown on the next press */ }
+    if (exOn(l.id)) exDraw();
+  }, 2000);
+}
+
+async function exRemove(l) {
+  if (!await confirmDialog({ title: "Delete this lesson?", text: `${l.name}: its script and its video are deleted from this computer.`, ok: "Delete", danger: true })) return;
+  try { await api("DELETE", `/api/lessons/${encodeURIComponent(l.id)}`); EX.lesson = null; EX.home = null; location.hash = "#/lessons"; }
+  catch (e) { EX.error = e.message; exDraw(); }
+}
+
 // The ElevenLabs voice list (free, cached on the server). Loaded once; "refresh" asks again.
 async function loadVoices(refresh) {
   try {
@@ -1409,7 +1664,7 @@ async function refreshJobs() {
 
 function onJobFinished(job) {
   if (job.run_id) S.stamps[job.run_id] = Date.now();
-  toast(`${job.action.startsWith("contrast") || job.action.startsWith("story") ? jobLabel(job) : job.action}${job.params && job.params.step ? ` ${job.params.step}` : ""} ${job.status === "done" ? "finished" : "failed"}${job.error ? `: ${job.error}` : ""}`,
+  toast(`${job.action.startsWith("contrast") || job.action.startsWith("story") || job.action.startsWith("lesson") ? jobLabel(job) : job.action}${job.params && job.params.step ? ` ${job.params.step}` : ""} ${job.status === "done" ? "finished" : "failed"}${job.error ? `: ${job.error}` : ""}`,
     job.status === "done" ? "ok" : "bad");
   if (job.run_id && job.run_id === S.runId) loadRun(S.runId);
   if (job.action === "draw_character") {
@@ -1417,6 +1672,7 @@ function onJobFinished(job) {
   }
   if (job.action.startsWith("contrast") && location.hash.startsWith("#/contrast")) { CT.home = null; route(); }
   if (job.action.startsWith("story") && location.hash.startsWith("#/stories")) { ST.home = null; route(); }
+  if (job.action.startsWith("lesson") && location.hash.startsWith("#/lessons")) { EX.home = null; route(); }
 }
 
 let pollTimer = null;
@@ -3833,6 +4089,7 @@ function jobLabel(j) {
     : j.action === "draw_character" ? `Draw ${j.params.character}`
     : j.action === "contrast_render" ? "Contrast videos" : j.action === "contrast_write" ? "Contrast scenes"
     : j.action === "story_render" ? `Story video${j.params.episode ? ` · part ${j.params.episode}` : ""}` : j.action === "story_write" ? `Story script${j.params.episode ? ` · part ${j.params.episode}` : ""}`
+    : j.action === "lesson_render" ? "Lesson video" : j.action === "lesson_write" ? "Lesson script"
     : j.action.charAt(0).toUpperCase() + j.action.slice(1);
   return what;
 }
@@ -3843,7 +4100,7 @@ function runPremise(runId) {
 }
 
 function jobWhere(j) {
-  return j.params && j.params.batch ? "a contrast batch" : j.params && j.params.series ? "a choice story" : runPremise(j.run_id);
+  return j.params && j.params.batch ? "a contrast batch" : j.params && j.params.series ? "a choice story" : j.params && j.params.lesson ? "a lesson" : runPremise(j.run_id);
 }
 
 function renderDrawer() {
@@ -3946,7 +4203,8 @@ async function watchJob(id, pinned) {
     job.run_id ? h("a", { href: `#/run/${encodeURIComponent(job.run_id)}`, class: "muted" }, "Open video ›")
       : job.action === "draw_character" ? h("a", { href: `#/characters/${encodeURIComponent(job.params.character)}`, class: "muted" }, "Open character ›")
       : job.params && job.params.batch ? h("a", { href: `#/contrast/${encodeURIComponent(job.params.batch)}`, class: "muted" }, "Open batch ›")
-      : job.params && job.params.series ? h("a", { href: `#/stories/${encodeURIComponent(job.params.series)}`, class: "muted" }, "Open series ›") : null,
+      : job.params && job.params.series ? h("a", { href: `#/stories/${encodeURIComponent(job.params.series)}`, class: "muted" }, "Open series ›")
+      : job.params && job.params.lesson ? h("a", { href: `#/lessons/${encodeURIComponent(job.params.lesson)}`, class: "muted" }, "Open lesson ›") : null,
   ].filter(Boolean));
   if (j) setTitle(j);
   renderDrawer();
@@ -3999,7 +4257,10 @@ function route() {
   if (!ct) ctStop();
   const sto = location.hash.match(/^#\/stories(?:\/(.+))?$/);
   const stLink = $("#stories-link"); if (stLink) stLink.classList.toggle("active", !!sto);
+  const exr = location.hash.match(/^#\/lessons(?:\/(.+))?$/);
+  const exLink = $("#lessons-link"); if (exLink) exLink.classList.toggle("active", !!exr);
   if (!sto) stStop();
+  if (!exr) exStop();
   if (runId) {
     if (!S.run) $("#main").replaceChildren(h("div", { class: "empty" }, h("span", { class: "spin" }), "  Loading…"));
     loadRun(runId);
@@ -4013,6 +4274,8 @@ function route() {
     if (ct[1]) renderContrastBatch(decodeURIComponent(ct[1])); else renderContrast();
   } else if (sto) {
     if (sto[1]) renderStorySeries(decodeURIComponent(sto[1])); else renderStories();
+  } else if (exr) {
+    if (exr[1]) renderLesson(decodeURIComponent(exr[1])); else renderLessons();
   } else {
     renderStudio();
   }
