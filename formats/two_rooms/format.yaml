@@ -1,0 +1,117 @@
+# Two Rooms: two people with the same start, shown side by side for the whole video.
+#
+# The shape comes from a reel that passed 13K likes in a day (instagram.com/reel/DgG8Ivftr2E,
+# compoundlab.in): a cutaway of two identical rooms, one above the other. Upstairs he scrolls.
+# Downstairs he works, and a board on his wall fills up. Then the same bad morning hits both of
+# them, and we come back to the two rooms to see who it broke. Three long shots, no voice, a
+# short line of text every second or two, and it ends on a question. Only the structure is
+# taken; the house, the people and the look are VidGen's own.
+#
+# What is different from every other format: nobody speaks and there are only three shots, so
+# each shot is one long clip (rules.long_clips) that carries several lines of text, one after
+# another (shot "captions"). The first and last shots are the same rooms ("scene": "rooms"), so
+# the last one is drawn from the first one's picture.
+
+name: two_rooms
+title: Two Rooms
+description: 'Two people, the same job, two rooms one above the other. Three long shots, no voice, a line of
+  text every second or two, and a question at the end.'
+duration_target: about 26-32 seconds
+aspect: '9:16'
+resolution:
+- 1080
+- 1920
+fps: 30
+clip_seconds: 10                 # for the cost estimate; each clip is made as long as its own shot
+cast: locked
+lengths: [standard]
+references:
+- url: https://www.instagram.com/reel/DgG8Ivftr2E/
+  note: 'compoundlab.in, the layoff: same job, same salary, different nights; one scrolled, one built a skill'
+beats:
+- the two rooms, night after night
+- the same bad morning for both
+- the two rooms again, weeks later
+- the question
+style: warm hand-painted 2D digital illustration, soft gouache brush texture with thin dark ink outlines,
+  cosy amber lamp light against deep blue night shadows, a storybook cutaway seen straight from the
+  front like a dollhouse with its front wall taken off, flat perspective, gentle film grain, vertical 9:16
+# Every shot is one long clip.
+animate_all: true
+max_animated_shots: 5
+sfx: false
+rules:
+  story_shots:
+  - 3
+  - 5
+  vo_words:
+  - 0
+  - 0
+  caption_max_words: 4
+  cta_caption: ''
+  closing_shot: false            # it ends on the question, with no ad at the end
+  narrator: false
+  long_clips: true
+  timed_captions:
+    max: 8
+    max_words: 6
+  banned_image_prompt:
+    fix: leave the app out of the picture; a small robot penguin toy on the desk is as far as it goes
+    patterns:
+    - - \biro\s*ai\b
+      - the app name 'Iro AI'
+    - - \biro\s+app\b
+      - '''Iro app'''
+    - - \bapp('s)?\s+(ui|interface|logo|icon|name|home ?screen|menu|dashboard)\b
+      - app UI
+    - - \buser interface\b
+      - '''user interface'''
+    - - \blogos?\b
+      - a logo
+prompt:
+  app_screen_line: '  * "{{PATH}}": {{SHOWS}}'
+  app_screen_unknown: an Iro app screen
+# The lines of text: white, heavy, with a soft dark edge, written the way a sentence is written
+# (not capitals). They sit on the floor between the two rooms unless a line says otherwise.
+captions:
+  font: Inter SemiBold
+  font_file: assets/fonts/Inter-SemiBold.otf
+  fallback_font: Arial
+  italic: false
+  bold: true
+  size: 76
+  y: 0.5
+  max_words: 6
+  fill: '&H00FFFFFF'
+  outline_color: '&H00101018'
+  outline: 4
+  shadow: 3
+  shadow_color: '&H78000000'
+  blur: 1
+  pop_from: 100
+  pop_ms: 0
+  card_fade_ms: 200
+grade:
+  saturation: 1.0
+  colorbalance: ''
+timing:
+  vo_pad_seconds: 0.0
+  min_shot_seconds: 6.0          # a shot with no "seconds" of its own
+  zoom_end: 1.0
+  card_seconds: 1.5
+  app_screen_seconds: 1.5
+  app_screen_zoom_end: 1.04
+  montage_seconds: 0.5
+  montage_zoom_end: 1.12
+app_screens: []
+# The two people. The one who scrolls and the one who builds: told apart at a glance by the
+# beard and by the colour of the shirt, which each of them keeps for the whole video.
+locked_characters:
+- id: noah
+  role: the one who scrolls
+  description: Noah, a man in his late twenties with short curly black hair, light brown skin, a clean-shaven
+    round face and a slim build
+- id: eli
+  role: the one who builds a skill
+  description: Eli, a man in his late twenties with neat side-parted dark brown hair, warm brown skin, a short
+    trimmed beard and a medium build

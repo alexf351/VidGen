@@ -164,6 +164,22 @@ def clip_prompt(shot: dict, descriptions: dict[str, str] | None = None, who: str
             f'"{quoted}" No subtitles or text on screen.')
 
 
+CLIP_SECONDS = (4, 15)                 # the shortest and longest clip the video models make
+
+
+def clip_length(config: dict, shot: dict) -> int:
+    """How many seconds of clip this shot is asked for: the format's clip_seconds. In a format
+    told in a few long shots (rules.long_clips) a silent shot's clip is as long as the shot
+    stays on screen (its "seconds"), from 4 to 15."""
+    import math
+    base = int(_block(config)["video_seconds"])
+    rules = (config.get("format") or {}).get("rules") or {}
+    want = shot.get("seconds")
+    if rules.get("long_clips") and want and not str(shot.get("vo_line") or "").strip() and not shot.get("talk"):
+        return max(CLIP_SECONDS[0], min(CLIP_SECONDS[1], math.ceil(float(want) - 1e-6)))
+    return base
+
+
 def _sound(config: dict, run_dir: Path) -> bool:
     """Clips are made with their own sound: clip sound is on for this video and the video
     model makes sound (Grok Imagine on Sume does not; its lines get the added voices)."""
@@ -182,6 +198,11 @@ def generate_clip(run_dir: Path, config: dict, shot: dict,
     dest = video_path(run_dir, n)
     label = f"shot {n}"
     sound = _sound(config, run_dir)                 # the clip comes with its own sound
+    seconds = clip_length(config, shot)
+    if seconds != int(_block(config)["video_seconds"]):
+        config = {**config, "sume": {**config.get("sume", {}), "video_seconds": seconds},
+                  "fal": {**config["fal"], "video_seconds": seconds}}
+        fal = config["fal"]
     if video_provider(config) == "sume":
         video_resolution(config)
         if downloads.resume(dest, sume_api.download, label):
@@ -245,7 +266,9 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
     if clip_sound.on(config, run_dir) and not sound:
         print(f"[video] {block['video_model']} makes clips without sound, so this video's lines are spoken by "
               f"the added voices (clip sound has nothing to take from these clips)")
-    print(f"[video] {len(animated)} animated shot(s), {seconds}s each at {resolution}, "
+    lengths = sorted({clip_length(config, s) for s in animated}) or [seconds]
+    each = f"{lengths[0]}s each" if len(lengths) == 1 else f"{lengths[0]} to {lengths[-1]}s each"
+    print(f"[video] {len(animated)} animated shot(s), {each} at {resolution}, "
           f"${rate:.4f}/s{via}" + (", each with its own sound" if sound else ", without sound (voices are added after)"))
     if talking:
         print(f"[video] {len(talking)} talking shot(s), lip-synced on fal ({config['fal']['avatar_model']}), "
@@ -289,11 +312,12 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
                 with lock:
                     _cs.trust(run_dir, n, False)
         progress.tick()
-        cost = seconds * rate
+        length = clip_length(config, shot)
+        cost = length * rate
         with lock:
             totals["cost"] += cost
             totals["count"] += 1
-            print(f"  shot {n}: {seconds}s  est. ${cost:.2f}  (running total ${totals['cost']:.2f})")
+            print(f"  shot {n}: {length}s  est. ${cost:.2f}  (running total ${totals['cost']:.2f})")
 
     def make_talk(shot: dict) -> None:
         n = shot["n"]

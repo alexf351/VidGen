@@ -800,6 +800,32 @@ def _spread_words(text: str, length: float) -> list[dict]:
             for i, t in enumerate(toks)]
 
 
+TIMED_FADE_MS = 160
+
+
+def timed_caption_events(item: dict) -> list[tuple[float, float, str, float | None]]:
+    """(start, end, text, y) on the final timeline for a shot's "captions": several short lines
+    shown one after another while a silent shot plays. Lines without times share the shot
+    evenly; a line stays until its "to", else until the next one (the last, to the shot's end).
+    y is how far down the screen it sits (None = where the format's captions sit)."""
+    lines = [l for l in (item["shot"].get("captions") or []) if isinstance(l, dict) and str(l.get("text") or "").strip()]
+    if not lines:
+        return []
+    start, length = float(item["start"]), float(item["duration"])
+    if all("at" in l for l in lines):
+        ats = [float(l["at"]) for l in lines]
+    else:
+        ats = [length * k / len(lines) for k in range(len(lines))]
+    out = []
+    for k, l in enumerate(lines):
+        a = min(ats[k], length)
+        nxt = min(ats[k + 1], length) if k + 1 < len(lines) else length
+        b = min(float(l["to"]), nxt) if "to" in l else nxt
+        if b - a >= 0.1:
+            out.append((start + a, start + b, str(l["text"]), l.get("y")))
+    return out
+
+
 def card_event(item: dict) -> tuple[float, float, str] | None:
     """A card shot's text for its whole length, or None for any other shot."""
     card = (item["shot"].get("card") or "").strip().upper()
@@ -1026,6 +1052,14 @@ def write_captions(run_dir: Path, build: Path, plan: list[dict], asm: dict) -> t
             lines.append(f"Dialogue: 1,{_ass_time(item['start'])},{_ass_time(item['start'] + item['duration'])},"
                          f"Label,,0,0,0,,{{\\an8\\pos({w // 2},{ly}){big}{box}}}{_ass_escape(wrap + tag + wrap)}")
         lines.extend(stat_events(item, asm, w, h))
+        # Timed captions: as written (their own capitals), each fading in and out where it sits.
+        for start, end, text, y in timed_caption_events(item):
+            ty = cy if y is None else int(round(h * float(y)))
+            fade_ms = min(TIMED_FADE_MS, int((end - start) * 400))
+            lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
+                         f"{{\\an5\\pos({w // 2},{ty})\\blur{blur}\\fad({fade_ms},{fade_ms})}}"
+                         + _ass_escape(text).replace("\n", "\\N"))
+            count += 1
         for start, end, text in shot_caption_events(run_dir, item, max_words, spoken=spoken):
             lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
                          f"{{\\an5\\pos({w // 2},{cy})\\blur{blur}{pop}}}{_ass_escape(text)}")
@@ -1245,7 +1279,11 @@ def cost_report(run_dir: Path, script: dict, config: dict) -> list[tuple[str, fl
     sheets = sum(1 for c in script["characters"]
                  if (run_dir / "characters" / f"{c['id']}.png").exists()
                  and not (locked.get(c["id"], {}).get("image_path")))
-    clips = sum(1 for s in script["shots"] if video_path(run_dir, s["n"]).exists() and not s.get("talk"))
+    made = [s for s in script["shots"] if video_path(run_dir, s["n"]).exists() and not s.get("talk")]
+    clips = len(made)
+    from steps.video import clip_length
+    long_clips = bool(((config.get("format") or {}).get("rules") or {}).get("long_clips"))
+    clip_secs = sum(clip_length(config, s) for s in made) if long_clips else clips * int(fal["video_seconds"])
     talk_secs = 0.0
     talk_clips = 0
     chars = 0
@@ -1258,7 +1296,8 @@ def cost_report(run_dir: Path, script: dict, config: dict) -> list[tuple[str, fl
             talk_secs += float(timing.get("duration") or 0.0)
     rows = [
         (f"images ({keyframes} keyframes + {sheets} sheets)", (keyframes + sheets) * float(fal["image_cost"])),
-        (f"video ({clips} clips x {fal['video_seconds']}s)", clips * float(fal["video_seconds"]) * float(fal["video_cost_per_second"])),
+        (f"video ({clips} clips, {clip_secs}s)" if long_clips else f"video ({clips} clips x {fal['video_seconds']}s)",
+         clip_secs * float(fal["video_cost_per_second"])),
     ]
     if talk_clips:
         rows.append((f"talking ({talk_clips} clips, {talk_secs:.0f}s)", talk_secs * float(fal["avatar_cost_per_second"])))

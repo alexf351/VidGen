@@ -2648,9 +2648,10 @@ function renderRun() {
     if (i) stepBtns.push(h("span", { class: `step-arrow${st.status === "done" ? " done" : ""}` }));
     stepBtns.push(h("button", { class: `step-btn ${st.status === "n/a" ? "na" : st.status}${step === next ? " next" : ""}`,
       disabled: busy || (step !== "script" && !run.script),
-      title: `${stepGo(run, step)}${st.status === "done" ? " again" : ""}`, onclick: () => runStep(run, step) },
+      title: st.status === "n/a" ? (step === "voice" ? "Nobody speaks in this video, so there is nothing to do here" : "Nothing to do in this step for this video")
+        : `${stepGo(run, step)}${st.status === "done" ? " again" : ""}`, onclick: () => runStep(run, step) },
       h("span", { class: `dot ${st.status}` }),
-      h("span", { class: "step-num" }, st.status === "done" ? icon("check", 12) : String(i + 1)),
+      h("span", { class: "step-num" }, st.status === "done" ? icon("check", 12) : st.status === "n/a" ? "–" : String(i + 1)),
       h("span", { class: "step-name" }, STEP_NAME[step]),
       st.total > 1 ? h("span", { class: "count" }, `${st.done}/${st.total}`) : null));
   });
@@ -2882,6 +2883,7 @@ function shotCard(run, s, busy) {
     spoken ? [h("div", { class: "speaker" }, shot.speaker), h("div", { class: "line" }, shot.vo_line)]
       : s.kind === "texts" ? [h("div", { class: "speaker" }, `texts from ${(shot.texts || {}).from || "?"}`), h("div", { class: "line" }, ((shot.texts || {}).messages || []).join(" / "))]
       : h("div", { class: "line silent" }, s.kind === "card" ? "time card" : s.kind === "app_screen" ? `App screen: ${screenTitle(shot.app_screen)}${(screenFor(shot.app_screen) || {}).clip_url && !shot.app_still ? " (recording)" : ""}` :
+        (shot.captions || []).length ? `on screen: ${shot.captions.map((c) => (c.text || "").replace(/\n/g, " ")).join(" / ")}` :
         shot.caption ? `caption: ${shot.caption}` : "silent"),
     s.kind === "app_screen" && (screenFor(shot.app_screen) || {}).wide
       ? h("div", { class: "line-note" }, s.image ? "On the laptop the hero is watching, as in the video."
@@ -3453,6 +3455,7 @@ function draftChanged() {
     for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt", "same_scene", "sfx", "label", "app_screen", "app_still", "clip_start", "seconds"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
     if (JSON.stringify(s.stat ?? null) !== JSON.stringify(o.stat ?? null)) out.add(s.n);
     if (JSON.stringify(s.texts ?? null) !== JSON.stringify(o.texts ?? null)) out.add(s.n);
+    if (JSON.stringify(s.captions ?? null) !== JSON.stringify(o.captions ?? null)) out.add(s.n);
   });
   return out;
 }
@@ -3542,6 +3545,36 @@ function scriptPanel(run, busy) {
     box.addEventListener("toggle", () => { if (box.open) S.lookOpen.add(s.n); else S.lookOpen.delete(s.n); });
     return box;
   };
+  // The lines of text shown one after another over a silent shot (formats with timed captions).
+  const linesEditor = (s, i, row) => {
+    const list = () => (S.draft.shots[i].captions || (S.draft.shots[i].captions = []));
+    const commit = () => { if (!list().length) delete S.draft.shots[i].captions; update(i, "motion_prompt", S.draft.shots[i].motion_prompt, row); };
+    const setNum = (c, key, value) => { const v = Number(value); if (value === "" || !(v >= 0)) delete c[key]; else c[key] = Math.round(v * 100) / 100; commit(); };
+    const box = h("div", { class: "cap-lines" });
+    const draw = () => {
+      const lines = S.draft.shots[i].captions || [];
+      box.replaceChildren(
+        h("div", { class: "look-timing-head" }, "Lines on screen"),
+        lines.length ? h("div", { class: "cap-line cap-line-head", "aria-hidden": "true" }, h("span", {}, "At"), h("span", {}, "Text"), h("span", {}, "Until"), h("span", {}, "Height"), h("span", {})) : null,
+        ...lines.map((c, k) => h("div", { class: "cap-line" },
+          h("input", { type: "number", min: "0", max: "15", step: "0.1", value: c.at ?? "", placeholder: "auto", title: "Seconds into the shot when this line comes up",
+            "aria-label": `Shot ${s.n} line ${k + 1}: seconds in`, oninput: (e) => setNum(c, "at", e.target.value) }),
+          h("input", { type: "text", value: (c.text || "").replace(/\n/g, " / "), placeholder: "Same job.", "aria-label": `Shot ${s.n} line ${k + 1}: text`,
+            oninput: (e) => { c.text = e.target.value.replace(/\s*\/\s*/g, "\n"); commit(); } }),
+          h("input", { type: "number", min: "0", max: "15", step: "0.1", value: c.to ?? "", placeholder: "next", title: "Seconds into the shot when it goes. Empty: when the next line comes",
+            "aria-label": `Shot ${s.n} line ${k + 1}: until`, oninput: (e) => setNum(c, "to", e.target.value) }),
+          h("input", { type: "number", min: "0.04", max: "0.96", step: "0.01", value: c.y ?? "", placeholder: "usual", title: "How far down the screen: 0 is the top, 1 the bottom. Empty: the format's own place",
+            "aria-label": `Shot ${s.n} line ${k + 1}: height on screen`, oninput: (e) => setNum(c, "y", e.target.value) }),
+          h("button", { class: "cap-line-x", type: "button", title: "Remove this line", "aria-label": `Remove line ${k + 1} of shot ${s.n}`,
+            onclick: () => { list().splice(k, 1); commit(); draw(); } }, icon("x", 12)))),
+        h("button", { class: "link-btn", type: "button",
+          onclick: () => { const L = list(); const last = L[L.length - 1]; L.push(last && last.at !== undefined ? { text: "", at: Math.round((last.at + 1.5) * 10) / 10 } : { text: "" }); commit(); draw(); } },
+          lines.length ? "Add a line" : "Add lines of text on screen"),
+        lines.length ? h("div", { class: "field-note" }, "Each line comes up at its time and stays until the next one. A / in the text starts a new line. Save, then assemble again: nothing is generated.") : null);
+    };
+    draw();
+    return box;
+  };
   // Shots can be added and removed in the image pipeline's scripts (not a song or a letter, whose lines hang together).
   const canEditShots = run.engine !== "claude_code" && !run.song;
   const addHere = (after) => !canEditShots ? null : h("button", { type: "button", class: "add-between", disabled: busy || changed.size > 0,
@@ -3602,6 +3635,7 @@ function scriptPanel(run, busy) {
           oninput: (e) => update(i, "letter", e.target.value, row) }, s.letter || "") : null,
         h("textarea", { rows: "2", placeholder: run.song ? "lyric line" : "no dialogue", "aria-label": `Shot ${s.n} ${run.song ? "lyric" : "dialogue"}`,
           oninput: (e) => update(i, "vo_line", e.target.value, row) }, s.vo_line || "")].filter(Boolean));
+      if (run.timed_captions) fields.append(linesEditor(s, i, row));
       if ((s.image_prompt || "").trim()) fields.append(lookEditor(s, i, row));
     }
     const meta = run.shots.find((x) => x.n === s.n);
@@ -3711,7 +3745,8 @@ async function saveScript(run) {
   const overlay = changed.filter((n) => {
     const a = S.draft.shots.find((s) => s.n === n), b = run.script.shots.find((s) => s.n === n) || {};
     return JSON.stringify(a.stat ?? null) !== JSON.stringify(b.stat ?? null) || (a.label || "") !== (b.label || "")
-      || (a.clip_start || 0) !== (b.clip_start || 0) || (a.seconds || 0) !== (b.seconds || 0);
+      || (a.clip_start || 0) !== (b.clip_start || 0) || (a.seconds || 0) !== (b.seconds || 0)
+      || JSON.stringify(a.captions ?? null) !== JSON.stringify(b.captions ?? null);
   });
   const screen = [...new Set([...differs("app_screen"), ...changed.filter((n) => {
     const a = S.draft.shots.find((s) => s.n === n), b = run.script.shots.find((s) => s.n === n) || {};

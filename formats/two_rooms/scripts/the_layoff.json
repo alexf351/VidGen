@@ -1,0 +1,46 @@
+{
+  "title": "The layoff",
+  "premise": "Two men with the same job and the same salary live one above the other. Every night one scrolls on the sofa and one learns AI skills at his desk. Then both are laid off on the same morning. One panics. One already has clients.",
+  "shots": [
+    {
+      "characters": ["noah", "eli"],
+      "image_prompt": "front-on cutaway of a two-storey apartment building at night with its front wall taken off, the frame split into two rooms of exactly the same size stacked one above the other, a thick floor between them at the exact middle of the picture, dark blue night at the outer edges of the building. Both rooms have the same layout: a door on the left wall, a wooden desk with a desk lamp left of centre under an empty cork board, a window on the back wall showing a dark city skyline, a ceiling fan, a wall lamp on the right wall and a grey two-seat sofa on the right. Upstairs room, dim, the desk lamp off: {noah}, in a pale blue shirt and grey trousers, slouched low on the sofa with his feet up, holding a phone close to his face, the phone's cold light on his face. Downstairs room, warm and lit by the desk lamp: {eli}, in a mustard yellow shirt with the sleeves rolled up and dark trousers, sitting at the desk typing on an open laptop, a brown leather work bag on the floor by his chair, a small black and gold robot penguin desk toy with a glowing orange chest beside the laptop. Nobody else in the picture",
+      "motion_prompt": "The camera does not move at all. Upstairs Noah stays on the sofa the whole time: his thumb flicks the phone, he sinks lower, the phone light flickers on his face, his cork board stays empty. Downstairs Eli types, then stands up and pins a bright coloured note on the cork board, sits down and types again, stands and pins another, and another, until by the end the board is crowded with coloured notes. Both ceiling fans turn slowly.",
+      "seconds": 12,
+      "scene": "rooms",
+      "captions": [
+        {"text": "Same job.", "at": 0.2},
+        {"text": "Same salary.", "at": 1.5},
+        {"text": "Different nights.", "at": 2.8},
+        {"text": "One scrolled.", "at": 4.5},
+        {"text": "One learned AI skills.", "at": 6.0},
+        {"text": "Every single night.", "at": 8.0},
+        {"text": "For months.", "at": 10.0}
+      ]
+    },
+    {
+      "characters": ["noah", "eli"],
+      "image_prompt": "wide front view of a bright open-plan office in warm morning sunlight, two desks side by side facing us, big windows and blurred co-workers far behind. At the left desk {noah}, in a pale blue shirt and grey trousers with an office lanyard round his neck, staring wide-eyed at the phone in his hand, his other hand gripping his hair. At the right desk {eli}, in a mustard yellow shirt with the sleeves rolled up and dark trousers with an office lanyard round his neck, reading his own phone with a calm, small smile. On each desk an empty cardboard box stands beside the keyboard, a monitor, a coffee mug and a small potted plant. Nobody else near the desks",
+      "motion_prompt": "Both read their phones. At the left desk Noah drags his hand down his face, then slowly starts dropping his things into the cardboard box, his shoulders sinking. At the right desk Eli puts his phone down, breathes out and packs his plant and his mug into his box without hurrying, almost smiling. Blurred people walk past far behind. The camera pushes in very slowly on the two of them.",
+      "seconds": 9,
+      "captions": [
+        {"text": "Then one morning.", "at": 0.2, "y": 0.12},
+        {"text": "Same layoff.", "at": 2.2, "y": 0.12},
+        {"text": "One panicked.", "at": 4.0, "y": 0.12},
+        {"text": "One had clients.", "at": 5.8, "y": 0.12}
+      ]
+    },
+    {
+      "characters": ["noah", "eli"],
+      "image_prompt": "front-on cutaway of a two-storey apartment building in the early evening with its front wall taken off, the frame split into two rooms of exactly the same size stacked one above the other, a thick floor between them at the exact middle of the picture, dark blue dusk at the outer edges of the building. Both rooms have the same layout: a door on the left wall, a wooden desk with a desk lamp left of centre under a cork board, a window on the back wall showing a purple dusk sky over the city, a ceiling fan, a wall lamp on the right wall and a grey two-seat sofa on the right. In each room an open cardboard box of office things with a small potted plant sits on the floor by the door. Upstairs room, dim, the desk lamp off, the cork board empty: {noah}, in a pale blue shirt and grey trousers, lying back on the sofa with his feet up, holding a phone close to his face, the phone's cold light on his face. Downstairs room, warm and lit by the desk lamp, the cork board crowded with bright coloured notes: {eli}, in a mustard yellow shirt with the sleeves rolled up and dark trousers, sitting at the desk on a video call, a smiling client's face on the laptop in front of him, a small black and gold robot penguin desk toy with a glowing orange chest beside the laptop. Nobody else in the picture",
+      "motion_prompt": "The camera does not move at all. Downstairs Eli talks and nods at the laptop, gesturing with one hand, his room staying warm and bright to the very end. Upstairs Noah keeps flicking through his phone on the sofa. Halfway through, the light in the upstairs room slowly fades out until that whole room is black and the only thing still lit is his face, in the cold glow of the phone.",
+      "seconds": 8,
+      "scene": "rooms",
+      "captions": [
+        {"text": "Weeks later.", "at": 0.2, "to": 1.9},
+        {"text": "One is still scrolling.", "at": 2.2, "to": 4.6},
+        {"text": "Which room\nare you in?", "at": 5.8, "y": 0.25}
+      ]
+    }
+  ]
+}

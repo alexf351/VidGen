@@ -24,14 +24,84 @@ OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage",   # card / app screenshot
                       "texts",                             # text messages on the phone (phone_texts.py)
                       "app_still",                         # app screen: show the still, not its recording
                       "clip_start",                        # seconds into the clip the shot starts at
-                      "seconds"}                           # how long a silent shot stays on screen
+                      "seconds",                           # how long a silent shot stays on screen
+                      "captions",                          # several short lines, one after another
+                      "scene"}                             # a name: shots with the same one share a place
 CLIP_START_MAX = 15.0
 SHOT_SECONDS = (0.3, 15.0)
 LABEL_MAX_WORDS = 3
 LETTER_MAX_WORDS = 40
 SONG_STYLE_MAX = 300
 
+TIMED_Y = (0.04, 0.96)
+
 # The story, the rules and the prompt text come from the video format (formats/<name>/).
+
+
+def check_timed_captions(value, label: str, rule: dict | None, seconds=None) -> tuple[list[dict], list[str]]:
+    """A shot's "captions": short lines shown one after another while a silent shot plays.
+
+    Each is a string, or {"text", "at", "to", "y"}: the words (a line break in them is kept),
+    when the line comes up and when it goes (seconds into the shot) and how far down the screen
+    it sits (0 = the top, 1 = the bottom). Without "at" the lines share the shot evenly; without
+    "to" a line stays until the next one; without "y" it sits where the format's captions sit.
+    Returns (the lines tidied, the problems found)."""
+    problems: list[str] = []
+    if not rule:
+        return [], [f"{label}: this format has no timed captions, so leave out \"captions\""]
+    if not isinstance(value, list):
+        return [], [f"{label}.captions must be a list of short lines"]
+    if len(value) > rule["max"]:
+        problems.append(f"{label}.captions: at most {rule['max']} lines a shot, got {len(value)}")
+    length = float(seconds) if isinstance(seconds, (int, float)) and not isinstance(seconds, bool) and seconds else None
+    out: list[dict] = []
+    for k, raw in enumerate(value):
+        where = f"{label}.captions[{k}]"
+        line = {"text": raw} if _is_str(raw) else raw
+        if not isinstance(line, dict) or not _is_str(line.get("text")):
+            problems.append(f"{where} must be a line of text, or an object with \"text\"")
+            continue
+        extra = set(line) - {"text", "at", "to", "y"}
+        if extra:
+            problems.append(f"{where} has unknown keys: {sorted(extra)}")
+        text = "\n".join(" ".join(part.split()) for part in line["text"].split("\n") if part.strip())
+        if not text:
+            problems.append(f"{where}.text is empty")
+            continue
+        if len(text.split()) > rule["max_words"]:
+            problems.append(f"{where}.text must be at most {rule['max_words']} words, got {text!r}")
+        item: dict = {"text": text}
+        for key in ("at", "to", "y"):
+            v = line.get(key)
+            if v is None or v == "":
+                continue
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                problems.append(f"{where}.{key} must be a number, got {v!r}")
+                continue
+            item[key] = round(float(v), 2)
+        if "y" in item and not (TIMED_Y[0] <= item["y"] <= TIMED_Y[1]):
+            problems.append(f"{where}.y must be from {TIMED_Y[0]:g} (the top) to {TIMED_Y[1]:g} (the bottom), got {item['y']:g}")
+        if "at" in item and item["at"] < 0:
+            problems.append(f"{where}.at must be 0 or more, got {item['at']:g}")
+        if "to" in item and "at" not in item:
+            problems.append(f"{where}: \"to\" needs an \"at\"")
+        elif "to" in item and item["to"] <= item["at"]:
+            problems.append(f"{where}.to must be after its at ({item['at']:g}), got {item['to']:g}")
+        if length is not None and item.get("at", 0) >= length:
+            problems.append(f"{where}.at is {item['at']:g}s, but the shot is only {length:g}s long")
+        out.append(item)
+    timed = [("at" in x) for x in out]
+    if any(timed) and not all(timed):
+        problems.append(f"{label}.captions: give every line an \"at\", or none (they then share the shot evenly)")
+    elif all(timed):
+        for a, b in zip(out, out[1:]):
+            if b["at"] <= a["at"]:
+                problems.append(f"{label}.captions: the lines must come in order ({b['text']!r} at {b['at']:g}s is not after {a['at']:g}s)")
+            elif a.get("to", 0) > b["at"]:
+                problems.append(f"{label}.captions: {a['text']!r} stays to {a['to']:g}s, past the next line at {b['at']:g}s")
+    if not out and not problems:
+        problems.append(f"{label}.captions is empty: leave it out")
+    return out, problems
 
 
 def _format(fmt: dict | None) -> dict:
@@ -220,7 +290,18 @@ def scene_anchor(shots: list[dict], i: int) -> int | None:
     """For shots[i] marked "same_scene", the index of the first shot of its scene: walk back
     over the shots it continues. App screenshots in between are cutaways and are skipped; a
     time card, a montage shot or the start of the list ends the scene (None)."""
-    if not (0 <= i < len(shots)) or shots[i].get("same_scene") is not True:
+    if not (0 <= i < len(shots)) or not isinstance(shots[i], dict):
+        return None
+    # A named scene ("scene": "rooms"): the first drawn shot with that name, however far back and
+    # whatever lies between (the story can leave a place and come back to it).
+    name = shots[i].get("scene")
+    if _is_str(name) and name.strip():
+        for j in range(i):
+            s = shots[j]
+            if (isinstance(s, dict) and s.get("scene") == name and not s.get("card") and not s.get("app_screen")
+                    and not s.get("texts") and str(s.get("image_prompt") or "").strip()):
+                return j
+    if shots[i].get("same_scene") is not True:
         return None
     j = i - 1
     while j >= 0:
@@ -302,7 +383,11 @@ def build_system_prompt(style: str, max_animated: int, locked: list[dict],
     import sfx as sound
     effects = SFX_NOTE.format(max=sound.MAX_SHOT_SFX) if sfx and not (fmt.get("rules") or {}).get("song") else ""
     length = f"\n\n{fmt['length_note']}\n" if fmt.get("length_note") else ""   # a longer video (video_length.py)
-    return prompt + scenes + (ANIMATE_ALL_NOTE if animate_all else "") + effects + length
+    moves = ANIMATE_ALL_NOTE if animate_all else ""
+    if moves and (fmt.get("rules") or {}).get("long_clips"):
+        # A format told in a few long shots: each clip runs as long as its shot, not 4 seconds.
+        moves = moves.replace("real movement for a\n4 second clip", "real movement for the whole clip (it runs as long as\nthe shot's \"seconds\")")
+    return prompt + scenes + moves + effects + length
 
 
 def build_user_prompt(premise: str) -> str:
@@ -694,6 +779,19 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             errors.append(f"{label}.caption must be a string (may be empty)")
         elif len(caption.split()) > CAPTION_MAX_WORDS and caption.strip().upper() != CTA_CAPTION:
             errors.append(f"{label}.caption must be 1-{CAPTION_MAX_WORDS} words or empty, got {caption!r}")
+        timed = s.get("captions")
+        if timed in (None, "", [], False):
+            timed = None
+        if timed is not None:
+            timed, problems = check_timed_captions(timed, label, rules.get("timed_captions"), s.get("seconds"))
+            errors.extend(problems)
+            if is_card or is_app or is_montage or is_flash or is_texts:
+                errors.append(f"{label}: \"captions\" go on a drawn shot, not a card, app screen, montage, flash or texts shot")
+            if vo.strip():
+                errors.append(f"{label}: \"captions\" are for a silent shot, so vo_line must be empty")
+            if _is_str(caption) and caption.strip():
+                errors.append(f"{label}: use \"caption\" (one for the whole shot) or \"captions\" (several, one after "
+                              f"another), not both")
         tag = s.get("label", "")
         if tag is None:
             tag = ""
@@ -770,6 +868,9 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             animated += 1
 
         shot = dict(s)
+        shot.pop("captions", None)
+        if timed and not (is_card or is_app or is_montage or is_flash or is_texts):
+            shot["captions"] = timed
         if is_app and not is_card:
             # Drawn by the assembly step from the real screenshot; nothing else on the shot is used.
             said_over = vo.strip() if rules.get("app_screen_voice") else ""
@@ -875,6 +976,19 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
             shot["same_scene"] = True
         else:
             shot.pop("same_scene")
+    # "scene" names a place the story comes back to: a short name on drawn shots only.
+    for i, shot in enumerate(normalized_shots):
+        if "scene" not in shot:
+            continue
+        v = shot["scene"]
+        drawn = (not shot.get("card") and not shot.get("app_screen") and not shot.get("texts")
+                 and bool(str(shot.get("image_prompt") or "").strip()))
+        if v in (None, "") or not drawn:
+            shot.pop("scene")
+        elif not _is_str(v) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,29}", v.strip().lower()):
+            errors.append(f"shots[{i}].scene must be a short name (letters, digits, - and _), got {v!r}")
+        else:
+            shot["scene"] = v.strip().lower()
     # Clip timing, set in the script editor: where in the clip the shot starts ("clip_start") and
     # how long a silent shot stays on screen ("seconds"). Both are seconds; zero/empty = automatic.
     for i, shot in enumerate(normalized_shots):

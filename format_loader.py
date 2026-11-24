@@ -99,7 +99,19 @@ def _rules(raw, where: str) -> dict:
         "flashes": None,
         # An app-screen shot may carry a spoken line (said over the phone in the hand).
         "app_screen_voice": bool(raw.get("app_screen_voice", False)),
+        # A silent shot may carry several short lines shown one after another (shot "captions"):
+        # {max: lines a shot, max_words: words a line}. None = the format has none.
+        "timed_captions": None,
+        # A silent shot's clip is made as long as the shot stays on screen (its "seconds", 4 to
+        # 15) instead of clip_seconds: for a format told in a few long shots.
+        "long_clips": raw.get("long_clips") is True,
     }
+    if raw.get("timed_captions"):
+        tc = raw["timed_captions"]
+        if (not isinstance(tc, dict) or not isinstance(tc.get("max"), int) or tc["max"] < 1
+                or not isinstance(tc.get("max_words", 6), int) or tc.get("max_words", 6) < 1):
+            raise StepError(f"{where}: rules.timed_captions must be a mapping like {{max: 8, max_words: 6}}")
+        r["timed_captions"] = {"max": int(tc["max"]), "max_words": int(tc.get("max_words", 6))}
     if raw.get("flashes"):
         fl = raw["flashes"]
         if not isinstance(fl, dict):

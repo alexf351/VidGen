@@ -361,6 +361,8 @@ def detail(run_dir: Path, config: dict | None) -> dict:
             "sfx": bool(((config or {}).get("sfx") or {}).get("enabled")),
             # ranks and units for the progress overlay, when the format has one
             "stats": (((config or {}).get("format") or {}).get("rules") or {}).get("stats"),
+            # {max, max_words} when a silent shot may carry several lines of text, one after another
+            "timed_captions": (((config or {}).get("format") or {}).get("rules") or {}).get("timed_captions"),
             # what the script editor's clip timing starts from: how long a clip is, how long a
             # silent shot stays up, and a montage shot (steps/assemble.py)
             "timing": {"clip": float(((config or {}).get("fal") or {}).get("video_seconds") or 4),

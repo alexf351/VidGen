@@ -161,6 +161,7 @@ prompt bytes, validation, captions, grade and timing. To make a new format, copy
 | `pixar_revenge` | the same look and cast | almost wordless: a public rejection, she leaves with a richer man, the grind in quick flashes, a time card, the reunion and one comeback line |
 | `pixar_ladder` | the same look and cast | "I can fix that": doubted, he does the work on screen, gets paid, word spreads, every client is bigger than the last |
 | `pixar_steps` | the same look and cast | a 90-110 s film plus tutorial: the rejection, the method shown working, then the hero gives it in numbered steps, one of them Iro |
+| `two_rooms` | a warm painted cutaway, like a dollhouse seen from the front | no voice at all: two people with the same job in two rooms, one above the other; three long shots, a short line of text every second or two, and a question at the end ([below](#two-rooms-three-shots-no-voice)) |
 
 Every format above except the five `pixar_*` ones and `ps2_skit` can also use the Claude Code engine (below).
 Three formats run only on it: `blender_3d` (Blender 3D), `product_launch` (a HyperFrames launch film)
@@ -1022,6 +1023,7 @@ the premise fills in; pick "Write my own" to go back to Claude writing it.
 | `pixar_revenge` | `the_fountain`   | she says no at the fountain; two years later his car pulls up beside theirs |
 | `pixar_ladder`  | `the_cafe`       | his cafe is dead; the app he builds for it fills the room                |
 | `pixar_steps`   | `the_cactus`     | four steps to a first client, and the line he used is the last step      |
+| `two_rooms`     | `the_layoff`     | same job, same salary; one scrolls, one learns AI skills; then both are laid off |
 
 After the run is made it is an ordinary run: edit lines, swap app screens, redo shots and
 recast voices on the run page as usual. App screens cannot be pinned on a ready-made script
@@ -1766,6 +1768,59 @@ own (a look at the ex, a wink) and the two of them leave in his car, as the ex l
 app-screen shot may carry a `vo_line` and a `speaker`. The shot then lasts as long as the line,
 with the usual word captions over the phone, so "Step three. Open Iro..." is said over the real
 app. In the UI, such a shot's line and speaker can be edited like any other.
+
+### Two Rooms: three shots, no voice
+
+`two_rooms` is built on a reel that passed 13K likes in a day
+([compoundlab.in](https://www.instagram.com/reel/DgG8Ivftr2E/)): a cutaway of two identical rooms,
+one above the other. Upstairs he scrolls. Downstairs he works, and a board on his wall fills up.
+Then the same bad morning hits both of them, and the video comes back to the two rooms to see who
+it broke. Nobody speaks, there is no ad at the end, and it closes on a question people answer in
+the comments. The house, the people and the look are VidGen's own.
+
+```bash
+python main.py new --format two_rooms --ready the_layoff     # the script that ships: no Claude request
+python main.py new --format two_rooms "Two students share a flat. One games every night, one \
+  draws. Then the scholarship results come out."            # Claude writes a new pair
+```
+
+| Shot | Runs | Picture | Lines on screen |
+| --- | --- | --- | --- |
+| 1 | 12 s | the two rooms at night | Same job. / Same salary. / Different nights. / One scrolled. / One learned AI skills. / Every single night. / For months. |
+| 2 | 9 s | both at their desks on a bright morning, each packing a box | Then one morning. / Same layoff. / One panicked. / One had clients. |
+| 3 | 8 s | the rooms again; the upstairs light goes out | Weeks later. / One is still scrolling. / Which room are you in? |
+
+**What it costs.** Three pictures, two character sheets and 29 seconds of clip: about $3.20 on
+Sume with Seedance 2.5 at 480p, about $6.90 at 720p. No voice is made, so no ElevenLabs key is
+needed. The video comes out silent: add the music in the app you post from, or pick a track in
+the Music panel.
+
+**What to check before you post.** The clip model has to do two things in one take: fill the
+board with notes in shot 1 and put the upstairs light out in shot 3. If a take misses one,
+redo that shot's clip (the picture stays). The small robot penguin toy on his desk is the only
+sign of Iro; put "Search Iro" in a pinned comment, where it does not cost you viewers.
+
+Two Rooms needed three things no other format had, and any format can now use them:
+
+- **Several lines of text on one silent shot.** A shot may carry `"captions"`: a list of
+  `{"text", "at", "to", "y"}`. `at` is when the line comes up (seconds into the shot) and `to`
+  when it goes (left out: when the next one comes; the last stays to the end of the shot).
+  `y` is how far down the screen it sits, from 0 (the top) to 1 (the bottom); left out, it sits
+  where the format's captions sit. A line break in the text is kept. Plain strings work too and
+  share the shot evenly. The lines are drawn as written, not in capitals, and each fades in and
+  out. A format switches this on with `rules.timed_captions: {max: 8, max_words: 6}`; the
+  script editor then has a "Lines on screen" box on every shot. Changing a line needs only the
+  assemble step again.
+- **Clips as long as their shot.** With `rules.long_clips: true`, a silent shot's clip is asked
+  for at the length of the shot's `"seconds"` (rounded up, from 4 to 15) instead of the
+  format's `clip_seconds`, and the cost lines count the real seconds. Every other format still
+  makes clips of one length.
+- **A place the story comes back to.** `"scene": "rooms"` on two shots that are not next to each
+  other draws the later one with the earlier one's picture as a reference, so the house stays
+  the same house after the office shot in between. (`"same_scene": true` only continues the shot
+  right before it.)
+
+The voice step now finishes at once, without asking for a key, when no shot has a spoken line.
 
 ## Providers: fal or Sume
 

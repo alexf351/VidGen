@@ -1,0 +1,1 @@
+- This format shows no app screens, so do not add any "app_screen" shots.

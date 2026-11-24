@@ -523,6 +523,14 @@ details.notes { margin-top: 14px; }
 .look-stat label:last-child { grid-column: 1 / -1; }
 .look-stat input, .look-stat select { width: 100%; min-width: 0; }
 .look-timing { margin-top: 6px; }
+.cap-lines { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+.cap-line { display: grid; grid-template-columns: 62px minmax(0, 1fr) 62px 66px 28px; gap: 6px; align-items: center; }
+.cap-line input { width: 100%; min-width: 0; }
+.cap-line-head { font-size: 11px; color: var(--dim); }
+.cap-line-x { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; border: 1px solid transparent; background: none; color: var(--muted); cursor: pointer; }
+.cap-line-x:hover { border-color: var(--line-2); color: var(--text); }
+.cap-line-x:focus-visible { outline: none; box-shadow: var(--ring); }
+@media (max-width: 760px) { .cap-line { grid-template-columns: 52px minmax(0, 1fr) 52px 28px; } .cap-line input:nth-of-type(4), .cap-line-head span:nth-child(4) { display: none; } }
 .look-timing-head { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .look-timing .look-stat { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .look-timing .look-stat label:last-child { grid-column: auto; }
@@ -723,6 +731,7 @@ details.card-sec summary { font-size: 13px; align-items: center; }
 .step-num { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11.5px; font-weight: 700;
   background: var(--panel-3); color: var(--muted); font-variant-numeric: tabular-nums; }
 .step-btn.done { color: var(--text); }
+.step-btn.na { opacity: .55; }
 .step-btn.done .step-num { background: rgba(73, 211, 154, .16); color: var(--ok); }
 .step-btn.partial .step-num { background: rgba(245, 184, 75, .16); color: var(--warn); }
 .step-btn.failed .step-num { background: rgba(255, 93, 108, .18); color: var(--bad); }

@@ -193,8 +193,12 @@ def voice_from_clip(run_dir: Path, config: dict, shot: dict, said_instead: dict 
 
 
 def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> None:
-    require_key()
     script = read_script(run_dir)
+    if not any(str(s.get("vo_line") or "").strip() for s in script["shots"]):
+        # A video told in text alone (Two Rooms): no key is needed and nothing is asked.
+        print("[voice] nobody speaks in this video: nothing to do")
+        return
+    require_key()
     rate = float(config["elevenlabs"]["cost_per_1k_chars"])
     shots = select_shots(script, only)
     spoken = [s for s in shots if s["vo_line"].strip()]
