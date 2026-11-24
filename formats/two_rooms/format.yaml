@@ -24,7 +24,7 @@ resolution:
 fps: 30
 clip_seconds: 10                 # for the cost estimate; each clip is made as long as its own shot
 cast: locked
-lengths: [standard]
+lengths: [short]                 # its own length only: three shots do not stretch
 references:
 - url: https://www.instagram.com/reel/DgG8Ivftr2E/
   note: 'compoundlab.in, the layoff: same job, same salary, different nights; one scrolled, one built a skill'
