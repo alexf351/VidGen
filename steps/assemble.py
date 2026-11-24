@@ -1275,11 +1275,14 @@ def append_outro(build: Path, main: Path, config: dict) -> Path:
 def cost_report(run_dir: Path, script: dict, config: dict) -> list[tuple[str, float]]:
     fal = config["fal"]
     locked = {c["id"]: c for c in config.get("locked_characters", [])}
-    keyframes = sum(1 for s in script["shots"] if shot_path(run_dir, s["n"]).exists())
+    import own_media
+    own_pics = sum(1 for s in script["shots"] if own_media.is_own(run_dir, "pictures", s["n"], shot_path(run_dir, s["n"])))
+    keyframes = sum(1 for s in script["shots"] if shot_path(run_dir, s["n"]).exists()) - own_pics
     sheets = sum(1 for c in script["characters"]
                  if (run_dir / "characters" / f"{c['id']}.png").exists()
                  and not (locked.get(c["id"], {}).get("image_path")))
-    made = [s for s in script["shots"] if video_path(run_dir, s["n"]).exists() and not s.get("talk")]
+    made = [s for s in script["shots"] if video_path(run_dir, s["n"]).exists() and not s.get("talk")
+            and not own_media.is_own(run_dir, "clips", s["n"], video_path(run_dir, s["n"]))]
     clips = len(made)
     from steps.video import clip_length
     long_clips = bool(((config.get("format") or {}).get("rules") or {}).get("long_clips"))
@@ -1295,7 +1298,8 @@ def cost_report(run_dir: Path, script: dict, config: dict) -> list[tuple[str, fl
             talk_clips += 1
             talk_secs += float(timing.get("duration") or 0.0)
     rows = [
-        (f"images ({keyframes} keyframes + {sheets} sheets)", (keyframes + sheets) * float(fal["image_cost"])),
+        (f"images ({keyframes} keyframes + {sheets} sheets)" + (f", {own_pics} of yours" if own_pics else ""),
+         (keyframes + sheets) * float(fal["image_cost"])),
         (f"video ({clips} clips, {clip_secs}s)" if long_clips else f"video ({clips} clips x {fal['video_seconds']}s)",
          clip_secs * float(fal["video_cost_per_second"])),
     ]

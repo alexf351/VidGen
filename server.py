@@ -97,6 +97,14 @@ class CharacterIn(BaseModel):
     image: str | None = None          # data: URL of an uploaded picture
 
 
+class OwnPicture(BaseModel):
+    image: str                        # data: URL of a picture made somewhere else
+
+
+class OwnClip(BaseModel):
+    video: str                        # data: URL of a clip made somewhere else
+
+
 class DrawRequest(BaseModel):
     format: str = DEFAULT_FORMAT
     provider: ProviderChoice = None
@@ -993,6 +1001,32 @@ def create_app(load_config: Callable[..., dict], key_sources: dict[str, str],
         except StepError as e:
             raise HTTPException(422, str(e)) from e
         return {"removed": out["removed"], "files": out["files"]}
+
+    @app.put("/api/runs/{run_id}/shots/{n}/picture")
+    def own_picture(run_id: str, n: int, body: OwnPicture) -> dict:
+        """Your own picture for a shot (made in ChatGPT, Midjourney, Grok...). No picture model is
+        called. A clip made from the old picture is taken out."""
+        import own_media
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "your own picture")
+        idle_or_409(run_id)
+        try:
+            return own_media.save_picture(run_dir, n, app_assets.decode_upload(body.image, "picture"))
+        except StepError as e:
+            raise HTTPException(422, str(e)) from e
+
+    @app.put("/api/runs/{run_id}/shots/{n}/clip")
+    def own_clip(run_id: str, n: int, body: OwnClip) -> dict:
+        """Your own clip for a shot (made in Grok, Kling, Sora...). No video model is called."""
+        import own_media
+        run_dir = run_dir_of(run_id)
+        image_pipeline_only(run_dir, "your own clip")
+        idle_or_409(run_id)
+        try:
+            return own_media.save_clip(run_dir, n, app_assets.decode_upload(body.video, "clip", app_assets.MAX_CLIP_UPLOAD_BYTES),
+                                       config_for_run(run_dir))
+        except StepError as e:
+            raise HTTPException(422, str(e)) from e
 
     def image_pipeline_only(run_dir: Path, what: str) -> None:
         if run_engine(run_dir) == "claude_code":

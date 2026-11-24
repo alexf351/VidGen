@@ -238,6 +238,10 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
     descriptions = {c["id"]: c.get("description", "") for c in script.get("characters", []) if isinstance(c, dict)}
     animated = [s for s in selected if s.get("animate") and not s.get("talk")]
     talking = [s for s in selected if s.get("talk")]
+    if not force and not any(not video_path(run_dir, s["n"]).exists() for s in [*animated, *talking]):
+        # Every clip is there (yours, uploaded, or made before): no key and no cost.
+        print(f"[video] every moving shot has its clip: nothing to make")
+        return
     if animated:
         if video_provider(config) == "sume":
             sume_api.require_key()

@@ -1769,6 +1769,23 @@ app-screen shot may carry a `vo_line` and a `speaker`. The shot then lasts as lo
 with the usual word captions over the phone, so "Step three. Open Iro..." is said over the real
 app. In the UI, such a shot's line and speaker can be edited like any other.
 
+### Your own pictures and clips
+
+Every drawn shot can use a picture or a clip you made somewhere else: ChatGPT, Midjourney, Grok,
+Kling, anything that gives you a file. On the shot card:
+
+- **Copy prompt** copies what the shot's picture should show. Paste it where you make pictures and
+  ask for a tall 9:16 picture.
+- **My picture** puts your PNG, JPEG or WebP in as the shot's picture. No picture model is called.
+  A clip made from the old picture is taken out (VidGen asks first), so make the clip again from
+  yours or bring your own clip too. A picture of another shape is cropped to fill the screen.
+- **My clip** puts your MP4 or MOV in as the shot's clip. No video model is called. It is cut to
+  15 seconds, and a shot with no picture yet gets the clip's first frame as its picture.
+
+The images and clips steps leave your files alone. When every shot has its picture (or clip), the
+step says so and needs no key at all, and the cost estimate leaves your files out. A shot made
+again by VidGen later counts as paid again.
+
 ### Two Rooms: three shots, no voice
 
 `two_rooms` is built on a reel that passed 13K likes in a day

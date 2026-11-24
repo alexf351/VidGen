@@ -2912,11 +2912,38 @@ function shotCard(run, s, busy) {
     reviewNotes(run, s, busy),
     spoken && s.trusted ? h("div", { class: "line-note" }, "The clip’s own voice, on your say-so. ",
       h("button", { class: "link-btn", type: "button", disabled: busy, onclick: () => useClipVoice(run, s.n, false) }, "Undo")) : null);
+  // Your own picture or clip, made somewhere else: the file goes straight in, nothing is generated.
+  const fileInputs = [];
+  const ownFile = (kind) => {
+    const input = h("input", { type: "file", accept: kind === "picture" ? "image/png,image/jpeg,image/webp" : "video/mp4,video/quicktime,video/*", class: "hidden-file",
+      onchange: async () => {
+        const f = input.files && input.files[0];
+        input.value = "";
+        if (!f) return;
+        try {
+          if (kind === "picture" && s.clip && !await confirmDialog({ title: `Use your picture for shot ${s.n}?`,
+            text: "Its clip was made from the old picture, so it is taken out. Make the clip again (Clip), or bring your own clip too.", ok: "Use my picture" })) return;
+          const out = await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/shots/${s.n}/${kind}`, kind === "picture" ? { image: await readFile(f) } : { video: await readFile(f) });
+          toast(kind === "picture" ? `Shot ${s.n}: your picture is in${out.shape !== "9:16" ? ` (it is ${out.shape}, so the video crops it to fill the screen)` : ""}`
+            : `Shot ${s.n}: your clip is in (${out.seconds} s)`, "ok");
+          await loadRun(run.run_id);
+        } catch (e) { toast(e.message, "bad"); }
+      } });
+    fileInputs.push(input);            // outside the button: a click on it would bubble back to the button
+    return h("button", { disabled: busy || !drawable, title: kind === "picture"
+      ? "Use a picture you made somewhere else (ChatGPT, Midjourney, Grok...). Nothing is generated."
+      : "Use a clip you made somewhere else (Grok, Kling, Sora...). Nothing is generated.",
+      onclick: () => input.click() }, kind === "picture" ? "My picture" : "My clip");
+  };
+  const copyPrompt = () => h("button", { disabled: !drawable || !(shot.image_prompt || "").trim(),
+    title: "Copy what this shot's picture should show, to paste into ChatGPT, Midjourney or Grok. Ask for a tall 9:16 picture.",
+    onclick: async () => { try { await navigator.clipboard.writeText(shot.image_prompt); toast("Picture prompt copied", "ok"); } catch { toast("Could not copy from this page", "bad"); } } }, "Copy prompt");
   const actions = h("div", { class: "shot-actions" },
     h("button", { disabled: busy || !drawable, title: shot.talk ? "New keyframe and talking clip" : shot.animate ? "New keyframe and clip" : "New keyframe", onclick: () => reroll(run, s) }, "Reroll"),
     h("button", { disabled: busy || !drawable, title: "Redo the keyframe only", onclick: () => runStep(run, "images", [s.n]) }, "Image"),
     h("button", { disabled: busy || !spoken, title: run.song ? "Make the whole song again" : shot.talk ? "Redo the voice line (then redo its talking clip)" : "Redo the voice line",
-      onclick: () => runStep(run, "voice", run.song ? null : [s.n]) }, run.song ? "Song" : "Voice"));
+      onclick: () => runStep(run, "voice", run.song ? null : [s.n]) }, run.song ? "Song" : "Voice"),
+    copyPrompt(), ownFile("picture"), ownFile("clip"), ...fileInputs);
   return h("article", { class: `shot${selected ? " selected" : ""}` }, thumb, info, actions);
 }
 

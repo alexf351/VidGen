@@ -527,9 +527,15 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
 
 
 def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> None:
-    _require_key(config)
     script = read_script(run_dir)
     shots = select_shots(script, only)
+    missing = [s for s in shots if needs_keyframe(s) and (force or not shot_path(run_dir, s["n"]).exists())]
+    hand = only is None and bool(config.get("app_screen_hand")) and any(s.get("app_screen") for s in script["shots"])
+    if not missing and not hand:
+        # Every picture is there (yours, uploaded, or drawn before): no sheets, no key, no cost.
+        print(f"[images] every shot has its picture: nothing to draw")
+        return
+    _require_key(config)
     if image_provider(config) == "sume":
         print(f"[images] provider: Sume ({config['sume']['image_model']}), "
               f"up to {_workers(config)} at once")
