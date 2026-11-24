@@ -21,7 +21,7 @@
     {
       "characters": ["noah", "eli"],
       "image_prompt": "wide front view of a bright open-plan office in warm morning sunlight, two desks side by side facing us, big windows and blurred co-workers far behind. At the left desk {noah}, in a pale blue shirt and grey trousers with an office lanyard round his neck, staring wide-eyed at the phone in his hand, his other hand gripping his hair. At the right desk {eli}, in a mustard yellow shirt with the sleeves rolled up and dark trousers with an office lanyard round his neck, reading his own phone with a calm, small smile. On each desk an empty cardboard box stands beside the keyboard, a monitor, a coffee mug and a small potted plant. Nobody else near the desks",
-      "motion_prompt": "Both read their phones. At the left desk Noah drags his hand down his face, then slowly starts dropping his things into the cardboard box, his shoulders sinking. At the right desk Eli puts his phone down, breathes out and packs his plant and his mug into his box without hurrying, almost smiling. Blurred people walk past far behind. The camera pushes in very slowly on the two of them.",
+      "motion_prompt": "Both read their phones. At the left desk Noah drags his hand down his face and slumps back in his chair, still staring at his phone. At the right desk Eli lowers his phone, breathes out and leans back with a small, calm smile. Their hands stay off the desks and nothing on the desks moves. Blurred people walk past far behind. The camera pushes in very slowly on the two of them.",
       "seconds": 9,
       "captions": [
         {"text": "Then one morning.", "at": 0.2, "y": 0.12},
