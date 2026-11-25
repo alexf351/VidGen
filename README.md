@@ -1835,7 +1835,8 @@ Two Rooms needed three things no other format had, and any format can now use th
 - **Sped-up shots.** `"speed": 1.25` (up to 2) on a silent moving shot makes its clip that much
   longer (still at most 15 s) and plays it fast, so the shot keeps its length and packs in more
   action, the busy time-lapse look. The script editor has a Speed choice under Clip timing;
-  changing it needs a new clip for that shot. A sped-up shot does not play its clip's own sound.
+  changing it needs a new clip for that shot. With clip sound on, its sound (typing, footsteps)
+  is sped up the same way, so it stays with the picture.
   An uploaded clip (**My clip**) is sped up the same way, so make it the longer length.
 - **A place the story comes back to.** `"scene": "rooms"` on two shots that are not next to each
   other draws the later one with the earlier one's picture as a reference, so the house stays

@@ -29,6 +29,8 @@ SHOT FIELDS
   up, the light in one room goes out). Moves of the body and things added to a wall are safe;
   objects passed around or packed are not (the model loses track of them). Say what does NOT
   move as well: the camera stays still on the two-room shots.
+- End every "motion_prompt" with the sounds of the clip ("Sounds: fast keyboard typing, both
+  phones buzz at once, a gasp"): with clip sound on, the clip is made with them. No words spoken.
 - "speed": 1.25 on every shot. The clip is made that much longer and played fast, so the
   action reads busy like the reference.
 - "animate" is true on every shot.

@@ -1099,7 +1099,7 @@ def own_sound_shots(run_dir: Path, plan: list[dict], config: dict) -> list[dict]
     out = []
     for it in plan:
         shot = it["shot"]
-        if (it["vo"] is not None or not shot.get("animate") or shot.get("talk") or shot.get("card") or shot.get("speed")
+        if (it["vo"] is not None or not shot.get("animate") or shot.get("talk") or shot.get("card")
                 or shot.get("app_screen") or shot.get("texts") or shot.get("montage") or shot.get("flash") or shot.get("letter")):
             continue
         clip = video_path(run_dir, it["n"])
@@ -1148,11 +1148,14 @@ def mix_sound(build: Path, plan: list[dict], total: float, config: dict,
         # faded at both ends so the cut does not click.
         import clip_sound
         level = clip_sound.settings(config)["level"]
+        from steps.video import shot_speed
         for it in own_items:
             d = float(it["duration"])
+            speed = shot_speed(it["shot"])
+            fast = f"atempo={speed:.4f}," if speed > 1 else ""     # in step with a sped-up picture
             wav = audio_mix.decode(video_path(build.parent, it["n"]), work / f"own_{it['n']:02d}.wav",
                                    f"shot {it['n']}: its clip's own sound", seconds=d,
-                                   filters=f"afade=t=in:d=0.04,afade=t=out:st={max(0.0, d - 0.08):.3f}:d=0.08,"
+                                   filters=f"{fast}afade=t=in:d=0.04,afade=t=out:st={max(0.0, d - 0.08):.3f}:d=0.08,"
                                            f"volume={level:.3f}")
             items.append({"path": wav, "start": it["start"], "gain": voices})
             tick()
