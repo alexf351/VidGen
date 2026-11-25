@@ -23,10 +23,14 @@ SHOT FIELDS
   same words. No text in the image.
 - "characters" lists both ids on every shot.
 - "motion_prompt" describes the whole clip, which runs as long as the shot's "seconds" (8 to
-  12 seconds, not 4). Say what each of the two does over that time, one after the other, and
-  what changes in the picture by the end (the board fills up, the box gets packed, the light in
-  one room goes out). Say what does NOT move as well: the camera stays still on the two-room
-  shots.
+  12 seconds, not 4). Keep both of them busy the whole time, like a sped-up day: several
+  actions each, one after the other (gets up, wanders, flops back down; types, pins a note,
+  takes a call, pins another), and say what changes in the picture by the end (the board fills
+  up, the light in one room goes out). Moves of the body and things added to a wall are safe;
+  objects passed around or packed are not (the model loses track of them). Say what does NOT
+  move as well: the camera stays still on the two-room shots.
+- "speed": 1.25 on every shot. The clip is made that much longer and played fast, so the
+  action reads busy like the reference.
 - "animate" is true on every shot.
 - "seconds" is how long the shot runs: 8 to 12. The three shots together run 26 to 32 seconds.
 - "scene": "rooms" goes on every two-room shot. The later ones are then drawn from the first

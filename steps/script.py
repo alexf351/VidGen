@@ -26,8 +26,10 @@ OPTIONAL_SHOT_KEYS = {"card", "app_screen", "montage",   # card / app screenshot
                       "clip_start",                        # seconds into the clip the shot starts at
                       "seconds",                           # how long a silent shot stays on screen
                       "captions",                          # several short lines, one after another
-                      "scene"}                             # a name: shots with the same one share a place
+                      "scene",                             # a name: shots with the same one share a place
+                      "speed"}                             # play the clip faster (a longer clip is made)
 CLIP_START_MAX = 15.0
+SPEED_RANGE = (1.0, 2.0)
 SHOT_SECONDS = (0.3, 15.0)
 LABEL_MAX_WORDS = 3
 LETTER_MAX_WORDS = 40
@@ -1002,6 +1004,21 @@ def validate_and_normalize(data: dict, style: str, max_animated: int,
                 errors.append(f"shots[{i}].{key} must be a number of seconds from {lo:g} to {hi:g}, got {v!r}")
             else:
                 shot[key] = round(float(v), 2)
+    # "speed" plays a silent moving shot's clip faster, the way a sped-up reel looks busy: the clip is
+    # made that much longer (up to the longest clip) and played back fast. 1 (or empty) = normal.
+    for i, shot in enumerate(normalized_shots):
+        if "speed" not in shot:
+            continue
+        v = shot["speed"]
+        silent = not str(shot.get("vo_line") or "").strip() and not shot.get("talk")
+        if v is None or v == "" or v == 1 or v == 1.0:
+            shot.pop("speed")
+        elif isinstance(v, bool) or not isinstance(v, (int, float)) or not (SPEED_RANGE[0] <= float(v) <= SPEED_RANGE[1]):
+            errors.append(f"shots[{i}].speed must be a number from {SPEED_RANGE[0]:g} to {SPEED_RANGE[1]:g}, got {v!r}")
+        elif not silent or shot.get("card") or shot.get("app_screen") or shot.get("texts") or shot.get("letter"):
+            errors.append(f"shots[{i}].speed is only for a silent moving shot: a sped-up clip would rush the words")
+        else:
+            shot["speed"] = round(float(v), 2)
     # "sfx" is a sound name or "none"; anything else is quietly dropped, and so are sounds past
     # the cap (a cut where every shot booms has no boom).
     import sfx as sound

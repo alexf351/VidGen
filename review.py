@@ -512,12 +512,13 @@ def _window(run_dir: Path, shot: dict, duration: float) -> tuple[float, float] |
         for item in read_json(Path(run_dir) / TIMELINE):
             if item.get("n") == shot["n"] and item.get("clip_from") is not None:
                 start = float(item["clip_from"])
-                return (start, min(duration, start + float(item.get("end", 0)) - float(item.get("start", 0))))
+                speed = float(item.get("speed") or 1)
+                return (start, min(duration, start + (float(item.get("end", 0)) - float(item.get("start", 0))) * speed))
     except (OSError, ValueError, TypeError, AttributeError):
         pass
     start = float(shot.get("clip_start") or 0)
     if shot.get("seconds"):
-        return (start, min(duration, start + float(shot["seconds"])))
+        return (start, min(duration, start + float(shot["seconds"]) * float(shot.get("speed") or 1)))
     return (start, duration) if start else None
 
 

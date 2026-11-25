@@ -629,7 +629,10 @@ def build_shot_clip(run_dir: Path, build: Path, item: dict, asm: dict,
     if (shot.get("animate") or shot.get("talk")) and clip.exists():
         # Trim to length; if the clip is shorter than the VO, hold its last frame. A talking clip
         # is as long as its voice line and starts with it, so its lips stay in sync.
-        vf = (f"{_fill_filter(w, h)},fps={fps},"
+        from steps.video import shot_speed
+        speed = shot_speed(shot)
+        fast = f"setpts=(PTS-STARTPTS)/{speed:.4f}," if speed > 1 else ""      # a sped-up shot ("speed")
+        vf = (f"{fast}{_fill_filter(w, h)},fps={fps},"
               f"tpad=stop_mode=clone:stop_duration={duration + 1:.3f},setsar=1")
         # A shot that speaks from its own clip starts where its line starts in the clip, so the
         # picture is the same stretch as the sound and the lips stay with the words.
@@ -1096,7 +1099,7 @@ def own_sound_shots(run_dir: Path, plan: list[dict], config: dict) -> list[dict]
     out = []
     for it in plan:
         shot = it["shot"]
-        if (it["vo"] is not None or not shot.get("animate") or shot.get("talk") or shot.get("card")
+        if (it["vo"] is not None or not shot.get("animate") or shot.get("talk") or shot.get("card") or shot.get("speed")
                 or shot.get("app_screen") or shot.get("texts") or shot.get("montage") or shot.get("flash") or shot.get("letter")):
             continue
         clip = video_path(run_dir, it["n"])
@@ -1350,6 +1353,8 @@ def write_timeline(build: Path, plan: list[dict], run_dir: Path) -> None:
         if kind == "clip" and not it.get("letter_page"):
             item["clip_from"] = round(float(it["clip_offset"]) if "clip_offset" in it
                                       else float(shot.get("clip_start") or 0), 3)
+            if shot.get("speed"):
+                item["speed"] = shot["speed"]
         out.append(item)
     try:
         write_json(build / "timeline.json", out)

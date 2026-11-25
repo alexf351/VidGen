@@ -175,9 +175,21 @@ def clip_length(config: dict, shot: dict) -> int:
     base = int(_block(config)["video_seconds"])
     rules = (config.get("format") or {}).get("rules") or {}
     want = shot.get("seconds")
+    speed = shot_speed(shot)
     if rules.get("long_clips") and want and not str(shot.get("vo_line") or "").strip() and not shot.get("talk"):
-        return max(CLIP_SECONDS[0], min(CLIP_SECONDS[1], math.ceil(float(want) - 1e-6)))
+        return max(CLIP_SECONDS[0], min(CLIP_SECONDS[1], math.ceil(float(want) * speed - 1e-6)))
+    if speed > 1:
+        return max(CLIP_SECONDS[0], min(CLIP_SECONDS[1], math.ceil(base * speed - 1e-6)))
     return base
+
+
+def shot_speed(shot: dict) -> float:
+    """How fast the shot's clip plays (the script's "speed"; 1 = as made)."""
+    try:
+        v = float(shot.get("speed") or 1)
+    except (TypeError, ValueError):
+        return 1.0
+    return v if 1.0 < v <= 2.0 else 1.0
 
 
 def _sound(config: dict, run_dir: Path) -> bool:

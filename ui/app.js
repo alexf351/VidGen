@@ -3479,7 +3479,7 @@ function draftChanged() {
   if (!S.run || !S.run.script || !S.draft) return out;
   S.draft.shots.forEach((s, i) => {
     const o = S.run.script.shots[i] || {};
-    for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt", "same_scene", "sfx", "label", "app_screen", "app_still", "clip_start", "seconds"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
+    for (const k of ["vo_line", "speaker", "caption", "card", "letter", "motion_prompt", "image_prompt", "same_scene", "sfx", "label", "app_screen", "app_still", "clip_start", "seconds", "speed"]) if ((s[k] ?? "") !== (o[k] ?? "")) out.add(s.n);
     if (JSON.stringify(s.stat ?? null) !== JSON.stringify(o.stat ?? null)) out.add(s.n);
     if (JSON.stringify(s.texts ?? null) !== JSON.stringify(o.texts ?? null)) out.add(s.n);
     if (JSON.stringify(s.captions ?? null) !== JSON.stringify(o.captions ?? null)) out.add(s.n);
@@ -3554,7 +3554,13 @@ function scriptPanel(run, busy) {
         h("label", { class: "look-label" }, (s.vo_line || "").trim() ? "On screen at least (seconds)" : "On screen for (seconds)",
           h("input", { type: "number", min: "0.3", max: "15", step: "0.1", value: s.seconds ? String(s.seconds) : "",
             placeholder: (s.vo_line || "").trim() ? "as long as its line" : `${auto}, automatic`, "aria-label": `Shot ${s.n} seconds on screen`,
-            oninput: (e) => setTime("seconds", e.target.value) }))),
+            oninput: (e) => setTime("seconds", e.target.value) })),
+        (s.vo_line || "").trim() || s.talk ? null : h("label", { class: "look-label" }, "Speed",
+          h("select", { "aria-label": `Shot ${s.n} speed`, onchange: (e) => setTime("speed", e.target.value === "1" ? "" : e.target.value) },
+            ...[["1", "Normal"], ["1.25", "1.25x, a bit busier"], ["1.5", "1.5x, sped up"], ["2", "2x, time-lapse"]].map(([v, t]) =>
+              h("option", { value: v, selected: String(s.speed || 1) === v }, t))))),
+      !ownLine && s.speed > 1 ? h("div", { class: "field-note" },
+        `Sped up ${s.speed}x: the clip is made ${s.speed}x longer (up to 15 s) and played fast, so the shot keeps its length and packs in more action. Changing it needs a new clip for this shot.`) : null,
       ownLine ? null : h("div", { class: "field-note" },
         `The clip is ${T.clip} s long. Play it on the shot card to see when the action happens, then pick the stretch: start at 1.5 and stay 2.5 shows 1.5 to 4.0 s. Past the clip's end the last frame holds. Save, then assemble again; nothing is generated.`)) : null;
     const box = h("details", { class: "look", open: touched || S.lookOpen.has(s.n) },
@@ -3780,7 +3786,7 @@ async function saveScript(run) {
     return (a.app_still === true) !== (b.app_still === true);
   })])].sort((a, b) => a - b);
   const clipped = new Set(run.shots.filter((s) => s.shot.animate || s.shot.talk).map((s) => s.n));
-  const video = differs("motion_prompt").filter((n) => clipped.has(n) && !images.includes(n));
+  const video = [...new Set([...differs("motion_prompt"), ...changed.filter((n) => (S.draft.shots.find((s) => s.n === n).speed || 1) !== ((run.script.shots.find((s) => s.n === n) || {}).speed || 1))])].filter((n) => clipped.has(n) && !images.includes(n));
   try {
     await api("PUT", `/api/runs/${encodeURIComponent(run.run_id)}/script`, S.draft);
     S.saveErrors = null;

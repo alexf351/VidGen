@@ -526,6 +526,20 @@ def generate_keyframe(run_dir: Path, config: dict, shot: dict, sheets: dict[str,
     return dest
 
 
+def _no_image_note(shot: dict) -> str | None:
+    """Why a shot gets no picture from the model, or None when it does."""
+    n = shot["n"]
+    if shot.get("card"):
+        return f"  shot {n}: time card \"{shot['card']}\", no image needed"
+    if shot.get("app_screen"):
+        return f"  shot {n}: real app screenshot {shot['app_screen']}, no image needed"
+    if shot.get("texts"):
+        return f"  shot {n}: text messages from {shot['texts']['from']}, no image needed"
+    if not needs_keyframe(shot):
+        return f"  shot {n}: keeps the previous background, no image needed"
+    return None
+
+
 def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> None:
     script = read_script(run_dir)
     shots = select_shots(script, only)
@@ -534,6 +548,10 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
     if not missing and not hand:
         # Every picture is there (yours, uploaded, or drawn before): no sheets, no key, no cost.
         print(f"[images] every shot has its picture: nothing to draw")
+        for shot in shots:
+            note = _no_image_note(shot)
+            if note:
+                print(note)
         return
     _require_key(config)
     if image_provider(config) == "sume":
@@ -595,17 +613,9 @@ def _run(run_dir: Path, config: dict, only: set[int] | None, force: bool) -> Non
     todo: list[dict] = []
     for shot in shots:
         n = shot["n"]
-        if shot.get("card"):
-            print(f"  shot {n}: time card \"{shot['card']}\", no image needed")
-            continue
-        if shot.get("app_screen"):
-            print(f"  shot {n}: real app screenshot {shot['app_screen']}, no image needed")
-            continue
-        if shot.get("texts"):
-            print(f"  shot {n}: text messages from {shot['texts']['from']}, no image needed")
-            continue
-        if not needs_keyframe(shot):
-            print(f"  shot {n}: keeps the previous background, no image needed")
+        note = _no_image_note(shot)
+        if note:
+            print(note)
             continue
         dest = shot_path(run_dir, n)
         if dest.exists() and not force:
